@@ -1,0 +1,22 @@
+{
+  "id": "emerald_lens",
+  "name": "Emerald Lens",
+  "version": "0.1.0",
+  "api": 2,
+  "entry": "main.lua",
+  "profile": "content",
+  "game_version": ">=0.3.53",
+  "category": "GRAPHICS",
+  "priority": 100,
+  "dependencies": [],
+  "optional_dependencies": [],
+  "conflicts": [],
+  "incompatible": [],
+  "experimental": false,
+  "permissions": [
+    "engine_internals"
+  ],
+  "description": "Player sprite replacement for FireRed, LeafGreen, Ruby, Sapphire and Emerald, using the same character folder format as Crystal Lens.",
+  "github": "ElvieBlooms/emerald_lens",
+  "games": ["gen3"]
+}

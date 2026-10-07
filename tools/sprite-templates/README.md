@@ -1,0 +1,74 @@
+# Emerald Lens sprite templates
+
+Two formats, usable interchangeably -- draw in either, convert between them
+at any point, and pack from either or both:
+
+- **One combined sheet** (`frlg_sheet.png`, `rse_sheet.png`), laid out like
+  the standard community sprite sheets: front, back and intro on top, then a
+  labeled block per action. In every block the rows are facing **down, up,
+  left** (right-facing frames are the left ones mirrored by the game).
+- **Separate templates** in `frlg/` and `rse/`, one strip per game sheet, in
+  the game's own frame order.
+
+`frlg` is FireRed and LeafGreen; `rse` is Ruby, Sapphire and Emerald. Each
+frame is boxed by a 1px magenta (#FF00FF) guide line; draw only inside the
+boxes and keep the background transparent. Gen 3 sprites are always full color.
+
+## Seeing the originals
+Export the game's own sprites from your imported cache, in both formats by
+default: a filled `frlg_sheet.png` / `rse_sheet.png` plus the separate
+templates. Add `--sheet` or `--separate` for just one. They're Nintendo's art
+from your own ROM, so keep them on your machine and out of any repo.
+
+    python3 pack_gen3.py reference frlg girl /path/to/pokemon-love2d/firered ./ref-frlg
+    python3 pack_gen3.py reference rse  girl /path/to/pokemon-love2d/emerald ./ref-rse
+    python3 pack_gen3.py reference rse  girl /path/to/pokemon-love2d/ruby    ./ref-rse --sheet
+
+Use `boy` instead of `girl` for a boy character.
+
+## Converting between formats
+`convert` turns a combined sheet into a folder of separate templates, or a
+folder of separate templates into a combined sheet. Nothing is lost either
+way, and anything not drawn yet stays blank.
+
+    python3 pack_gen3.py convert frlg frlg_sheet.png ./frlg-separate
+    python3 pack_gen3.py convert frlg ./frlg frlg_sheet.png
+
+## Packing into the mod
+Run these from this folder. Point `pack` at a combined sheet, a folder of separate templates, or a folder
+holding both:
+
+    python3 pack_gen3.py pack frlg frlg_sheet.png ../../assets/sprites/<folder>/gen3/frlg
+    python3 pack_gen3.py pack rse  ./my-rse-work  ../../assets/sprites/<folder>/gen3/rse
+
+When a folder has both, a drawn separate template is used over the same block
+on the combined sheet (the script says so), and blank templates are ignored.
+So you can keep most of a character on the sheet and redo one action as a
+separate file, or the other way round.
+
+Anything left blank is skipped, so a fallback folder or the game's own sprite
+fills in. If a file is only partly drawn (say WALK but not RUN, which share
+`walk.png`), it's still packed but you're told which frames are blank, since
+the player would vanish in those poses. The script also warns if guide pixels
+were painted over. Needs Pillow: `python3 -m pip install --user pillow`.
+
+Need a fresh blank sheet? `python3 pack_gen3.py blank rse rse_sheet.png`
+
+## Frame sizes
+
+| Game sheet | FireRed/LeafGreen | Ruby/Sapphire/Emerald | Combined sheet block(s) |
+|---|---|---|---|
+| walk.png | 16x32 x 20 | 16x32 x 18 | WALK, RUN (+ WALK EXTRA on FRLG) |
+| bike.png | 32x32 x 9 | 32x32 x 9 | BIKE / MACH BIKE |
+| acroBike.png | -- | 32x32 x 27 | ACRO BIKE |
+| surf.png | 16x32 x 12 | 32x32 x 12 | SURF (sit, move, jump) |
+| fieldMove.png | 16x32 x 9 | 32x32 x 5 | FIELD MOVE (/ VS SEEKER) |
+| fishing.png | 32x32 x 12 | 32x32 x 12 | FISH |
+| vsSeekerBike.png | 32x32 x 6 | -- | VS SEEKER BIKE |
+| underwater.png | -- | 32x32 x 9 | UNDERWATER |
+| watering.png | -- | 32x32 x 9 | WATERING |
+| decorating.png | -- | 16x32 x 1 | DECORATE |
+| back.png | 64x64 x 5 | 64x64 x 4 | BACK |
+| front.png | 64x64 | 64x64 | FRONT (also the trainer card, and the RSE intro) |
+| intro.png | 64x96 | -- | INTRO (FRLG's Oak intro) |
+| mapIcon.png | 16x16 | 16x16 | MAP ICON (Town Map / Fly map marker; also the PokeNav and Pokedex area maps on RSE) |
