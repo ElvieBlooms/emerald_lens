@@ -53,9 +53,11 @@ GUIDE = (255, 0, 255, 255)
 CLEAR = (0, 0, 0, 0)
 
 # Combined sheet layout. Each section is (label, file, blocks); a block is
-# (first frame of each row, frames per row). Three-row blocks are the down,
-# up and left facings, which the game stores in that order within each group
-# (except fishing, which it stores left, up, down -- hence 8, 4, 0).
+# (first frame of each row, frames per row), or a list of rows of frame
+# numbers when the game's order doesn't follow that pattern. Three-row
+# blocks are the down, up and left facings, which the game stores in that
+# order within each group (except fishing, which it stores left, up, down --
+# hence 8, 4, 0).
 STAND, STEP = ((0, 1, 2), 1), ((3, 5, 7), 2)
 FISH = ((8, 4, 0), 4)
 SURF = [STAND, STEP, ((9, 10, 11), 1)]
@@ -78,7 +80,9 @@ LAYOUT = {
     ("FRONT", "front.png", [((0,), 1)]),
     ("BACK", "back.png", [((0,), 4)]),
     ("WALK", "walk.png", [STAND, STEP]),
-    ("RUN", "walk.png", [((9, 12, 15), 3)]),
+    # RSE stores running like walking: a standing frame per facing (9-11),
+    # then a pair each (12-17). FRLG stores three in a row per facing.
+    ("RUN", "walk.png", [[[9, 12, 13], [10, 14, 15], [11, 16, 17]]]),
     ("MACH BIKE", "bike.png", [STAND, STEP]),
     ("FISH", "fishing.png", [FISH]),
     ("MAP ICON", "mapIcon.png", [((0,), 1)]),
@@ -168,6 +172,13 @@ def guided(sheet, w, h, n):
 
 # ----------------------------------------------------------- combined sheet
 
+def block_rows(block):
+    """A block as rows of frame numbers, whichever way it was written."""
+    if isinstance(block, list):
+        return block
+    starts, cols = block
+    return [[first + c for c in range(cols)] for first in starts]
+
 def layout(family):
     """Places every section; returns (size, sections) where each section has
     its label position, and each block its guide box and cells. Each cell is
@@ -178,22 +189,23 @@ def layout(family):
     placed = []
     for label, name, blocks in LAYOUT[family]:
         w, h, _ = spec(family, name)
-        dims = [(cols * (w + 1) + 1, len(starts) * (h + 1) + 1) for starts, cols in blocks]
+        grids = [block_rows(b) for b in blocks]
+        dims = [(len(rows[0]) * (w + 1) + 1, len(rows) * (h + 1) + 1) for rows in grids]
         sw = sum(d[0] for d in dims) + BLOCK_GAP * (len(dims) - 1)
         sh = LABEL_H + max(d[1] for d in dims)
         sw = max(sw, len(label) * 6)
         if x + sw > width - PAD and x > PAD:
             x, y, shelf_h = PAD, y + shelf_h + PAD, 0
         bx, out_blocks = x, []
-        for (starts, cols), (bw, bh) in zip(blocks, dims):
+        for rows, (bw, bh) in zip(grids, dims):
             top = y + LABEL_H
             cells = []
-            for r, first in enumerate(starts):
-                for c in range(cols):
+            for r, frames in enumerate(rows):
+                for c, frame in enumerate(frames):
                     cx, cy = bx + 1 + c * (w + 1), top + 1 + r * (h + 1)
-                    cells.append((name, first + c, (cx, cy, cx + w, cy + h)))
+                    cells.append((name, frame, (cx, cy, cx + w, cy + h)))
             out_blocks.append({"box": (bx, top, bx + bw, top + bh), "w": w, "h": h,
-                               "cols": cols, "rows": len(starts), "cells": cells})
+                               "cols": len(rows[0]), "rows": len(rows), "cells": cells})
             bx += bw + BLOCK_GAP
         placed.append({"label": label, "at": (x, y), "blocks": out_blocks})
         x += sw + PAD * 2
