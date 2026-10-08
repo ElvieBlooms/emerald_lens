@@ -40,7 +40,7 @@ SPECS = {
     ("walk.png", 16, 32, 20), ("bike.png", 32, 32, 9), ("surf.png", 16, 32, 12),
     ("fieldMove.png", 16, 32, 9), ("fishing.png", 32, 32, 12),
     ("vsSeekerBike.png", 32, 32, 6), ("back.png", 64, 64, 5), ("front.png", 64, 64, 1), ("intro.png", 64, 96, 1),
-    ("mapIcon.png", 16, 16, 1),
+    ("mapIcon.png", 16, 16, 1), ("flyBird.png", 64, 64, 2),
   ],
   "rse": [
     ("walk.png", 16, 32, 18), ("bike.png", 32, 32, 9), ("acroBike.png", 32, 32, 27),
@@ -75,6 +75,9 @@ LAYOUT = {
     ("VS SEEKER BIKE", "vsSeekerBike.png", [((0,), 6)]),
     ("WALK EXTRA", "walk.png", [((18,), 2)]),
     ("MAP ICON", "mapIcon.png", [((0,), 1)]),
+    # Added after the first release: kept last so every earlier block stays
+    # where it was on sheets people have already drawn on.
+    ("FLY (OFF / IN)", "flyBird.png", [((0,), 2)]),
   ],
   "rse": [
     ("FRONT", "front.png", [((0,), 1)]),
@@ -103,17 +106,22 @@ BG, INK = (52, 101, 101, 255), (240, 240, 240, 255)
 RS_FRONT = {"male": "trainers/front/0", "female": "trainers/front/1"}
 
 # Where each sheet lives in an imported cache (data/generated/gba/...), per
-# gender. ow/<gid>.rgba, trainers/back_<n>.rgba, trainers/front/<id>.rgba
+# gender. ow/<gid>.rgba, trainers/back_<n>.rgba, trainers/front/<id>.rgba.
+# A (file, first frame, frames in file) entry is a run of frames inside a
+# bigger sheet: FRLG's Fly bird holds the bird alone, then each gender's
+# rider frames.
 SOURCES = {
   "frlg": {
     "male":   {"walk.png": "ow/0", "bike.png": "ow/1", "surf.png": "ow/2", "fieldMove.png": "ow/3",
                "fishing.png": "ow/4", "vsSeekerBike.png": "ow/6",
                "back.png": "trainers/back_0", "front.png": "trainers/front/135",
-               "intro.png": "intro/boy.png", "mapIcon.png": "region_map/player_red.png"},
+               "intro.png": "intro/boy.png", "mapIcon.png": "region_map/player_red.png",
+               "flyBird.png": ("field_effects/fly_bird", 1, 5)},
     "female": {"walk.png": "ow/7", "bike.png": "ow/8", "surf.png": "ow/9", "fieldMove.png": "ow/10",
                "fishing.png": "ow/11", "vsSeekerBike.png": "ow/13",
                "back.png": "trainers/back_1", "front.png": "trainers/front/136",
-               "intro.png": "intro/girl.png", "mapIcon.png": "region_map/player_leaf.png"},
+               "intro.png": "intro/girl.png", "mapIcon.png": "region_map/player_leaf.png",
+               "flyBird.png": ("field_effects/fly_bird", 3, 5)},
   },
   "rse": {
     "male":   {"walk.png": "ow/0", "bike.png": "ow/1", "acroBike.png": "ow/63", "surf.png": "ow/2",
@@ -255,9 +263,24 @@ def blank_sheet(family):
 def split_sheet(family, im):
     """Combined sheet -> {file: exact-size strip}, plus warnings."""
     size, sections = layout(family)
+    warnings = []
     if im.size != size:
-        return None, [f"sheet is {im.size[0]}x{im.size[1]}, the {family} sheet is {size[0]}x{size[1]}"]
-    px, warnings = im.load(), []
+        # A sheet from before newer blocks were added: same width, shorter.
+        # Earlier blocks haven't moved, so pad it and read the new ones blank.
+        if im.width == size[0] and im.height < size[1]:
+            grown = Image.new("RGBA", size, CLEAR)
+            grown.paste(im, (0, 0))
+            for s in sections:
+                for b in s["blocks"]:
+                    if b["box"][3] > im.height:
+                        x0, y0, x1, y1 = b["box"]
+                        ImageDraw.Draw(grown).rectangle((x0, y0, x1 - 1, y1 - 1), outline=GUIDE)
+                        for p in guide_pixels(b): grown.putpixel(p, GUIDE)
+            im = grown
+            warnings.append("this sheet is from an earlier version; blocks added since are read as blank")
+        else:
+            return None, [f"sheet is {im.size[0]}x{im.size[1]}, the {family} sheet is {size[0]}x{size[1]}"]
+    px = im.load()
     for s in sections:
         damaged = sum(1 for b in s["blocks"] for p in guide_pixels(b) if px[p] != GUIDE)
         if damaged:
@@ -421,6 +444,9 @@ def reference(family, gender, game_dir, dst_dir, formats=("sheet", "separate")):
         src = SOURCES[family][gender][name]
         if name == "front.png" and game in ("ruby", "sapphire"):
             src = RS_FRONT[gender]
+        first, total = 0, n
+        if isinstance(src, tuple):
+            src, first, total = src
         raw = os.path.join(root, src if src.endswith(".png") else src + ".rgba")
         if not os.path.exists(raw):
             print(f"  skip    {name} ({raw} not found)")
@@ -431,11 +457,13 @@ def reference(family, gender, game_dir, dst_dir, formats=("sheet", "separate")):
                 print(f"  skip    {name} (cache image is {strip.size[0]}x{strip.size[1]}, expected {w}x{h * n})")
                 continue
         else:
-            data = read_rgba(raw, w * h * n * 4)
+            data = read_rgba(raw, w * h * total * 4)
             if data is None:
-                print(f"  skip    {name} (cache file isn't a {w}x{h}x{n} sheet)")
+                print(f"  skip    {name} (cache file isn't a {w}x{h}x{total} sheet)")
                 continue
-            strip = Image.frombytes("RGBA", (w, h * n), data)
+            strip = Image.frombytes("RGBA", (w, h * total), data)
+            if total != n:
+                strip = strip.crop((0, first * h, w, (first + n) * h))
         strips[name] = strip
     if "separate" in formats:
         for name, w, h, n in SPECS[family]:
