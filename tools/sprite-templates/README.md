@@ -72,3 +72,7 @@ Need a fresh blank sheet? `python3 pack_gen3.py blank rse rse_sheet.png`
 | front.png | 64x64 | 64x64 | FRONT (also the trainer card, and the RSE intro) |
 | intro.png | 64x96 | -- | INTRO (FRLG's Oak intro) |
 | mapIcon.png | 16x16 | 16x16 | MAP ICON (Town Map / Fly map marker; also the PokeNav and Pokedex area maps on RSE) |
+| flyBird.png | 64x64 x 2 | -- | FLY (OFF / IN): the player on the bird as Fly takes off, then lands. Draw the bird too; the reference shows where it sits |
+
+The FRLG sheet grew a FLY block at the bottom. A sheet made before it still packs:
+the missing block is read as blank and you're told so.
