@@ -270,10 +270,10 @@ function gen3.init(mod, ctx)
     end
   end
 
-  -- Trainer card portrait and FRLG map icon
-  -- Both are read straight from the cache rather than through a loader,
-  -- so they're handed back here in the format the cache file has: raw
-  -- RGBA for the card's front pic, PNG file bytes for the map icon.
+  -- Trainer card portrait, FRLG map icon and FRLG Fly bird
+  -- All read straight from the cache rather than through a loader, so
+  -- they're handed back here in the format the cache file has: raw RGBA
+  -- for the card's front pic and the bird, PNG file bytes for the icon.
   -- Hooked at CacheFs.readAt, which every cache read ends in (readActive,
   -- read, and the game's own cache reader in newer builds). Every other
   -- read passes through. -Elvie
@@ -301,6 +301,26 @@ function gen3.init(mod, ctx)
         end }
     end
   end
+  if layout == "frlg" and has("flyBird.png") then
+    -- FRLG draws the rider into the bird's own sheet: frame 0 is the bird
+    -- alone, then fly-off and fly-in for the boy (1, 2) and the girl (3, 4).
+    -- flyBird.png's two frames are spliced into this character's slots, so
+    -- the bird and the other gender's frames stay the game's own. Frames are
+    -- 64x64 RGBA, one after another, so each is a plain run of bytes. -Elvie
+    local FRAME = 64 * 64 * 4
+    cacheSwaps[#cacheSwaps + 1] = { suffix = "field_effects/fly_bird.rgba",
+      load = function(original, rel)
+        local vanilla = original(rel)
+        local _, data = loadImage("flyBird.png", 64, 128)
+        if type(vanilla) ~= "string" or #vanilla ~= FRAME * 5 or not data then return nil end
+        local ours, sheet = data:getString(), vanilla
+        for _, slot in ipairs(slots) do
+          local first = (slot == "female" and 3 or 1) * FRAME
+          sheet = sheet:sub(1, first) .. ours .. sheet:sub(first + 2 * FRAME + 1)
+        end
+        return sheet
+      end }
+  end
   local okFs, CacheFs = pcall(require, "src.import.CacheFs")
   if #cacheSwaps > 0 and okFs and type(CacheFs.readAt) == "function" then
     local originalReadAt = CacheFs.readAt
@@ -313,7 +333,7 @@ function gen3.init(mod, ctx)
               for _, slot in ipairs(sharedSlots()) do wanted = wanted or slot == swap.slot end
             end
             if wanted then
-              if swap.bytes == nil then swap.bytes = swap.load() or false end -- false = failed -Elvie
+              if swap.bytes == nil then swap.bytes = swap.load(originalReadAt, rel) or false end -- false = failed -Elvie
               if swap.bytes then return swap.bytes end
             end
           end
