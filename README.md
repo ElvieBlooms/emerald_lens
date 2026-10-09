@@ -10,6 +10,7 @@ Emerald Lens is the Gen 3 companion to [Crystal Lens](https://github.com/dburton
 ## Features
 * Replaces the player everywhere Gen 3 draws them: walking, running, biking, surfing, fishing and other overworld poses, the battle back pic and throw, the front pic (Hall of Fame, battle intro), the trainer card, the new-game intro, the map icon, and riding the bird in FRLG's Fly.
 * Optional extras: the surf blob, the Fly bird and the Bag.
+* Pick a character for FireRed/LeafGreen and for Ruby/Sapphire/Emerald separately, so a character only needs art for one of them.
 * Per-character gender: replace the boy, the girl, or both.
 * Falls back sheet by sheet: the selected look, then the same character's other looks, then the game's own sprite. Draw as much or as little as you like.
 * Sprite tools to draw from the game's own sprites and pack your art (`tools/sprite-templates`).
@@ -26,7 +27,7 @@ Each look is a folder at `assets/sprites/FOLDER_NAME_HERE` (no spaces in the fol
 ```
 
 * `label` is the look's name in the options menu.
-* `character` groups several looks under one **CHARACTER** entry; each look is then a **LOOK** choice. A folder without it is its own character.
+* `character` groups several looks under one character; each look is then a **LOOK** choice. A folder without it is its own character.
 * `genderMode` picks which player gets replaced:
   * `"girl"` replaces Leaf (FireRed/LeafGreen) or May (Ruby/Sapphire/Emerald).
   * `"boy"` replaces Red or Brendan.
@@ -46,7 +47,11 @@ assets/sprites/<folder>/
     rse/      Ruby, Sapphire and Emerald
 ```
 
-Only folders with a `gen3` folder show up as looks, but every folder of a character is used as a fallback. Options are read when the game starts, so a change needs a restart.
+The options menu has a character choice for each family: **FR/LG CHARACTER** and **R/S/E CHARACTER**, each with a **LOOK** choice under it when that character has more than one look. A look only shows up for a family it has a folder for, so a character drawn for just FireRed/LeafGreen is only offered there, and you can use different characters for each. Pick **OFF** to keep a family's own player. Every folder of a character is still used as a fallback.
+
+Changing a character or look applies straight away, no restart needed: the player changes as soon as you're back in the game. The one exception is the FireRed/LeafGreen trainer card, which keeps the portrait it first loaded until the game restarts. Adding or editing files in a character folder still needs a restart.
+
+Updating from 0.1.5 or earlier, your old character choice carries over to both families, wherever that character has art.
 
 ## Sheet sizes
 Every file is optional. Each one is looked for in the selected look's folder, then the character's other folders (in menu order), then the game's own sprite. A file that isn't exactly the right size is skipped and logged to the console, and the next folder is tried.
@@ -89,11 +94,13 @@ The surf blob and bird have no boy or girl version, so they're only used when yo
 
 **Sheet Examples:**
 
-<img width="500" height="378" alt="frlg_sheet" src="https://github.com/user-attachments/assets/a8ac5db8-e3b7-4a88-80cb-4164e082b5f8" />
-<img width="470" height="480" alt="rse_sheet" src="https://github.com/user-attachments/assets/d9d7a051-cd6e-4961-8dcd-4abde6fcd81a" />
-<img width="500" height="138" alt="frlg_extras" src="https://github.com/user-attachments/assets/d09a906e-c4a4-469e-a6ab-72c3653092c2" />
-<img width="470" height="169" alt="rse_extras" src="https://github.com/user-attachments/assets/4decd6a4-f0e7-4d31-b0c0-cce6f22fdb3d" />
+**FR/LG**
 
+<img width="500" height="298" alt="frlg_sheet" src="https://github.com/user-attachments/assets/a51981b9-997d-44f1-a1ff-abcb6020cf51" />
+
+**R/S/E**
+
+<img width="470" height="480" alt="rse_sheet" src="https://github.com/user-attachments/assets/d9d7a051-cd6e-4961-8dcd-4abde6fcd81a" />
 
 ## Not covered yet
 * New-game name choices.

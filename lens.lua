@@ -107,11 +107,18 @@ function lens.init(mod)
 
   -- Character folders
   -- Same meta.json format as Crystal Lens: "label" names a look and
-  -- "character" groups looks together. Only folders with a gen3/ folder
-  -- show up as looks, but every folder of a character stays in the
-  -- fallback chain. -Elvie
+  -- "character" groups looks together. FRLG and RSE are picked
+  -- separately, since a character is a lot of work per game family: a look
+  -- shows up for a family when it has that family's gen3 folder, but every
+  -- folder of a character stays in the fallback chain. -Elvie
   -- --------------------------------------------------
-  local allFolders, lookFolders, metaFor = {}, {}, {}
+  local FAMILIES = {
+    { id = "frlg", suffix = "Frlg", label = "FR/LG" },
+    { id = "rse",  suffix = "Rse",  label = "R/S/E" },
+  }
+  local OFF = "__off"
+  local allFolders, metaFor = {}, {}
+  local lookFolders = { frlg = {}, rse = {} } -- [family][character] = looks
 
   for _, key in ipairs(mod.assets:list(SPRITES_DIR)) do
     if isDirectory(SPRITES_DIR .. "/" .. key) then
@@ -123,29 +130,40 @@ function lens.init(mod)
       local entry = { label = label, key = key }
       allFolders[character] = allFolders[character] or {}
       table.insert(allFolders[character], entry)
-      if isDirectory(SPRITES_DIR .. "/" .. key .. "/gen3") then
-        lookFolders[character] = lookFolders[character] or {}
-        table.insert(lookFolders[character], entry)
+      for _, family in ipairs(FAMILIES) do
+        if isDirectory(SPRITES_DIR .. "/" .. key .. "/gen3/" .. family.id) then
+          local looks = lookFolders[family.id]
+          looks[character] = looks[character] or {}
+          table.insert(looks[character], entry)
+        end
       end
     end
   end
+  for _, entries in pairs(allFolders) do table.sort(entries, byLabel) end
 
-  local characterChoices = {}
-  for character, entries in pairs(lookFolders) do
-    table.sort(entries, byLabel)
-    table.sort(allFolders[character], byLabel)
-    table.insert(characterChoices, { label = character, key = character })
+  local choicesFor, any = {}, false
+  for _, family in ipairs(FAMILIES) do
+    local choices = {}
+    for character, entries in pairs(lookFolders[family.id]) do
+      table.sort(entries, byLabel)
+      table.insert(choices, { label = character, key = character })
+    end
+    table.sort(choices, byLabel)
+    choicesFor[family.id] = choices
+    any = any or #choices > 0
   end
-  table.sort(characterChoices, byLabel)
 
-  if #characterChoices == 0 then
+  if not any then
     mod.log:info("no character folders with gen3 art in %s; nothing to replace", SPRITES_DIR)
     return
   end
 
   -- Options
-  -- CHARACTER first, then a LOOK choice for any character with more than
-  -- one look, hidden until that character is picked. -Elvie
+  -- A CHARACTER row per family (plus OFF, to keep that family's own
+  -- player), then a LOOK row for any character with more than one look
+  -- there, hidden until that character is picked. Both families are
+  -- always listed, since the options screen shows what was last defined
+  -- whichever game is running. -Elvie
   -- --------------------------------------------------
   local function pairsOf(list)
     local out = {}
@@ -153,56 +171,96 @@ function lens.init(mod)
     return out
   end
 
-  local defaultCharacter = characterChoices[1].key
-  for _, choice in ipairs(characterChoices) do
-    if choice.key == "KRIS" then defaultCharacter = "KRIS" end
-  end
+  -- Up to 0.1.5 there was one CHARACTER for both families. A saved choice
+  -- carries over as the default for each family that has that character. -Elvie
+  local oldCharacter = mod.options:get("character")
 
-  local rows = {
-    { key = "character", type = "choice", label = "CHARACTER",
-      choices = pairsOf(characterChoices), default = defaultCharacter },
-  }
-  for _, choice in ipairs(characterChoices) do
-    local looks = lookFolders[choice.key]
-    if #looks > 1 then
-      table.insert(rows, {
-        key = "lookFor_" .. sanitizeKey(choice.key), type = "choice", label = "LOOK",
-        choices = pairsOf(looks), default = looks[1].key,
-        visible_if = { key = "character", equals = choice.key },
-      })
+  local rows, defaults = {}, {}
+  for _, family in ipairs(FAMILIES) do
+    local choices = choicesFor[family.id]
+    if #choices > 0 then
+      local default = choices[1].key
+      for _, choice in ipairs(choices) do
+        if choice.key == "KRIS" then default = "KRIS" end
+      end
+      for _, choice in ipairs(choices) do
+        if choice.key == oldCharacter then default = oldCharacter end
+      end
+      defaults[family.id] = default
+      local list = pairsOf(choices)
+      table.insert(list, { "OFF", OFF })
+      local characterKey = "character" .. family.suffix
+      table.insert(rows, { key = characterKey, type = "choice", label = family.label .. " CHARACTER",
+        choices = list, default = default })
+      for _, choice in ipairs(choices) do
+        local looks = lookFolders[family.id][choice.key]
+        if #looks > 1 then
+          local lookDefault = looks[1].key
+          local oldLook = mod.options:get("lookFor_" .. sanitizeKey(choice.key))
+          for _, entry in ipairs(looks) do
+            if entry.key == oldLook then lookDefault = oldLook end
+          end
+          table.insert(rows, {
+            key = "look" .. family.suffix .. "_" .. sanitizeKey(choice.key), type = "choice",
+            label = family.label .. " LOOK", choices = pairsOf(looks), default = lookDefault,
+            visible_if = { key = characterKey, equals = choice.key },
+          })
+        end
+      end
     end
   end
   mod.options:define(rows)
 
-  -- Resolve the selected look, then hand gen3.lua the fallback chain:
-  -- that look first, then the character's other folders in menu order. -Elvie
+  -- Resolve this family's selected look, then hand gen3.lua the fallback
+  -- chain: that look first, then the character's other folders in menu
+  -- order. nil means OFF. Only the running game's family is set up. -Elvie
   -- --------------------------------------------------
-  local character = mod.options:get("character")
-  local looks = lookFolders[character]
-  if not looks then
-    character = defaultCharacter
-    looks = lookFolders[character]
+  local okVersion, GameVersion = pcall(require, "src.core.GameVersion")
+  local layout = okVersion and GameVersion.layout(GameVersion.get())
+  local family
+  for _, f in ipairs(FAMILIES) do
+    if f.id == layout then family = f end
   end
-  local selected = looks[1].key
-  local wanted = mod.options:get("lookFor_" .. sanitizeKey(character))
-  for _, entry in ipairs(looks) do
-    if entry.key == wanted then selected = wanted end
+  if not family or not defaults[family.id] then return end
+
+  local function resolve()
+    local character = mod.options:get("character" .. family.suffix)
+    if character == OFF then return nil end
+    local looks = lookFolders[family.id][character]
+    if not looks then
+      character = defaults[family.id]
+      looks = lookFolders[family.id][character]
+    end
+    local selected = looks[1].key
+    local wanted = mod.options:get("look" .. family.suffix .. "_" .. sanitizeKey(character))
+    for _, entry in ipairs(looks) do
+      if entry.key == wanted then selected = wanted end
+    end
+
+    local folderKeys = { selected }
+    for _, entry in ipairs(allFolders[character]) do
+      if entry.key ~= selected then table.insert(folderKeys, entry.key) end
+    end
+
+    local meta = metaFor[selected] or {}
+    local genderMode = (type(meta.genderMode) == "string" and VALID_GENDER_MODES[meta.genderMode])
+      and meta.genderMode or DEFAULT_GENDER_MODE
+    return { folderKeys = folderKeys, genderMode = genderMode, spritesDir = SPRITES_DIR }
   end
 
-  local folderKeys = { selected }
-  for _, entry in ipairs(allFolders[character]) do
-    if entry.key ~= selected then table.insert(folderKeys, entry.key) end
+  local handle = require("mods.emerald_lens.gen3").init(mod, resolve())
+
+  -- Changing CHARACTER or LOOK in the mod options applies straight away,
+  -- no restart. The other family's rows are ignored here. -Elvie
+  if handle and mod.events and type(mod.events.on) == "function" then
+    local mine = { ["character" .. family.suffix] = true }
+    mod.events:on("mod.options_changed", function(change)
+      if type(change) ~= "table" or change.mod ~= mod.id or type(change.key) ~= "string" then return end
+      if mine[change.key] or change.key:sub(1, #("look" .. family.suffix .. "_")) == "look" .. family.suffix .. "_" then
+        handle.configure(resolve())
+      end
+    end)
   end
-
-  local meta = metaFor[selected] or {}
-  local genderMode = (type(meta.genderMode) == "string" and VALID_GENDER_MODES[meta.genderMode])
-    and meta.genderMode or DEFAULT_GENDER_MODE
-
-  require("mods.emerald_lens.gen3").init(mod, {
-    folderKeys = folderKeys,
-    genderMode = genderMode,
-    spritesDir = SPRITES_DIR,
-  })
 end
 
 return lens
