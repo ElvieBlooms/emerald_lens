@@ -165,17 +165,17 @@ function lens.init(mod)
   -- always listed, since the options screen shows what was last defined
   -- whichever game is running. -Elvie
   -- --------------------------------------------------
-  local function pairsOf(list)
-    local out = {}
-    for _, entry in ipairs(list) do table.insert(out, { entry.label, entry.key }) end
-    return out
+  local function genderModeOf(key)
+    local meta = metaFor[key] or {}
+    return (type(meta.genderMode) == "string" and VALID_GENDER_MODES[meta.genderMode])
+      and meta.genderMode or DEFAULT_GENDER_MODE
   end
 
   -- Up to 0.1.5 there was one CHARACTER for both families. A saved choice
   -- carries over as the default for each family that has that character. -Elvie
   local oldCharacter = mod.options:get("character")
 
-  local rows, defaults = {}, {}
+  local defaults, lookDefaults = {}, {}
   for _, family in ipairs(FAMILIES) do
     local choices = choicesFor[family.id]
     if #choices > 0 then
@@ -187,29 +187,79 @@ function lens.init(mod)
         if choice.key == oldCharacter then default = oldCharacter end
       end
       defaults[family.id] = default
-      local list = pairsOf(choices)
-      table.insert(list, { "OFF", OFF })
-      local characterKey = "character" .. family.suffix
-      table.insert(rows, { key = characterKey, type = "choice", label = family.label .. " CHARACTER",
-        choices = list, default = default })
       for _, choice in ipairs(choices) do
         local looks = lookFolders[family.id][choice.key]
-        if #looks > 1 then
-          local lookDefault = looks[1].key
-          local oldLook = mod.options:get("lookFor_" .. sanitizeKey(choice.key))
-          for _, entry in ipairs(looks) do
-            if entry.key == oldLook then lookDefault = oldLook end
-          end
-          table.insert(rows, {
-            key = "look" .. family.suffix .. "_" .. sanitizeKey(choice.key), type = "choice",
-            label = family.label .. " LOOK", choices = pairsOf(looks), default = lookDefault,
-            visible_if = { key = characterKey, equals = choice.key },
-          })
+        local lookDefault = looks[1].key
+        local oldLook = mod.options:get("lookFor_" .. sanitizeKey(choice.key))
+        for _, entry in ipairs(looks) do
+          if entry.key == oldLook then lookDefault = oldLook end
         end
+        lookDefaults[family.id .. ":" .. choice.key] = lookDefault
       end
     end
   end
-  mod.options:define(rows)
+
+  local function lookKey(family, character)
+    return "look" .. family.suffix .. "_" .. sanitizeKey(character)
+  end
+
+  -- The look a character would use in this family right now. -Elvie
+  local function selectedLook(family, character)
+    local looks = lookFolders[family.id][character]
+    local wanted = mod.options:get(lookKey(family, character))
+    for _, entry in ipairs(looks) do
+      if entry.key == wanted then return wanted end
+    end
+    return lookDefaults[family.id .. ":" .. character] or looks[1].key
+  end
+
+  -- Gender tags, so it's clear why a character isn't showing: a boy or
+  -- girl character only replaces that player. With no save loaded, every
+  -- boy and girl choice is tagged; once a save is loaded, only the ones
+  -- that don't match its player are, for the game that's running. Enby
+  -- fits either, so it's never tagged. -Elvie
+  local TAG = { boy = " (BOY)", girl = " (GIRL)" }
+  local function tag(genderMode, picked)
+    if genderMode == "enby" then return "" end
+    if picked == "female" and genderMode == "girl" then return "" end
+    if picked == "male" and genderMode == "boy" then return "" end
+    return TAG[genderMode] or ""
+  end
+
+  local function buildRows(running, picked)
+    local rows = {}
+    for _, family in ipairs(FAMILIES) do
+      local choices = choicesFor[family.id]
+      if #choices > 0 then
+        local p = family == running and picked or nil
+        local list = {}
+        for _, choice in ipairs(choices) do
+          local gm = genderModeOf(selectedLook(family, choice.key))
+          table.insert(list, { choice.label .. tag(gm, p), choice.key })
+        end
+        table.insert(list, { "OFF", OFF })
+        local characterKey = "character" .. family.suffix
+        table.insert(rows, { key = characterKey, type = "choice", label = family.label .. " CHARACTER",
+          choices = list, default = defaults[family.id] })
+        for _, choice in ipairs(choices) do
+          local looks = lookFolders[family.id][choice.key]
+          if #looks > 1 then
+            local lookChoices = {}
+            for _, entry in ipairs(looks) do
+              table.insert(lookChoices, { entry.label .. tag(genderModeOf(entry.key), p), entry.key })
+            end
+            table.insert(rows, {
+              key = lookKey(family, choice.key), type = "choice",
+              label = family.label .. " LOOK", choices = lookChoices,
+              default = lookDefaults[family.id .. ":" .. choice.key],
+              visible_if = { key = characterKey, equals = choice.key },
+            })
+          end
+        end
+      end
+    end
+    return rows
+  end
 
   -- Resolve this family's selected look, then hand gen3.lua the fallback
   -- chain: that look first, then the character's other folders in menu
@@ -221,45 +271,63 @@ function lens.init(mod)
   for _, f in ipairs(FAMILIES) do
     if f.id == layout then family = f end
   end
+
+  -- The gender the player picked in the running save, read the same way
+  -- gen3.lua does. nil with no save. -Elvie
+  local function pickedSlot()
+    local ok, game = pcall(function() return mod.game end)
+    if not ok or type(game) ~= "table" then return nil end
+    local g
+    if type(game.session) == "table" then g = game.session.gender end
+    if g == nil and type(game.save) == "table" then g = game.save.gender end
+    if g == nil then return nil end
+    return (g == 1 or g == "female" or g == "F") and "female" or "male"
+  end
+
+  local labelledFor -- the picked gender the labels were last built for
+  local function defineRows(force)
+    local picked = family and pickedSlot() or nil
+    if not force and picked == labelledFor then return end
+    labelledFor = picked
+    mod.options:define(buildRows(family, picked))
+  end
+  defineRows(true)
+
   if not family or not defaults[family.id] then return end
 
   local function resolve()
     local character = mod.options:get("character" .. family.suffix)
     if character == OFF then return nil end
-    local looks = lookFolders[family.id][character]
-    if not looks then
-      character = defaults[family.id]
-      looks = lookFolders[family.id][character]
-    end
-    local selected = looks[1].key
-    local wanted = mod.options:get("look" .. family.suffix .. "_" .. sanitizeKey(character))
-    for _, entry in ipairs(looks) do
-      if entry.key == wanted then selected = wanted end
-    end
+    if not lookFolders[family.id][character] then character = defaults[family.id] end
+    local selected = selectedLook(family, character)
 
     local folderKeys = { selected }
     for _, entry in ipairs(allFolders[character]) do
       if entry.key ~= selected then table.insert(folderKeys, entry.key) end
     end
-
-    local meta = metaFor[selected] or {}
-    local genderMode = (type(meta.genderMode) == "string" and VALID_GENDER_MODES[meta.genderMode])
-      and meta.genderMode or DEFAULT_GENDER_MODE
-    return { folderKeys = folderKeys, genderMode = genderMode, spritesDir = SPRITES_DIR }
+    return { folderKeys = folderKeys, genderMode = genderModeOf(selected), spritesDir = SPRITES_DIR }
   end
 
   local handle = require("mods.emerald_lens.gen3").init(mod, resolve())
 
-  -- Changing CHARACTER or LOOK in the mod options applies straight away,
-  -- no restart. The other family's rows are ignored here. -Elvie
-  if handle and mod.events and type(mod.events.on) == "function" then
+  if mod.events and type(mod.events.on) == "function" then
+    -- Changing CHARACTER or LOOK in the mod options applies straight away,
+    -- no restart. The other family's rows are ignored here. A new look can
+    -- change its character's tag, so the labels are rebuilt too. -Elvie
     local mine = { ["character" .. family.suffix] = true }
+    local lookPrefix = "look" .. family.suffix .. "_"
     mod.events:on("mod.options_changed", function(change)
       if type(change) ~= "table" or change.mod ~= mod.id or type(change.key) ~= "string" then return end
-      if mine[change.key] or change.key:sub(1, #("look" .. family.suffix .. "_")) == "look" .. family.suffix .. "_" then
-        handle.configure(resolve())
+      if mine[change.key] or change.key:sub(1, #lookPrefix) == lookPrefix then
+        if handle then handle.configure(resolve()) end
+        if change.key:sub(1, #lookPrefix) == lookPrefix then defineRows(true) end
       end
     end)
+    -- Retag once the save's player is known, and again if it changes
+    -- (a different save, or a new game). -Elvie
+    for _, name in ipairs({ "save.loaded", "save.created", "map.entered" }) do
+      mod.events:on(name, function() defineRows(false) end)
+    end
   end
 end
 
