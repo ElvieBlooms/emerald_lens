@@ -65,18 +65,37 @@ function gen3.init(mod, ctx)
   local folderKeys = ctx.folderKeys or { ctx.folderKey }
   if not slots or #folderKeys == 0 then return end
 
-  -- For art the rival can share: an enby character takes only the gender
-  -- the player picked, read the same way the engine's battle code does.
-  -- Before there's a save (the intro), it takes both. -Elvie
-  local function sharedSlots()
-    if #slots < 2 then return slots end
+  -- The gender the player picked, read the same way the engine's battle
+  -- code does. nil before there's a save (the intro). -Elvie
+  local function pickedSlot()
     local ok, game = pcall(function() return mod.game end)
-    if not ok or type(game) ~= "table" then return slots end
+    if not ok or type(game) ~= "table" then return nil end
     local g
     if type(game.session) == "table" then g = game.session.gender end
     if g == nil and type(game.save) == "table" then g = game.save.gender end
-    if g == nil then return slots end
-    return (g == 1 or g == "female" or g == "F") and ONLY_FEMALE or ONLY_MALE
+    if g == nil then return nil end
+    return (g == 1 or g == "female" or g == "F") and "female" or "male"
+  end
+
+  -- For art the rival can share: an enby character takes only the gender
+  -- the player picked. Before there's a save, it takes both. -Elvie
+  local function sharedSlots()
+    if #slots < 2 then return slots end
+    local picked = pickedSlot()
+    if picked == nil then return slots end
+    return picked == "female" and ONLY_FEMALE or ONLY_MALE
+  end
+
+  -- For extras with no boy or girl version (surf blob, Fly bird): only
+  -- when this character is the player in this save, so a girl character
+  -- doesn't hand her surf blob to someone playing as the boy. -Elvie
+  local function isPlayer()
+    local picked = pickedSlot()
+    if picked == nil then return true end
+    for _, slot in ipairs(slots) do
+      if slot == picked then return true end
+    end
+    return false
   end
 
   local GameVersion = require("src.core.GameVersion")
@@ -270,10 +289,10 @@ function gen3.init(mod, ctx)
     end
   end
 
-  -- Trainer card portrait, FRLG map icon and FRLG Fly bird
+  -- Trainer card portrait, FRLG map icon, Fly bird, surf blob, FRLG bag
   -- All read straight from the cache rather than through a loader, so
   -- they're handed back here in the format the cache file has: raw RGBA
-  -- for the card's front pic and the bird, PNG file bytes for the icon.
+  -- for the pics, sheets and bag, PNG file bytes for the icon.
   -- Hooked at CacheFs.readAt, which every cache read ends in (readActive,
   -- read, and the game's own cache reader in newer builds). Every other
   -- read passes through. -Elvie
@@ -301,25 +320,63 @@ function gen3.init(mod, ctx)
         end }
     end
   end
-  if layout == "frlg" and has("flyBird.png") then
+  local FRAME = 64 * 64 * 4
+  if layout == "frlg" and (has("flyBird.png") or has("bird.png")) then
     -- FRLG draws the rider into the bird's own sheet: frame 0 is the bird
     -- alone, then fly-off and fly-in for the boy (1, 2) and the girl (3, 4).
     -- flyBird.png's two frames are spliced into this character's slots, so
-    -- the bird and the other gender's frames stay the game's own. Frames are
-    -- 64x64 RGBA, one after another, so each is a plain run of bytes. -Elvie
-    local FRAME = 64 * 64 * 4
+    -- the other gender's frames stay the game's own. bird.png (extras) is
+    -- frame 0. Frames are 64x64 RGBA, one after another, so each is a plain
+    -- run of bytes. -Elvie
     cacheSwaps[#cacheSwaps + 1] = { suffix = "field_effects/fly_bird.rgba",
-      load = function(original, rel)
+      load = function(original, rel, mine)
         local vanilla = original(rel)
-        local _, data = loadImage("flyBird.png", 64, 128)
-        if type(vanilla) ~= "string" or #vanilla ~= FRAME * 5 or not data then return nil end
-        local ours, sheet = data:getString(), vanilla
-        for _, slot in ipairs(slots) do
-          local first = (slot == "female" and 3 or 1) * FRAME
-          sheet = sheet:sub(1, first) .. ours .. sheet:sub(first + 2 * FRAME + 1)
+        if type(vanilla) ~= "string" or #vanilla ~= FRAME * 5 then return nil end
+        local sheet = vanilla
+        local _, rider = loadImage("flyBird.png", 64, 128)
+        if rider then
+          for _, slot in ipairs(slots) do
+            local first = (slot == "female" and 3 or 1) * FRAME
+            sheet = sheet:sub(1, first) .. rider:getString() .. sheet:sub(first + 2 * FRAME + 1)
+          end
         end
-        return sheet
+        if mine then
+          local _, bird = loadImage("bird.png", 64, 64)
+          if bird then sheet = bird:getString() .. sheet:sub(FRAME + 1) end
+        end
+        return sheet ~= vanilla and sheet or nil
       end }
+  end
+
+  -- Extras
+  -- The surf blob (and RSE's Fly bird) have no boy or girl version, so
+  -- they only apply when this character is the player (isPlayer). The bag
+  -- does have one each, so it follows the character's slots like the
+  -- sprites. RSE's bag is a PNG, swapped in the scene kit below. -Elvie
+  local EXTRAS = {
+    frlg = { surfBlob = { 32, 192 }, bag = { 64, 256 } },
+    rse  = { surfBlob = { 32, 96 },  bird = { 32, 32 } },
+  }
+  local extras = EXTRAS[layout]
+  local function rgbaOf(file, w, h)
+    return function()
+      local _, data = loadImage(file, w, h)
+      return data and data:getString()
+    end
+  end
+  if extras.surfBlob and has("surfBlob.png") then
+    cacheSwaps[#cacheSwaps + 1] = { suffix = "field_effects/surf_blob.rgba", player = true,
+      load = rgbaOf("surfBlob.png", extras.surfBlob[1], extras.surfBlob[2]) }
+  end
+  if extras.bird and has("bird.png") then
+    cacheSwaps[#cacheSwaps + 1] = { suffix = "field_effects/bird.rgba", player = true,
+      load = rgbaOf("bird.png", extras.bird[1], extras.bird[2]) }
+  end
+  if extras.bag and has("bag.png") then
+    for _, slot in ipairs(slots) do
+      cacheSwaps[#cacheSwaps + 1] = { suffix = "items/bag/bag_" .. slot .. ".rgba",
+        load = rgbaOf("bag.png", extras.bag[1], extras.bag[2]) }
+    end
   end
   local okFs, CacheFs = pcall(require, "src.import.CacheFs")
   if #cacheSwaps > 0 and okFs and type(CacheFs.readAt) == "function" then
@@ -332,9 +389,15 @@ function gen3.init(mod, ctx)
             if swap.slot then
               for _, slot in ipairs(sharedSlots()) do wanted = wanted or slot == swap.slot end
             end
+            local mine = isPlayer()
+            if swap.player and not mine then wanted = false end
             if wanted then
-              if swap.bytes == nil then swap.bytes = swap.load(originalReadAt, rel) or false end -- false = failed -Elvie
-              if swap.bytes then return swap.bytes end
+              -- Kept per isPlayer answer, since the Fly sheet differs by it.
+              -- false = failed. -Elvie
+              swap.bytes = swap.bytes or {}
+              local key = mine and "mine" or "other"
+              if swap.bytes[key] == nil then swap.bytes[key] = swap.load(originalReadAt, rel, mine) or false end
+              if swap.bytes[key] then return swap.bytes[key] end
             end
           end
         end
@@ -367,9 +430,10 @@ function gen3.init(mod, ctx)
       end
     end
   elseif layout == "rse" then
-    -- The RSE intro, R/S trainer card, region map, PokeNav map and Pokedex
-    -- area map all load through the scene kit, so one wrapper covers them:
-    -- front.png for the portraits, mapIcon.png for the map marker. -Elvie
+    -- The RSE intro, R/S trainer card, region map, PokeNav map, Pokedex
+    -- area map and bag all load through the scene kit, so one wrapper covers
+    -- them: front.png for the portraits, mapIcon.png for the map marker,
+    -- bag.png for the bag. -Elvie
     local okKit, Kit = pcall(require, "src.ui.game3.rse.scene_kit")
     local kitSwaps = {}
     for _, slot in ipairs(slots) do
@@ -380,6 +444,9 @@ function gen3.init(mod, ctx)
       end
       if has("mapIcon.png") then
         kitSwaps[#kitSwaps + 1] = { suffix = "rse/region_map/" .. who .. "_icon.png", file = "mapIcon.png", w = 16, h = 16 }
+      end
+      if has("bag.png") then
+        kitSwaps[#kitSwaps + 1] = { suffix = "rse/bag/bag_" .. slot .. ".png", file = "bag.png", w = 64, h = 384 }
       end
     end
     if #kitSwaps > 0 and okKit and type(Kit.image) == "function" then

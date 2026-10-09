@@ -29,6 +29,15 @@ reference  Export the game's own sprites from YOUR imported cache, in both
 blank      Write a fresh blank combined sheet:
              python3 pack_gen3.py blank rse rse_sheet.png
 
+Extras (optional): the surf blob, the Fly bird and the bag have their own
+smaller sheet, frlg_extras.png / rse_extras.png, with separate templates in
+frlg_extras/ and rse_extras/. Use frlg_extras or rse_extras in place of frlg
+or rse in any command above. Packing a frlg or rse folder also packs any
+extras it finds there, and packing an extras sheet with frlg or rse works too;
+they all land in the same gen3/frlg or gen3/rse folder:
+             python3 pack_gen3.py reference frlg_extras girl ~/.local/share/pokemon-love2d/firered ./ref-frlg
+             python3 pack_gen3.py pack frlg frlg_extras.png ../../assets/sprites/kris/gen3/frlg
+
 Needs Pillow (python3 -m pip install --user pillow).
 """
 import os, sys, zlib
@@ -48,7 +57,13 @@ SPECS = {
     ("underwater.png", 32, 32, 9), ("watering.png", 32, 32, 9), ("decorating.png", 16, 32, 1),
     ("back.png", 64, 64, 4), ("front.png", 64, 64, 1), ("mapIcon.png", 16, 16, 1),
   ],
+  # Extras: not the player, but drawn only for them. bird.png is the bird
+  # alone (on FRLG, the first frame of the Fly sheet; the rider frames are
+  # flyBird.png on the main sheet).
+  "frlg_extras": [("surfBlob.png", 32, 32, 6), ("bird.png", 64, 64, 1), ("bag.png", 64, 64, 4)],
+  "rse_extras":  [("surfBlob.png", 32, 32, 3), ("bird.png", 32, 32, 1), ("bag.png", 64, 64, 6)],
 }
+EXTRAS_OF = {"frlg": "frlg_extras", "rse": "rse_extras"}
 GUIDE = (255, 0, 255, 255)
 CLEAR = (0, 0, 0, 0)
 
@@ -96,9 +111,26 @@ LAYOUT = {
     ("FIELD MOVE", "fieldMove.png", [((0,), 5)]),
     ("DECORATE", "decorating.png", [((0,), 1)]),
   ],
+  # FRLG's surf blob bobs: two frames per facing. RSE has one per facing and
+  # bobs it in code. Bag frames are one per pocket (frame 0 also shows while
+  # the bag opens and switches pockets).
+  "frlg_extras": [
+    ("SURF BLOB", "surfBlob.png", [((0, 2, 4), 2)]),
+    ("FLY BIRD", "bird.png", [((0,), 1)]),
+    ("BAG", "bag.png", [((0,), 4)]),
+  ],
+  "rse_extras": [
+    ("SURF BLOB", "surfBlob.png", [((0, 1, 2), 1)]),
+    ("FLY BIRD", "bird.png", [((0,), 1)]),
+    ("BAG", "bag.png", [((0, 3), 3)]),
+  ],
 }
-SHEET_W = {"frlg": 500, "rse": 470}
-TITLE = {"frlg": "FireRed / LeafGreen", "rse": "Ruby / Sapphire / Emerald"}
+SHEET_W = {"frlg": 500, "rse": 470, "frlg_extras": 500, "rse_extras": 470}
+TITLE = {"frlg": "FireRed / LeafGreen", "rse": "Ruby / Sapphire / Emerald",
+         "frlg_extras": "FireRed / LeafGreen extras", "rse_extras": "Ruby / Sapphire / Emerald extras"}
+HINT = {"frlg_extras": "Optional. Surf blob rows: down, up, left.",
+        "rse_extras": "Optional. Surf blob rows: down, up, left."}
+SHEET_FILE = {f: f + ".png" if f in EXTRAS_OF.values() else f + "_sheet.png" for f in SHEET_W}
 PAD, LABEL_H, BLOCK_GAP, HEADER_H = 4, 10, 3, 24
 BG, INK = (52, 101, 101, 255), (240, 240, 240, 255)
 
@@ -134,6 +166,18 @@ SOURCES = {
                "watering.png": "ow/192", "decorating.png": "ow/194",
                "back.png": "trainers/back_1", "front.png": "trainers/front/72",
                "mapIcon.png": "rse/region_map/may_icon.png"},
+  },
+  "frlg_extras": {
+    "male":   {"surfBlob.png": "field_effects/surf_blob", "bird.png": ("field_effects/fly_bird", 0, 5),
+               "bag.png": "items/bag/bag_male"},
+    "female": {"surfBlob.png": "field_effects/surf_blob", "bird.png": ("field_effects/fly_bird", 0, 5),
+               "bag.png": "items/bag/bag_female"},
+  },
+  "rse_extras": {
+    "male":   {"surfBlob.png": "field_effects/surf_blob", "bird.png": "field_effects/bird",
+               "bag.png": "rse/bag/bag_male.png"},
+    "female": {"surfBlob.png": "field_effects/surf_blob", "bird.png": "field_effects/bird",
+               "bag.png": "rse/bag/bag_female.png"},
   },
 }
 
@@ -248,8 +292,8 @@ def blank_sheet(family):
     d = ImageDraw.Draw(im)
     d.fontmode = "1"
     font = ImageFont.load_default()
-    d.text((PAD, 3), f"Emerald Lens sheet - {TITLE[family]}", fill=INK, font=font)
-    d.text((PAD, 13), "Draw inside the boxes. Rows: down, up, left.", fill=INK, font=font)
+    d.text((PAD, 3), f"Emerald Lens - {TITLE[family]}", fill=INK, font=font)
+    d.text((PAD, 13), HINT.get(family, "Draw inside the boxes. Rows: down, up, left."), fill=INK, font=font)
     px = im.load()
     for s in sections:
         d.text((s["at"][0], s["at"][1] - 1), s["label"], fill=INK, font=font)
@@ -335,7 +379,8 @@ def read_templates(family, folder):
     return strips, ok
 
 def find_sheet(family, folder):
-    for name in (f"{family}_sheet.png", "sheet.png"):
+    names = (SHEET_FILE[family],) if family in EXTRAS_OF.values() else (SHEET_FILE[family], "sheet.png")
+    for name in names:
         path = os.path.join(folder, name)
         if os.path.isfile(path):
             return path
@@ -406,13 +451,30 @@ def write_strips(family, strips, dst_dir):
         note = f"  (blank frames: {', '.join(map(str, empty))})" if empty else ""
         print(f"  packed  {name} -> {w}x{h * n}{note}")
         if empty:
-            print(f"  warning {name}: the player will be invisible in those frames")
+            print(f"  warning {name}: those frames will be invisible in game")
+
+def has_extras(family, folder):
+    """Whether a folder holds any of this family's extras work."""
+    if find_sheet(family, folder):
+        return True
+    return any(os.path.exists(os.path.join(folder, n)) for n, _, _, _ in SPECS[family])
 
 def pack(family, src, dst_dir):
+    # An extras sheet handed to frlg/rse is packed as extras: same folder.
+    if os.path.isfile(src) and family in EXTRAS_OF:
+        extras = EXTRAS_OF[family]
+        if Image.open(src).size == layout(extras)[0]:
+            family = extras
     strips, ok = read_any(family, src)
     if not strips and not ok:
         return False
     write_strips(family, strips, dst_dir)
+    # A folder with the main work and the extras packs both.
+    if os.path.isdir(src) and family in EXTRAS_OF and has_extras(EXTRAS_OF[family], src):
+        print("  extras")
+        more, eok = read_any(EXTRAS_OF[family], src)
+        write_strips(EXTRAS_OF[family], more, dst_dir)
+        ok = ok and eok
     return ok
 
 def convert(family, src, dst):
@@ -430,7 +492,7 @@ def convert(family, src, dst):
         print(f"  wrote   {dst} ({len(strips)} of {len(SPECS[family])} templates found)")
     else:
         os.makedirs(dst, exist_ok=True)
-        out = os.path.join(dst, f"{family}_sheet.png")
+        out = os.path.join(dst, SHEET_FILE[family])
         sheet_from_strips(family, strips).save(out)
         print(f"  wrote   {out} ({len(strips)} of {len(SPECS[family])} templates found)")
     return ok
@@ -471,8 +533,8 @@ def reference(family, gender, game_dir, dst_dir, formats=("sheet", "separate")):
                 guided(strips[name], w, h, n).save(os.path.join(dst_dir, name))
         print(f"  ref     {len(strips)} separate templates")
     if "sheet" in formats:
-        sheet_from_strips(family, strips).save(os.path.join(dst_dir, f"{family}_sheet.png"))
-        print(f"  ref     {family}_sheet.png (combined)")
+        sheet_from_strips(family, strips).save(os.path.join(dst_dir, SHEET_FILE[family]))
+        print(f"  ref     {SHEET_FILE[family]} (combined)")
 
 FORMAT_FLAGS = {"--sheet": ("sheet",), "--separate": ("separate",), "--both": ("sheet", "separate")}
 

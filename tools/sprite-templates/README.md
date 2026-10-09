@@ -76,3 +76,27 @@ Need a fresh blank sheet? `python3 pack_gen3.py blank rse rse_sheet.png`
 
 The FRLG sheet grew a FLY block at the bottom. A sheet made before it still packs:
 the missing block is read as blank and you're told so.
+
+## Extras (optional)
+
+The surf blob, the Fly bird and the bag have their own smaller sheet,
+`frlg_extras.png` / `rse_extras.png`, with separate templates in
+`frlg_extras/` and `rse_extras/`. Every command takes `frlg_extras` or
+`rse_extras` in place of `frlg` or `rse`:
+
+    python3 pack_gen3.py reference frlg_extras girl /path/to/pokemon-love2d/firered ./ref-frlg
+    python3 pack_gen3.py reference rse_extras  girl /path/to/pokemon-love2d/emerald ./ref-rse
+    python3 pack_gen3.py convert   rse_extras  rse_extras.png ./rse-extras-separate
+
+Packing goes to the same `gen3/frlg` or `gen3/rse` folder as everything else.
+`pack frlg` with an extras sheet packs it as extras, and packing a folder that
+holds both the main work and the extras packs both:
+
+    python3 pack_gen3.py pack frlg frlg_extras.png ../../assets/sprites/<folder>/gen3/frlg
+    python3 pack_gen3.py pack rse  ./my-rse-work   ../../assets/sprites/<folder>/gen3/rse
+
+| Game sheet | FireRed/LeafGreen | Ruby/Sapphire/Emerald | Extras sheet block |
+|---|---|---|---|
+| surfBlob.png | 32x32 x 6 | 32x32 x 3 | SURF BLOB (rows down, up, left; FRLG has two bob frames each) |
+| bird.png | 64x64 | 32x32 | FLY BIRD (FRLG: the bird alone, before and after the rider frames in `flyBird.png`) |
+| bag.png | 64x64 x 4 | 64x64 x 6 | BAG (one per pocket; frame 0 also shows while the bag opens) |

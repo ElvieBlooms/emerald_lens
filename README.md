@@ -9,6 +9,7 @@ Emerald Lens is the Gen 3 companion to [Crystal Lens](https://github.com/dburton
 
 ## Features
 * Replaces the player everywhere Gen 3 draws them: walking, running, biking, surfing, fishing and other overworld poses, the battle back pic and throw, the front pic (Hall of Fame, battle intro), the trainer card, the new-game intro, the map icon, and riding the bird in FRLG's Fly.
+* Optional extras: the surf blob, the Fly bird and the Bag.
 * Per-character gender: replace the boy, the girl, or both.
 * Falls back sheet by sheet: the selected look, then the same character's other looks, then the game's own sprite. Draw as much or as little as you like.
 * Sprite tools to draw from the game's own sprites and pack your art (`tools/sprite-templates`).
@@ -72,8 +73,19 @@ Each sheet is one vertical strip of frames, in the game's own order:
 
 Gen 3 sprites are always full color.
 
+### Extras
+Also optional, in the same folders and with the same fallback. They aren't the player, but the game only draws them for the player:
+
+| File | FireRed/LeafGreen | Ruby/Sapphire/Emerald |
+|---|---|---|
+| `surfBlob.png` | 32x32, 6 frames (32x192): down, up, left, two bob frames each | 32x32, 3 frames (32x96): down, up, left |
+| `bird.png` | 64x64 (the bird alone as it flies in and away; `flyBird.png` has the rider frames) | 32x32 (the bird the player rides) |
+| `bag.png` | 64x64, 4 frames (64x256), one per pocket | 64x64, 6 frames (64x384), one per pocket |
+
+The surf blob and bird have no boy or girl version, so they're only used when your character is the player in that save: a girl character's surf blob doesn't show for someone playing as the boy (enby works for either). The bag has one each, so it follows `genderMode` like the sprites.
+
 ## Sprite tools
-`tools/sprite-templates` has blank templates in two formats you can use interchangeably: one combined sheet per game family, laid out like the standard community sheets, or one strip per game sheet. `pack_gen3.py` exports the game's own sprites from your imported cache to draw from, converts between the two formats, and packs your art into a look's `gen3` folder. See its README. It needs Python 3 and Pillow, and isn't needed to play.
+`tools/sprite-templates` has blank templates in two formats you can use interchangeably: one combined sheet per game family, laid out like the standard community sheets, or one strip per game sheet. The extras have a smaller sheet of their own (`frlg_extras.png`, `rse_extras.png`). `pack_gen3.py` exports the game's own sprites from your imported cache to draw from, converts between the two formats, and packs your art into a look's `gen3` folder. See its README. It needs Python 3 and Pillow, and isn't needed to play.
 
 **Sheet Examples:**
 
