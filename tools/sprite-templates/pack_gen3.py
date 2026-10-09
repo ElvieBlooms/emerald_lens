@@ -38,6 +38,13 @@ they all land in the same gen3/frlg or gen3/rse folder:
              python3 pack_gen3.py reference frlg_extras girl ~/.local/share/pokemon-love2d/firered ./ref-frlg
              python3 pack_gen3.py pack frlg frlg_extras.png ../../assets/sprites/kris/gen3/frlg
 
+surf       Placement reference for the player on the surf blob, exactly as the
+           game lines them up (not for packing). With no art it's a blank
+           guide; --art takes a look's gen3 folder and --game a game folder
+           for anything the look doesn't have:
+             python3 pack_gen3.py surf frlg girl frlg_surf.png
+             python3 pack_gen3.py surf rse girl rse_surf.png --art ../../assets/sprites/kris/gen3/rse --game ~/.local/share/pokemon-love2d/emerald
+
 Needs Pillow (python3 -m pip install --user pillow).
 """
 import os, sys, zlib
@@ -536,6 +543,99 @@ def reference(family, gender, game_dir, dst_dir, formats=("sheet", "separate")):
         sheet_from_strips(family, strips).save(os.path.join(dst_dir, SHEET_FILE[family]))
         print(f"  ref     {SHEET_FILE[family]} (combined)")
 
+# ------------------------------------------------------------ surf placement
+# How the game lines up the player and the surf blob, from the tile's
+# top-left corner (the player's position): the player is centred on the
+# tile with its feet on the tile's bottom edge (x + (16 - w) / 2, y + 16 - h),
+# and the 32x32 blob is drawn at (x - 8, y - 8), behind the player. While
+# standing still both bob up 1px together, so the overlap never changes.
+# In a 32x40 cell that puts the blob at (0, 8) and the player at (8, 0) on
+# FRLG (16 wide) or (0, 0) on RSE (32 wide): the player's bottom 24 rows sit
+# over the blob's top 24, and the blob's last 8 rows show below the feet.
+SURF_CELL = (32, 40)
+SURF_BLOB_AT = (0, 8)
+SURF_TILE_AT = (8, 16)
+# (label, player frame, blob frame, mirrored). Right is left mirrored.
+SURF_POSES = {
+  "frlg": [("DOWN", 0, 0, False), ("UP", 1, 2, False), ("LEFT", 2, 4, False), ("RIGHT", 2, 4, True),
+           ("DOWN", 0, 1, False), ("UP", 1, 3, False), ("LEFT", 2, 5, False), ("RIGHT", 2, 5, True)],
+  "rse":  [("DOWN", 0, 0, False), ("UP", 1, 1, False), ("LEFT", 2, 2, False), ("RIGHT", 2, 2, True)],
+}
+PLAYER_TINT, BLOB_TINT, TILE_INK = (255, 0, 255, 90), (0, 200, 255, 90), (255, 255, 255, 160)
+
+def load_strip(family, name, art_dir, game_dir, gender):
+    """A packed strip from a look's folder, else the game's own, else None."""
+    w, h, n = spec(family, name) if name in [x[0] for x in SPECS[family]] else spec(EXTRAS_OF[family], name)
+    if art_dir:
+        path = os.path.join(art_dir, name)
+        if os.path.exists(path):
+            im = Image.open(path).convert("RGBA")
+            if im.size == (w, h * n):
+                return im
+            print(f"  skip    {path} is {im.size[0]}x{im.size[1]}, expected {w}x{h * n}")
+    if game_dir:
+        fam = family if name == "surf.png" else EXTRAS_OF[family]
+        src = SOURCES[fam][gender][name]
+        raw = os.path.join(game_dir, "data", "generated", "gba", src + ".rgba")
+        if os.path.exists(raw):
+            data = read_rgba(raw, w * h * n * 4)
+            if data:
+                return Image.frombytes("RGBA", (w, h * n), data)
+    return None
+
+def surf_placement(family, art_dir=None, game_dir=None, gender="female"):
+    pw, ph, _ = spec(family, "surf.png")
+    player_at = (SURF_TILE_AT[0] + (16 - pw) // 2, 0)
+    player = load_strip(family, "surf.png", art_dir, game_dir, gender)
+    blob = load_strip(family, "surfBlob.png", art_dir, game_dir, gender)
+    poses = SURF_POSES[family]
+    cols = 4
+    rows = len(poses) // cols
+    cw, ch = SURF_CELL
+    gap, top = 6, HEADER_H + 2
+    short = {"frlg": "FR/LG", "rse": "R/S/E"}[family]
+    blank = not (player and blob)
+    lines = ["Pink: player", "Blue: blob", "Dots: the tile"] if blank else \
+            (["Rows: the blob's two", "bob frames"] if family == "frlg" else [])
+    W = max(PAD * 2 + cols * cw + (cols - 1) * gap, 160)
+    H = top + rows * (LABEL_H + ch + gap) + PAD + 10 * len(lines)
+    im = Image.new("RGBA", (W, H), BG)
+    d = ImageDraw.Draw(im)
+    d.fontmode = "1"
+    font = ImageFont.load_default()
+    d.text((PAD, 3), f"Surf placement - {short}", fill=INK, font=font)
+    d.text((PAD, 13), "Reference only, not packed.", fill=INK, font=font)
+    for i, (label, pf, bf, mirror) in enumerate(poses):
+        r, c = divmod(i, cols)
+        x0 = PAD + c * (cw + gap)
+        y0 = top + r * (LABEL_H + ch + gap)
+        d.text((x0, y0 - 1), label, fill=INK, font=font)
+        cy = y0 + LABEL_H
+        cell = Image.new("RGBA", SURF_CELL, CLEAR)
+        if blob:
+            frame = blob.crop((0, bf * 32, 32, (bf + 1) * 32))
+            cell.alpha_composite(frame.transpose(Image.FLIP_LEFT_RIGHT) if mirror else frame, SURF_BLOB_AT)
+        else:
+            cell.alpha_composite(Image.new("RGBA", (32, 32), BLOB_TINT), SURF_BLOB_AT)
+        if player:
+            frame = player.crop((0, pf * ph, pw, (pf + 1) * ph))
+            cell.alpha_composite(frame.transpose(Image.FLIP_LEFT_RIGHT) if mirror else frame, player_at)
+        else:
+            cell.alpha_composite(Image.new("RGBA", (pw, ph), PLAYER_TINT), player_at)
+        bg = Image.new("RGBA", SURF_CELL, CLEAR)
+        im.paste(bg, (x0, cy))
+        im.alpha_composite(cell, (x0, cy))
+        if blank:
+            # the tile the player stands on, as corner marks
+            tx, ty = x0 + SURF_TILE_AT[0], cy + SURF_TILE_AT[1]
+            for dx, dy in ((0, 0), (15, 0), (0, 15), (15, 15)):
+                im.putpixel((tx + dx, ty + dy), TILE_INK)
+    y = top + rows * (LABEL_H + ch + gap)
+    for line in lines:
+        d.text((PAD, y), line, fill=INK, font=font)
+        y += 10
+    return im
+
 FORMAT_FLAGS = {"--sheet": ("sheet",), "--separate": ("separate",), "--both": ("sheet", "separate")}
 
 if __name__ == "__main__":
@@ -549,6 +649,13 @@ if __name__ == "__main__":
         if formats:
             reference(a[1], {"boy": "male", "girl": "female"}.get(a[2], a[2]), a[3], a[4], formats)
             sys.exit(0)
+    if len(a) >= 4 and a[0] == "surf" and a[1] in SURF_POSES and a[2] in ("male", "female", "boy", "girl"):
+        opts = dict(zip(a[4::2], a[5::2]))
+        im = surf_placement(a[1], opts.get("--art"), opts.get("--game"),
+                            {"boy": "male", "girl": "female"}.get(a[2], a[2]))
+        im.save(a[3])
+        print(f"  wrote   {a[3]}")
+        sys.exit(0)
     if len(a) == 3 and a[0] == "blank" and a[1] in SPECS:
         blank_sheet(a[1]).save(a[2])
         print(f"  wrote   {a[2]}")

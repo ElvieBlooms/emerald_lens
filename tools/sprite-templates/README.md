@@ -100,3 +100,29 @@ holds both the main work and the extras packs both:
 | surfBlob.png | 32x32 x 6 | 32x32 x 3 | SURF BLOB (rows down, up, left; FRLG has two bob frames each) |
 | bird.png | 64x64 | 32x32 | FLY BIRD (FRLG: the bird alone, before and after the rider frames in `flyBird.png`) |
 | bag.png | 64x64 x 4 | 64x64 x 6 | BAG (one per pocket; frame 0 also shows while the bag opens) |
+
+## Surf placement (reference only)
+
+`frlg_surf_placement.png` and `rse_surf_placement.png` show how the game lines
+up the player and the surf blob, one cell per facing (right is left mirrored):
+pink is the player's frame, blue the blob's, and the dots mark the tile the
+player stands on. They aren't packed; they're for checking placement.
+
+From the tile's top-left corner, the 32x32 blob is drawn at (-8, -8), behind
+the player. The player is centred on the tile with its feet on the tile's
+bottom edge: (0, -16) for FRLG's 16x32 frames, (-8, -16) for RSE's 32x32. So
+the player's bottom 24 rows sit over the blob's top 24, and the blob's last
+8 rows show below the feet. Standing still, both bob up 1px together (FRLG
+also swaps to the blob's second frame), so the overlap never changes.
+
+| Facing | Player frame (surf.png) | Blob frame (surfBlob.png) FRLG | RSE |
+|---|---|---|---|
+| Down | 0 | 0, 1 | 0 |
+| Up | 1 | 2, 3 | 1 |
+| Left | 2 | 4, 5 | 2 |
+| Right | 2, mirrored | 4, 5, mirrored | 2, mirrored |
+
+`surf` draws the same layout with real art, from a look's folder and/or the
+game's own sprites:
+
+    python3 pack_gen3.py surf frlg girl my_surf.png --art ../../assets/sprites/<folder>/gen3/frlg --game /path/to/pokemon-love2d/firered
