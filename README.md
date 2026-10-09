@@ -47,9 +47,11 @@ assets/sprites/<folder>/
     rse/      Ruby, Sapphire and Emerald
 ```
 
-The options menu has a character choice for each family: **FR/LG CHARACTER** and **R/S/E CHARACTER**, each with a **LOOK** choice under it when that character has more than one look. A look only shows up for a family it has a folder for, so a character drawn for just FireRed/LeafGreen is only offered there, and you can use different characters for each. Pick **OFF** to keep a family's own player.
+The options menu has a section for each family, **FR/LG** and **R/S/E**, each with a **CHARACTER** choice, a **LOOK** choice when that character has more than one look, and a **GENDER** line showing who the selected look replaces: **GIRL**, **BOY** or **ENBY** (both). A look only shows up for a family it has a folder for, so a character drawn for just FireRed/LeafGreen is only offered there, and you can use different characters for each. Pick **OFF** to keep a family's own player.
 
-A boy or girl character only replaces that player, so the menu tags them: `KRIS (GIRL)`, `RED (BOY)`. With no save loaded every boy and girl choice is tagged; once you're in a save, only the ones that won't show for its player keep the tag. Enby characters fit either player and are never tagged. Every folder of a character is still used as a fallback.
+A boy or girl character only replaces that player, so the menu ends with a reminder: **GENDER MUST MATCH SAVE TO SHOW**. Enby characters replace either player. (The section names, GENDER and the reminder can be selected but don't do anything; the game's mod options don't have rows the cursor skips.)
+
+Every folder of a character is still used as a fallback.
 
 Changing a character or look applies straight away, no restart needed: the player changes as soon as you're back in the game. The one exception is the FireRed/LeafGreen trainer card, which keeps the portrait it first loaded until the game restarts. Adding or editing files in a character folder still needs a restart.
 
