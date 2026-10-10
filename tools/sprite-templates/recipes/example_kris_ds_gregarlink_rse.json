@@ -1,0 +1,181 @@
+{
+  "family": "rse_wide",
+  "note": "'PKMN Trainer from Crystal (DS style)' by GregarLink10 (credit required). Labelled sections on a flat blue backdrop; each row runs down, right, up, left. Walking and running down are step / stand / step, the other facings stand / step / step. Wide sheets: sprites are up to 31 wide. The 'using pokeball' row gives all five back frames, cut 5 rows at the bottom (hidden by the battle text box anyway) and shifted so the pointing hand stays in frame.",
+  "sections": {
+    "walk": {
+      "down": [
+        10,
+        9,
+        11
+      ],
+      "up": [
+        15,
+        16,
+        17
+      ],
+      "left": [
+        18,
+        19,
+        20
+      ]
+    },
+    "run": {
+      "down": [
+        33,
+        32,
+        34
+      ],
+      "up": [
+        38,
+        39,
+        40
+      ],
+      "left": [
+        41,
+        42,
+        43
+      ]
+    },
+    "surf": {
+      "down": [
+        44,
+        44,
+        44,
+        44
+      ],
+      "up": [
+        46,
+        46,
+        46,
+        46
+      ],
+      "left": [
+        47,
+        47,
+        47,
+        47
+      ]
+    },
+    "fish": {
+      "down": [
+        86,
+        87,
+        {
+          "piece": 88,
+          "hang": 1
+        },
+        {
+          "piece": 89,
+          "hang": 2
+        }
+      ],
+      "up": [
+        102,
+        103,
+        104,
+        105
+      ],
+      "left": [
+        106,
+        107,
+        108,
+        109
+      ]
+    },
+    "front": {
+      "frames": [
+        {
+          "piece": 31,
+          "hang": 1
+        }
+      ]
+    },
+    "map icon": {
+      "frames": [
+        26
+      ]
+    },
+    "mach bike": {
+      "down": [
+        76,
+        77,
+        79
+      ],
+      "up": [
+        92,
+        93,
+        95
+      ],
+      "left": [
+        96,
+        97,
+        99
+      ]
+    },
+    "acro bike": {
+      "down": [
+        76,
+        77,
+        79,
+        76,
+        76,
+        76,
+        76,
+        76,
+        76
+      ],
+      "up": [
+        92,
+        93,
+        95,
+        92,
+        92,
+        92,
+        92,
+        92,
+        92
+      ],
+      "left": [
+        96,
+        97,
+        99,
+        96,
+        96,
+        96,
+        96,
+        96,
+        96
+      ]
+    },
+    "field move": {
+      "frames": [
+        67,
+        68,
+        69,
+        70,
+        70
+      ]
+    },
+    "back": {
+      "frames": [
+        {
+          "piece": 148,
+          "hang": 5
+        },
+        {
+          "piece": 149,
+          "hang": 5
+        },
+        {
+          "piece": 150,
+          "hang": 5
+        },
+        {
+          "piece": 151,
+          "hang": 5,
+          "shift": -3
+        }
+      ]
+    }
+  }
+}

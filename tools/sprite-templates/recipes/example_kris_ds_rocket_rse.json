@@ -1,0 +1,40 @@
+{
+  "family": "rse_wide",
+  "note": "Team Rocket costume from GregarLink10's 'PKMN Trainer from Crystal (DS style)' sheet (credit required): walking and running only.",
+  "sections": {
+    "walk": {
+      "down": [
+        168,
+        167,
+        169
+      ],
+      "up": [
+        173,
+        174,
+        175
+      ],
+      "left": [
+        176,
+        177,
+        178
+      ]
+    },
+    "run": {
+      "down": [
+        182,
+        181,
+        183
+      ],
+      "up": [
+        187,
+        188,
+        189
+      ],
+      "left": [
+        190,
+        191,
+        192
+      ]
+    }
+  }
+}

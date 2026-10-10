@@ -82,6 +82,8 @@ Each sheet is one vertical strip of frames, in the game's own order:
 
 Gen 3 sprites are always full color.
 
+The 16-wide sheets (`walk.png`, `decorating.png`, and FRLG's `surf.png` and `fieldMove.png`) can also be drawn 32 wide, for characters bigger than the game's own, such as Gen 4 sprites. The game draws them centred on the tile with the feet on its bottom edge, so they just stand a little wider. Any other size is still skipped.
+
 ### Extras
 Also optional, in the same folders and with the same fallback. They aren't the player, but the game only draws them for the player:
 
@@ -94,7 +96,7 @@ Also optional, in the same folders and with the same fallback. They aren't the p
 The surf blob and bird have no boy or girl version, so they're only used when your character is the player in that save: a girl character's surf blob doesn't show for someone playing as the boy (enby works for either). The bag has one each, so it follows `genderMode` like the sprites.
 
 ## Sprite tools
-`tools/sprite-templates` has blank templates in two formats you can use interchangeably: one combined sheet per game family, laid out like the standard community sheets, or one strip per game sheet. The extras have a smaller sheet of their own (`frlg_extras.png`, `rse_extras.png`). `pack_gen3.py` exports the game's own sprites from your imported cache to draw from, converts between the two formats, and packs your art into a look's `gen3` folder. See its README. It needs Python 3 and Pillow, and isn't needed to play.
+`tools/sprite-templates` has blank templates in two formats you can use interchangeably: one combined sheet per game family, laid out like the standard community sheets, or one strip per game sheet. The extras have a smaller sheet of their own (`frlg_extras.png`, `rse_extras.png`). `pack_gen3.py` exports the game's own sprites from your imported cache to draw from, converts between the two formats, and packs your art into a look's `gen3` folder. `import_sheet.py` turns a sprite sheet made for something else (a fan game, a community collage) into our sheets. See its README. It needs Python 3 and Pillow, and isn't needed to play.
 
 **Sheet Examples:**
 

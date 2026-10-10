@@ -129,9 +129,10 @@ function gen3.init(mod, ctx)
   end
 
   -- Loads on first use, from the first folder whose copy is the vanilla
-  -- size; a missing or wrong-size copy moves on to the next folder. Hands
-  -- back the ImageData too, since water reflections recolor from it. -Elvie
-  local function loadImage(file, expectW, expectH)
+  -- size (or altW wide, where a wider frame is allowed); a missing or
+  -- wrong-size copy moves on to the next folder. Hands back the ImageData
+  -- too, since water reflections recolor from it, and the width found. -Elvie
+  local function loadImage(file, expectW, expectH, altW)
     if not (love and love.image and love.graphics) then return nil end
     for _, base in ipairs(bases) do
       local rel = base .. file
@@ -141,13 +142,13 @@ function gen3.init(mod, ctx)
           warnOnce(rel, "could not load %s; skipping it", rel)
         else
           local w, h = data:getDimensions()
-          if w == expectW and h == expectH then
+          if (w == expectW or (altW and w == altW)) and h == expectH then
             local image = love.graphics.newImage(data)
             image:setFilter("nearest", "nearest")
-            return image, data, rel
+            return image, data, rel, w
           end
-          warnOnce(rel, "%s is %dx%d but this slot needs %dx%d; skipping it",
-            rel, w, h, expectW, expectH)
+          warnOnce(rel, "%s is %dx%d but this slot needs %dx%d%s; skipping it",
+            rel, w, h, expectW, expectH, altW and (" or %dx%d"):format(altW, expectH) or "")
         end
       end
     end
@@ -191,14 +192,19 @@ function gen3.init(mod, ctx)
   if okOw and type(OwSprites.get) == "function" then
     local originalGet = OwSprites.get
 
+    -- Sheets with 16-wide frames can also come 32 wide, for characters
+    -- drawn bigger than the game's own (Gen 4 sprites, say). The engine
+    -- draws any frame centred on the tile with the feet on its bottom edge,
+    -- so only the width changes. -Elvie
     local function build(vanilla, file)
       local w, h, n = vanilla.width, vanilla.height, vanilla.frameCount
       if not (w and h and n) then return nil end
-      local image, data = loadImage(file, w, h * n)
+      local image, data, _, gotW = loadImage(file, w, h * n, w == 16 and 32 or nil)
       if not image then return nil end
+      w = gotW or w
       local record = {}
       for k, v in pairs(vanilla) do record[k] = v end
-      record.image, record.imageData = image, data
+      record.image, record.imageData, record.width = image, data, w
       record.quads = {}
       for fi = 0, n - 1 do
         record.quads[fi] = love.graphics.newQuad(0, fi * h, w, h, w, h * n)

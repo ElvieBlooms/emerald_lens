@@ -1,0 +1,140 @@
+{
+  "family": "frlg_wide",
+  "note": "Diamond/Pearl trainer rip layout (Dawn, ripped by Kaori), for FireRed/LeafGreen. Each row is down, right, up, left (the second group faces right). Uses the wide sheet (32-wide walk, surf and field move frames). DP surf sprites don't include the blob. The VS Seeker frames reuse the last field move pose.",
+  "sections": {
+    "walk": {
+      "down": [
+        11,
+        12,
+        13
+      ],
+      "up": [
+        17,
+        18,
+        19
+      ],
+      "left": [
+        20,
+        21,
+        22
+      ]
+    },
+    "run": {
+      "down": [
+        94,
+        95,
+        96
+      ],
+      "up": [
+        100,
+        101,
+        102
+      ],
+      "left": [
+        103,
+        104,
+        105
+      ]
+    },
+    "walk extra": {
+      "frames": [
+        11,
+        11
+      ]
+    },
+    "bike": {
+      "down": [
+        31,
+        32,
+        34
+      ],
+      "up": [
+        30,
+        33,
+        35
+      ],
+      "left": [
+        39,
+        42,
+        45
+      ]
+    },
+    "surf": {
+      "down": [
+        134,
+        134,
+        134,
+        134
+      ],
+      "up": [
+        136,
+        136,
+        136,
+        136
+      ],
+      "left": [
+        137,
+        137,
+        137,
+        137
+      ]
+    },
+    "fish": {
+      "down": [
+        56,
+        58,
+        61,
+        64
+      ],
+      "up": [
+        55,
+        57,
+        60,
+        65
+      ],
+      "left": [
+        70,
+        73,
+        74,
+        77
+      ]
+    },
+    "field move / vs seeker": {
+      "frames": [
+        152,
+        153,
+        154,
+        155,
+        155,
+        155,
+        155,
+        155,
+        155
+      ]
+    },
+    "front": {
+      "frames": [
+        156
+      ]
+    },
+    "intro": {
+      "frames": [
+        165
+      ]
+    },
+    "back": {
+      "frames": [
+        51,
+        54,
+        59,
+        67,
+        76
+      ]
+    }
+  },
+  "shrink": [
+    "front",
+    "intro",
+    "back"
+  ]
+}

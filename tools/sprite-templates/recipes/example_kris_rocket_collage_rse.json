@@ -1,0 +1,40 @@
+{
+  "family": "rse_wide",
+  "note": "Black Rocket uniform from the same HGSS-style Kris collage (bottom left of the sheet). Only walking and running are drawn; everything else falls back to the character's other looks.",
+  "sections": {
+    "walk": {
+      "down": [
+        105,
+        104,
+        106
+      ],
+      "up": [
+        130,
+        129,
+        131
+      ],
+      "left": [
+        116,
+        115,
+        117
+      ]
+    },
+    "run": {
+      "down": [
+        108,
+        107,
+        109
+      ],
+      "up": [
+        133,
+        132,
+        134
+      ],
+      "left": [
+        119,
+        118,
+        120
+      ]
+    }
+  }
+}

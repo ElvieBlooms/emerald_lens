@@ -1,0 +1,14 @@
+{
+  "family": "frlg_wide",
+  "layout": "essentials",
+  "note": "Kris sprite pack by DiegoWT: one Pokemon Essentials charset per action (4x4, rows down, left, right, up). The pigtails make frames up to 27 wide, so this uses the wide sheet.",
+  "files": {
+    "walk": "trProtagGirl_Walk.png",
+    "run": "trProtagGirl_Run.png",
+    "surf": "trProtagGirl_Surf.png",
+    "fish": "trProtagGirl_Fish_offset.png",
+    "bike": "trProtagGirl_Bike.png",
+    "field move / vs seeker": "trProtagGirl_UseHM.png",
+    "walk extra": "trProtagGirl_Walk.png"
+  }
+}

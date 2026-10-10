@@ -137,6 +137,32 @@ TITLE = {"frlg": "FireRed / LeafGreen", "rse": "Ruby / Sapphire / Emerald",
          "frlg_extras": "FireRed / LeafGreen extras", "rse_extras": "Ruby / Sapphire / Emerald extras"}
 HINT = {"frlg_extras": "Optional. Surf blob rows: down, up, left.",
         "rse_extras": "Optional. Surf blob rows: down, up, left."}
+
+# Wide: the same sheets, but the 16-wide overworld frames are 32 wide, for
+# characters drawn bigger than the game's own (Gen 4 sprites, say). The mod
+# takes either width; the game draws them centred on the tile. Use
+# frlg_wide or rse_wide in place of frlg or rse in any command.
+WIDE_FILES = {"walk.png", "surf.png", "fieldMove.png", "decorating.png"}
+for _base in ("frlg", "rse"):
+    _wide = _base + "_wide"
+    SPECS[_wide] = [(n, 32 if n in WIDE_FILES and w == 16 else w, h, c) for n, w, h, c in SPECS[_base]]
+    LAYOUT[_wide] = LAYOUT[_base]
+    EXTRAS_OF[_wide] = EXTRAS_OF[_base]
+    SHEET_W[_wide] = SHEET_W[_base] + 60
+    TITLE[_wide] = TITLE[_base] + " (wide)"
+
+def base_of(family):
+    """frlg_wide -> frlg, rse_extras -> rse_extras."""
+    return family.replace("_wide", "")
+
+def widen(strip, w, h, n):
+    """A strip centred in wider frames (the game's own art, for reference)."""
+    if strip.width >= w:
+        return strip
+    out = Image.new("RGBA", (w, h * n), CLEAR)
+    out.paste(strip, ((w - strip.width) // 2, 0))
+    return out
+
 SHEET_FILE = {f: f + ".png" if f in EXTRAS_OF.values() else f + "_sheet.png" for f in SHEET_W}
 PAD, LABEL_H, BLOCK_GAP, HEADER_H = 4, 10, 3, 24
 BG, INK = (52, 101, 101, 255), (240, 240, 240, 255)
@@ -509,8 +535,8 @@ def reference(family, gender, game_dir, dst_dir, formats=("sheet", "separate")):
     root = os.path.join(game_dir, "data", "generated", "gba")
     game = os.path.basename(os.path.normpath(game_dir)).lower()
     strips = {}
-    for name, w, h, n in SPECS[family]:
-        src = SOURCES[family][gender][name]
+    for name, w, h, n in SPECS[base_of(family)]:
+        src = SOURCES[base_of(family)][gender][name]
         if name == "front.png" and game in ("ruby", "sapphire"):
             src = RS_FRONT[gender]
         first, total = 0, n
@@ -533,7 +559,7 @@ def reference(family, gender, game_dir, dst_dir, formats=("sheet", "separate")):
             strip = Image.frombytes("RGBA", (w, h * total), data)
             if total != n:
                 strip = strip.crop((0, first * h, w, (first + n) * h))
-        strips[name] = strip
+        strips[name] = widen(strip, spec(family, name)[0], h, n)
     if "separate" in formats:
         for name, w, h, n in SPECS[family]:
             if name in strips:
@@ -574,13 +600,14 @@ def load_strip(family, name, art_dir, game_dir, gender):
                 return im
             print(f"  skip    {path} is {im.size[0]}x{im.size[1]}, expected {w}x{h * n}")
     if game_dir:
-        fam = family if name == "surf.png" else EXTRAS_OF[family]
+        fam = base_of(family) if name == "surf.png" else EXTRAS_OF[family]
         src = SOURCES[fam][gender][name]
+        gw = spec(fam, name)[0]
         raw = os.path.join(game_dir, "data", "generated", "gba", src + ".rgba")
         if os.path.exists(raw):
-            data = read_rgba(raw, w * h * n * 4)
+            data = read_rgba(raw, gw * h * n * 4)
             if data:
-                return Image.frombytes("RGBA", (w, h * n), data)
+                return widen(Image.frombytes("RGBA", (gw, h * n), data), w, h, n)
     return None
 
 def surf_placement(family, art_dir=None, game_dir=None, gender="female"):
@@ -588,12 +615,12 @@ def surf_placement(family, art_dir=None, game_dir=None, gender="female"):
     player_at = (SURF_TILE_AT[0] + (16 - pw) // 2, 0)
     player = load_strip(family, "surf.png", art_dir, game_dir, gender)
     blob = load_strip(family, "surfBlob.png", art_dir, game_dir, gender)
-    poses = SURF_POSES[family]
+    poses = SURF_POSES[base_of(family)]
     cols = 4
     rows = len(poses) // cols
     cw, ch = SURF_CELL
     gap, top = 6, HEADER_H + 2
-    short = {"frlg": "FR/LG", "rse": "R/S/E"}[family]
+    short = {"frlg": "FR/LG", "rse": "R/S/E", "frlg_wide": "FR/LG wide", "rse_wide": "R/S/E wide"}[family]
     blank = not (player and blob)
     lines = ["Pink: player", "Blue: blob", "Dots: the tile"] if blank else \
             (["Rows: the blob's two", "bob frames"] if family == "frlg" else [])
@@ -649,7 +676,7 @@ if __name__ == "__main__":
         if formats:
             reference(a[1], {"boy": "male", "girl": "female"}.get(a[2], a[2]), a[3], a[4], formats)
             sys.exit(0)
-    if len(a) >= 4 and a[0] == "surf" and a[1] in SURF_POSES and a[2] in ("male", "female", "boy", "girl"):
+    if len(a) >= 4 and a[0] == "surf" and base_of(a[1]) in SURF_POSES and a[2] in ("male", "female", "boy", "girl"):
         opts = dict(zip(a[4::2], a[5::2]))
         im = surf_placement(a[1], opts.get("--art"), opts.get("--game"),
                             {"boy": "male", "girl": "female"}.get(a[2], a[2]))

@@ -1,0 +1,14 @@
+{
+  "family": "frlg",
+  "note": "FRLG-style sheet with a Jigglypuff surf mount. Rows down, up, left, right.",
+  "sections": {
+    "walk":   { "down": [11, 12, 13], "up": [18, 19, 20], "left": [34, 35, 36] },
+    "run":    { "down": [14, 1, 15], "up": [21, 22, 23], "left": [37, 38, 39] },
+    "walk extra": { "frames": [11, 11] },
+    "surf with blob": { "down": [2, 3, 4, 2], "up": [24, 25, 26, 24], "left": [40, 41, 42, 40] },
+    "fish":   { "down": [5, 6, 7, 8], "up": [27, 28, 29, 30], "left": [43, 44, 45, 46] },
+    "field move / vs seeker": { "frames": [67, 68, 69, 70, 71, 72, 73, 74, 75] },
+    "fly (off / in)": { "frames": [17, 50] },
+    "back":   { "frames": [94, 95, 96, 97, 98] }
+  }
+}

@@ -126,3 +126,159 @@ also swaps to the blob's second frame), so the overlap never changes.
 game's own sprites:
 
     python3 pack_gen3.py surf frlg girl my_surf.png --art ../../assets/sprites/<folder>/gen3/frlg --game /path/to/pokemon-love2d/firered
+
+## Importing a sheet made for something else
+
+`import_sheet.py` turns a sprite sheet from a fan game or a community collage
+into our combined sheets, ready to check, touch up and pack. Nothing is
+resized: sprites are cut out at their real size and set into our frames.
+
+1. **Number the sprites.** `slice` removes the background (transparent, or a
+   flat backdrop colour), shrinks a sheet that was blown up 2x/3x/4x back to
+   its real size, and writes a preview with every sprite boxed and numbered:
+
+        python3 import_sheet.py slice their_sheet.png numbers.png
+
+2. **Write a recipe** saying which numbers go where. Keys are our sheet's
+   section names in lower case (`walk`, `run`, `bike` / `mach bike`,
+   `acro bike`, `fish`, `surf`, `underwater`, `watering`, `field move`,
+   `back`, `front`, `surf blob`, `fly bird`, `bag`, ...), each with the
+   frames per facing (`down`, `up`, `left`) in our order, or `frames` for
+   one-row sections. Right-facing rows on the source are skipped, since the
+   game mirrors left.
+
+        {
+          "family": "rse",
+          "sections": {
+            "walk": { "down": [59, 60, 62], "up": [96, 97, 99], "left": [63, 64, 66] },
+            "surf with blob": { "down": [5, 6, 8, 5], "up": [47, 48, 50, 47], "left": [21, 22, 24, 21] }
+          }
+        }
+
+   - An entry can be a number, a list of numbers drawn as one sprite (a
+     sprite that came out in two bits), `{"piece": 12, "flip": true}`, or
+     `null` to leave a frame blank.
+   - A fishing rod (or anything else) reaching below the feet would lift the
+     sprite, since the lowest pixel goes on the foot row. `{"piece": 40,
+     "hang": 5}` says 5 pixels hang below the feet: the feet stay put and
+     whatever doesn't fit the frame is cut off.
+   - `"shift": -3` moves a sprite 3 pixels left of centre (positive is
+     right), to choose which side loses pixels when it's wider than the
+     frame: keep the pointing hand, lose the edge of the bag.
+   - Sprites drawn touching each other come out as one piece. `"split":
+     {"29": 4}` cuts piece 29 into 4 columns (`[4, 2]` for columns and rows),
+     used as `"29.1"`, `"29.2"`...
+   - `"surf with blob"` takes surf sprites drawn together with the mount, as
+     most fan games do (frames per facing: sit, step, step, jump). Each is cut
+     in two using the game's own placement (see Surf placement): what falls in
+     the player's frame goes to surf.png, the rest to surfBlob.png. In game it
+     looks the same as the original, except while hopping on or off the
+     water, when the game draws the blob by itself for a moment.
+   - Optional: `"scale"` and `"background"` (`"#ff7f27"`) if the guesses are
+     wrong, and `"reach"` (default 1) for how far apart pixels can be and
+     still count as one sprite. Keep the same values for `slice` and `build`
+     (`--scale`, `--bg`, `--reach`) so the numbers match.
+   - Sheets saved as JPEG or WebP (Discord and many image hosts convert
+     them) come with thousands of smeared colours and a speckled halo round
+     every sprite. These are spotted and cleaned up on their own: the halo
+     goes with the backdrop and the colours are snapped back to a palette of
+     48. Small light patches inside a sprite, like eye whites, are kept.
+     `"lossy": false` / `true` (`--lossy no` / `yes`) overrides the guess,
+     and `"colors"` (`--colors`) changes the palette size. An original PNG
+     still gives the best result when you can get one.
+
+   `recipes/` has worked examples:
+   - `example_essentials_rikku.json`: a Pokemon Essentials layout (4x4 per
+     action: rows down, left, right, up; columns stand, step, stand, step).
+   - `example_frlg_jigglypuff.json`: a FRLG-style collage with a Jigglypuff
+     surf mount.
+   - `example_kris_artist_frlg.json` / `_rse.json`: the layout used by the
+     artist of one of our Kris sets (rows down, left, right, up; a 16-frame
+     row per facing that comes out as one piece and is split; bike and
+     fishing grids of 8 columns; back frames along the top).
+   - `example_dp_dawn_rse.json` / `_frlg.json`: a Diamond/Pearl trainer rip
+     (labelled boxes on white, rows down, right, up, left) on the wide
+     sheets, with the big back pics, portrait and intro shrunk to fit.
+   - `example_kris_hgss_collage_rse.json` / `_frlg.json`: an HGSS-style
+     Kris collage (rows down, left, up, right; step, stand, step), a WebP on
+     the wide sheets, with the battle throw strip pasted under the sheet and
+     `hang` on the rod frames. `example_kris_rocket_collage_*.json` takes
+     the black Rocket uniform walk and run from the same sheet.
+
+3. **Build**, then look over the result and pack it as usual:
+
+        python3 import_sheet.py build their_sheet.png recipe.json ./imported
+        python3 pack_gen3.py pack rse ./imported ../../assets/sprites/<folder>/gen3/rse
+
+   Each sprite is centred, with its lowest pixel where the game's own art
+   stands. It warns about anything too big for its frame (cut off, never
+   shrunk). Whatever the source doesn't have stays blank, so the game's own
+   sprite fills in. If a section is only partly mapped, `pack` warns about
+   the blank frames, since the player would vanish in those poses.
+
+### A folder with one file per action
+
+Sets made for Pokemon Essentials (and fan games built on it) usually come as
+a folder of charsets, one image per action, each a grid with a row per
+facing. Point `build` at the folder; the recipe names the file for each
+section instead of numbering sprites:
+
+    {
+      "family": "rse_wide",
+      "layout": "essentials",
+      "files": {
+        "walk": "trProtagGirl_Walk.png",
+        "run": "trProtagGirl_Run.png",
+        "mach bike": "trProtagGirl_Bike.png",
+        "surf": "trProtagGirl_Surf.png",
+        "fish": "trProtagGirl_Fish_offset.png",
+        "field move": "trProtagGirl_UseHM.png"
+      }
+    }
+
+    python3 import_sheet.py build ./their-folder recipe.json ./imported
+
+- `"essentials"` is a 4x4 grid, rows down, left, right, up. Grid cells can be
+  any size (fishing sheets often use bigger ones); blown-up files are shrunk
+  back first.
+- Frames are picked for you: stand, step, step for walking, running and
+  biking; all four for fishing; sit, step, step, sit for surfing; a one-row
+  file (field move) counts through and holds its last frame. Extra frames
+  (Acro Bike tricks, VS Seeker) repeat the standing frame. To choose your
+  own, give the file as `{"file": "...", "columns": [0, 1, 3]}` (or
+  `"columns": {"down": [...], "up": [...], "left": [...]}`); `"grid": [4, 4]`
+  and `"rows": [...]` change the layout for one file.
+- Cells are placed as drawn, not trimmed, so bobs and rods stay where the
+  artist put them: the row the feet stand on lines up with ours.
+- Essentials surf sprites don't include the blob, so the game's own blob
+  (or your `surfBlob.png`) is used.
+
+`recipes/example_essentials_folder_rse.json` / `_frlg.json` are worked
+examples.
+
+Sheets made for other games are other people's work: credit the artist, and
+ask before shipping their art with a release.
+
+## Wide sheets (bigger characters)
+
+`frlg_wide_sheet.png` and `rse_wide_sheet.png` are the combined sheets with
+32-wide frames where the game uses 16 (walk/run, decorating, and FRLG's surf
+and field move), for characters drawn bigger than the game's own: Gen 4
+overworld sprites are 17-20 pixels wide, for example. The mod takes either
+width. Use `frlg_wide` or `rse_wide` in place of `frlg` or `rse` in any
+command (`reference` centres the game's own art in the wider frames), and in
+an importer recipe's `"family"`.
+
+## Too big for the frame: shrink
+
+Battle back pics and portraits from later games are often bigger than the
+game's frames (Gen 4 back pics run up to about 80 wide; the battle draws
+64x64). By default the importer cuts off what doesn't fit, with a warning.
+List sections under `"shrink"` in a recipe to scale those sprites down to fit
+instead (nearest pixel, keeping their shape):
+
+    "shrink": ["front", "back"]
+
+The game draws everything into its 240x160 screen before enlarging it, so
+shrinking here looks the same as anything the game could do: some rows and
+columns drop out. Treat it as a starting point to tidy up by hand.
