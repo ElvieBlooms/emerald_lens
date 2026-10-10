@@ -109,7 +109,8 @@ The surf blob and bird have no boy or girl version, so they're only used when yo
 **R/S/E**
 
 <img width="470" height="480" alt="rse_sheet" src="https://github.com/user-attachments/assets/7d5bced8-abb9-4023-b013-3aa834337c3e" />
-<img width="470" height="480" alt="rse_sheet" src="https://github.com/user-attachments/assets/d9d7a051-cd6e-4961-8dcd-4abde6fcd81a" />
+<img width="530" height="480" alt="rse_wide_sheet" src="https://github.com/user-attachments/assets/d70c5a04-15ee-4bcd-b4d2-a6cc5419bd3d" />
+
 
 ## Not covered yet
 * New-game name choices.
