@@ -103,9 +103,12 @@ The surf blob and bird have no boy or girl version, so they're only used when yo
 **FR/LG**
 
 <img width="500" height="298" alt="frlg_sheet" src="https://github.com/user-attachments/assets/a51981b9-997d-44f1-a1ff-abcb6020cf51" />
+<img width="560" height="444" alt="frlg_wide_sheet" src="https://github.com/user-attachments/assets/0b6a8a98-fb3d-43ad-a3e1-db8f96ca8bab" />
+
 
 **R/S/E**
 
+<img width="470" height="480" alt="rse_sheet" src="https://github.com/user-attachments/assets/7d5bced8-abb9-4023-b013-3aa834337c3e" />
 <img width="470" height="480" alt="rse_sheet" src="https://github.com/user-attachments/assets/d9d7a051-cd6e-4961-8dcd-4abde6fcd81a" />
 
 ## Not covered yet
