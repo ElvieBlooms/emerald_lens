@@ -1,0 +1,38 @@
+{
+  "family": "rse_wide",
+  "note": "LouLilie's HGSS Kris battle pics and intro (credit LouLilie). Make the source by pasting, on transparent, the two 80x80 back frames (BackSprites/6_9.png), the first front frame (FrontSprites/8_9.png) and the intro (NewGameIntro/0_17.png) in one row, bottoms level. The back pic has only idle and wind-up, so the throw holds the wind-up; frames keep the artist's alignment (hang 4 cuts the bottom, hidden by the text box; shift keeps the raised hand in frame).",
+  "sections": {
+    "back": {
+      "frames": [
+        {
+          "piece": 2,
+          "hang": 4,
+          "shift": -3
+        },
+        {
+          "piece": 2,
+          "hang": 4,
+          "shift": -3
+        },
+        {
+          "piece": 2,
+          "hang": 4,
+          "shift": -3
+        },
+        {
+          "piece": 1,
+          "hang": 4,
+          "shift": 7
+        }
+      ]
+    },
+    "front": {
+      "frames": [
+        {
+          "piece": 3,
+          "hang": 1
+        }
+      ]
+    }
+  }
+}

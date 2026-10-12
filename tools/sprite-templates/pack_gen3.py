@@ -29,6 +29,12 @@ reference  Export the game's own sprites from YOUR imported cache, in both
 blank      Write a fresh blank combined sheet:
              python3 pack_gen3.py blank rse rse_sheet.png
 
+transfer   Start the other game's sheet from this one: every section that has
+           a counterpart (walk, run, Mach Bike to bike, fishing, surf, back...)
+           is copied over, frame by frame, if it fits; the rest stays blank.
+             python3 pack_gen3.py transfer rse rse_sheet.png frlg frlg_sheet.png
+             python3 pack_gen3.py transfer frlg_extras frlg_extras.png rse_extras rse_extras.png
+
 Extras (optional): the surf blob, the Fly bird and the bag have their own
 smaller sheet, frlg_extras.png / rse_extras.png, with separate templates in
 frlg_extras/ and rse_extras/. Use frlg_extras or rse_extras in place of frlg
@@ -136,7 +142,10 @@ SHEET_W = {"frlg": 500, "rse": 470, "frlg_extras": 500, "rse_extras": 470}
 TITLE = {"frlg": "FireRed / LeafGreen", "rse": "Ruby / Sapphire / Emerald",
          "frlg_extras": "FireRed / LeafGreen extras", "rse_extras": "Ruby / Sapphire / Emerald extras"}
 HINT = {"frlg_extras": "Optional. Surf blob rows: down, up, left.",
-        "rse_extras": "Optional. Surf blob rows: down, up, left."}
+        "rse_extras": "Optional. Surf blob rows: down, up, left.",
+        # RSE's back pic stands in its last frame, FRLG's in its first -Elvie
+        "rse": "Draw inside the boxes. Rows: down, up, left. BACK: throw first, standing last.",
+        "rse_wide": "Draw inside the boxes. Rows: down, up, left. BACK: throw first, standing last."}
 
 # Wide: the same sheets, but the 16-wide overworld frames are 32 wide, for
 # characters drawn bigger than the game's own (Gen 4 sprites, say). The mod
@@ -663,6 +672,101 @@ def surf_placement(family, art_dir=None, game_dir=None, gender="female"):
         y += 10
     return im
 
+def sections(family):
+    """Recipe keys: our sheet's section labels in lower case, each naming its
+    frames per facing (down, up, left) or as one list ("frames"). Returns
+    {key: {facing: [(file, frame index), ...]}}."""
+    out = {}
+    for label, name, blocks in LAYOUT[family]:
+        grids = [block_rows(b) for b in blocks]
+        nrows = max(len(g) for g in grids)
+        entry = out.setdefault(label.lower(), {})
+        if nrows == 3:
+            for r, facing in enumerate(("down", "up", "left")):
+                for g in grids:
+                    if r < len(g):
+                        entry.setdefault(facing, []).extend((name, f) for f in g[r])
+        else:
+            # Not laid out by facing (the RSE bag is two rows of three):
+            # every frame in order, row by row. -Elvie
+            for g in grids:
+                for row in g:
+                    entry.setdefault("frames", []).extend((name, f) for f in row)
+    return out
+
+
+# The same section under each game's name. -Elvie
+SAME_SECTION = {"mach bike": "bike", "bike": "mach bike",
+                "field move": "field move / vs seeker", "field move / vs seeker": "field move"}
+# Same size but not the same picture in the other game, so never moved.
+NOT_MOVED = {"bag"}
+# Back pic frames by what they show. FRLG: idle 0, throw 1-2-3-4 (1 and 4
+# held). RSE: idle 3, throw 0-1-2 (0 and 2 held). From the games' own
+# back pic anims. -Elvie
+BACK_FRAMES = {("frlg", "rse"): {1: 0, 2: 1, 4: 2, 0: 3},
+               ("rse", "frlg"): {3: 0, 0: 1, 1: 2, 2: 4}}
+BACK_EXTRA = {("rse", "frlg"): {3: 1}}  # FRLG's second quick frame reuses RSE's
+
+def transfer(src_family, src, dst_family, dst):
+    """Fill the other game's sheet from this one: each section goes to its
+    counterpart (Mach Bike to bike, and so on), frame by frame in order.
+    The game draws every frame centred and standing on its bottom edge, so a
+    frame moves centre to centre, bottom to bottom; one whose drawing
+    doesn't fit the other game's frame is left out. Everything with no
+    counterpart stays blank. -Elvie"""
+    if (src_family in EXTRAS_OF.values()) != (dst_family in EXTRAS_OF.values()):
+        print("  ERROR   transfer a main sheet to a main sheet, or extras to extras")
+        return False
+    strips, ok = read_any(src_family, src)
+    if not ok:
+        return False
+    src_secs, dst_secs = sections(src_family), sections(dst_family)
+    out, moved, skipped, too_big = {}, [], [], []
+    for key, facings in src_secs.items():
+        to = key if key in dst_secs else SAME_SECTION.get(key)
+        if to not in dst_secs or key in NOT_MOVED:
+            if any(not is_blank(strips[n]) for f in facings.values() for n, _ in f if n in strips):
+                skipped.append(key)
+            continue
+        got = total = 0
+        pair = (base_of(src_family), base_of(dst_family))
+        for facing, slots in facings.items():
+            dslots = dst_secs[to].get(facing, [])
+            if key == "back" and pair in BACK_FRAMES:
+                order = sorted((d, s) for s, d in BACK_FRAMES[pair].items())
+                order += sorted((d, s) for d, s in BACK_EXTRA.get(pair, {}).items())
+                pairs = [(slots[s], dslots[d]) for d, s in order if s < len(slots) and d < len(dslots)]
+            else:
+                pairs = list(zip(slots, dslots))
+            for (sname, si), (dname, di) in pairs:
+                if sname not in strips:
+                    continue
+                sw, sh, _ = spec(src_family, sname)
+                frame = strips[sname].crop((0, si * sh, sw, (si + 1) * sh))
+                bb = frame.getchannel("A").getbbox()
+                if not bb:
+                    continue
+                total += 1
+                dw, dh, dn = spec(dst_family, dname)
+                ox, oy = (dw - sw) // 2, dh - sh
+                if bb[0] + ox < 0 or bb[1] + oy < 0 or bb[2] + ox > dw or bb[3] + oy > dh:
+                    too_big.append(key if facing == "frames" else f"{key} {facing}")
+                    continue
+                strip = out.setdefault(dname, Image.new("RGBA", (dw, dh * dn), CLEAR))
+                strip.alpha_composite(frame.crop(bb), (bb[0] + ox, di * dh + bb[1] + oy))
+                got += 1
+        if total:
+            moved.append(f"{key} -> {to}: {got} of {total} frames")
+    sheet_from_strips(dst_family, out).save(dst)
+    for m in moved:
+        print(f"  moved   {m}")
+    for k in skipped:
+        print(f"  skipped {k} (no counterpart in {base_of(dst_family).upper()})")
+    for k in sorted(set(too_big)):
+        print(f"  skipped {k}: {too_big.count(k)} frame(s) too big for {base_of(dst_family).upper()}'s frame (try the _wide family)")
+    print(f"  wrote   {dst}")
+    return True
+
 FORMAT_FLAGS = {"--sheet": ("sheet",), "--separate": ("separate",), "--both": ("sheet", "separate")}
 
 if __name__ == "__main__":
@@ -683,6 +787,8 @@ if __name__ == "__main__":
         im.save(a[3])
         print(f"  wrote   {a[3]}")
         sys.exit(0)
+    if len(a) == 5 and a[0] == "transfer" and a[1] in SPECS and a[3] in SPECS:
+        sys.exit(0 if transfer(a[1], a[2], a[3], a[4]) else 1)
     if len(a) == 3 and a[0] == "blank" and a[1] in SPECS:
         blank_sheet(a[1]).save(a[2])
         print(f"  wrote   {a[2]}")

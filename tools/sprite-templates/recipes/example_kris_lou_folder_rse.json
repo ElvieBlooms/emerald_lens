@@ -1,0 +1,56 @@
+{
+  "family": "rse_wide",
+  "layout": "hgss",
+  "note": "LouLilie's HGSS Kris (credit LouLilie). Point build at the folder nds2png.py makes from the pack's DS files; the overworld files come out as vertical strips of 32x32 frames, 4 per facing (up, down, left, right). Battle pics and the intro are built separately from a sheet (see example_kris_lou_pics_*.json).",
+  "files": {
+    "walk": {
+      "file": "OWS BTX/1_070_strip.png",
+      "strip": 4,
+      "first": 0
+    },
+    "run": {
+      "file": "OWS BTX/1_070_strip.png",
+      "strip": 4,
+      "first": 16
+    },
+    "fish": {
+      "file": "OWS BTX/1_080_strip.png",
+      "strip": 4,
+      "first": 0
+    },
+    "surf": {
+      "file": "OWS BTX/1_074_strip.png",
+      "strip": 1,
+      "columns": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "mach bike": {
+      "file": "OWS BTX/1_072_strip.png",
+      "strip": 4,
+      "first": 0
+    },
+    "acro bike": {
+      "file": "OWS BTX/1_072_strip.png",
+      "strip": 4,
+      "first": 0
+    },
+    "field move": {
+      "file": "HM Sprites/3_20.png",
+      "strip": 10,
+      "rows": [
+        "frames"
+      ],
+      "columns": [
+        1,
+        8,
+        9,
+        9,
+        9
+      ]
+    }
+  }
+}

@@ -159,10 +159,6 @@
     "back": {
       "frames": [
         {
-          "piece": 148,
-          "hang": 5
-        },
-        {
           "piece": 149,
           "hang": 5
         },
@@ -171,9 +167,13 @@
           "hang": 5
         },
         {
-          "piece": 151,
+          "piece": 152,
           "hang": 5,
           "shift": -3
+        },
+        {
+          "piece": 148,
+          "hang": 5
         }
       ]
     }

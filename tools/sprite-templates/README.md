@@ -34,6 +34,33 @@ way, and anything not drawn yet stays blank.
     python3 pack_gen3.py convert frlg frlg_sheet.png ./frlg-separate
     python3 pack_gen3.py convert frlg ./frlg frlg_sheet.png
 
+## Starting one game's sheet from the other
+
+`transfer` copies a finished sheet into the other game's layout, so FRLG can
+start from your RSE work (or the other way round):
+
+    python3 pack_gen3.py transfer rse rse_sheet.png frlg frlg_sheet.png
+    python3 pack_gen3.py transfer frlg_wide frlg_wide_sheet.png rse_wide rse_wide_sheet.png
+    python3 pack_gen3.py transfer rse_extras rse_extras.png frlg_extras frlg_extras.png
+
+- Every section with a counterpart moves over frame by frame: walk, run,
+  fishing, surf, front, back, map icon, Mach Bike and bike, field move, and
+  the surf blob and Fly bird on the extras sheet.
+- The game draws every frame centred and standing on its bottom edge, so a
+  frame moves centre to centre, bottom to bottom and lands where it was. A
+  frame whose drawing doesn't fit the other game's frame (RSE's 32-wide
+  field move into FRLG's 16) is left out; use a `_wide` family to keep it.
+- Back pics move by what each frame shows, not by position: FRLG's
+  standing frame (first) becomes RSE's (last) and the other way round, and
+  the throw frames pair up wind-up to wind-up and thrown to thrown. Going to
+  FRLG, RSE's one quick frame fills both of FRLG's.
+- Anything with no counterpart stays blank: the Acro Bike, underwater,
+  watering and decorating going to FRLG; the Oak intro, VS Seeker bike and
+  walk extras going to RSE; one of FRLG's two quick back frames; the bag (same size,
+  different picture). Draw those, or leave them for the fallback.
+- The source can be a sheet or a templates folder, as with `pack`. The
+  output is a combined sheet to check, finish and pack as usual.
+
 ## Packing into the mod
 Run these from this folder. Point `pack` at a combined sheet, a folder of separate templates, or a folder
 holding both:
@@ -68,7 +95,7 @@ Need a fresh blank sheet? `python3 pack_gen3.py blank rse rse_sheet.png`
 | underwater.png | -- | 32x32 x 9 | UNDERWATER |
 | watering.png | -- | 32x32 x 9 | WATERING |
 | decorating.png | -- | 16x32 x 1 | DECORATE |
-| back.png | 64x64 x 5 | 64x64 x 4 | BACK |
+| back.png | 64x64 x 5 | 64x64 x 4 | BACK: FRLG stands in the first frame, then throws (wind-up, two quick frames, thrown); RSE throws first (wind-up, quick frame, thrown) and stands in the LAST frame |
 | front.png | 64x64 | 64x64 | FRONT (also the trainer card, and the RSE intro) |
 | intro.png | 64x96 | -- | INTRO (FRLG's Oak intro) |
 | mapIcon.png | 16x16 | 16x16 | MAP ICON (Town Map / Fly map marker; also the PokeNav and Pokedex area maps on RSE) |
@@ -155,6 +182,9 @@ resized: sprites are cut out at their real size and set into our frames.
           }
         }
 
+   - Sections with facings need them named (`"walk": {"down": [...],
+     "up": [...], "left": [...]}`); one-row sections (`front`, `back`,
+     `field move`...) can be a plain list (`"back": [12, 13, 14, 15]`).
    - An entry can be a number, a list of numbers drawn as one sprite (a
      sprite that came out in two bits), `{"piece": 12, "flip": true}`, or
      `null` to leave a frame blank.
@@ -187,7 +217,12 @@ resized: sprites are cut out at their real size and set into our frames.
      and `"colors"` (`--colors`) changes the palette size. An original PNG
      still gives the best result when you can get one.
 
-   `recipes/` has worked examples:
+   `recipes/blank_frlg.json` and `recipes/blank_rse.json` list every
+   section for each game with the right number of frames (all `null`) and
+   a note on what each one is; copy one, fill in your numbers and delete
+   what you don't need.
+
+   `recipes/` also has worked examples:
    - `example_essentials_rikku.json`: a Pokemon Essentials layout (4x4 per
      action: rows down, left, right, up; columns stand, step, stand, step).
    - `example_frlg_jigglypuff.json`: a FRLG-style collage with a Jigglypuff
@@ -205,7 +240,9 @@ resized: sprites are cut out at their real size and set into our frames.
      `hang` on the rod frames. `example_kris_rocket_collage_*.json` takes
      the black Rocket uniform walk and run from the same sheet.
 
-3. **Build**, then look over the result and pack it as usual:
+3. **Build** from the original sheet (not the numbers preview, which has
+   the boxes and labels drawn on it), then look over the result and pack it
+   as usual:
 
         python3 import_sheet.py build their_sheet.png recipe.json ./imported
         python3 pack_gen3.py pack rse ./imported ../../assets/sprites/<folder>/gen3/rse
@@ -255,6 +292,58 @@ section instead of numbering sprites:
 
 `recipes/example_essentials_folder_rse.json` / `_frlg.json` are worked
 examples.
+
+### A folder of loose images (a character compilation)
+
+A folder holding a character's sprites as separate files (strips in the
+decomp's own format like `walking.png` or `mach_bike.png`, a back pic,
+maybe a collage) can be numbered as one sheet. Slice the folder:
+
+    python3 import_sheet.py slice ./Green green_numbers.png
+
+- Strips are found by their size (frames side by side up to 96 tall, or
+  square frames stacked) and cut into frames. Each frame keeps its place in
+  its cell, since that art is already lined up, and is set on our frame's
+  bottom edge. Anything else (a collage) is cut into pieces as usual.
+- Numbers run across the whole folder, files in name order; the preview
+  labels each file with its range. A strip frame can also be named
+  `"file:frame"` (`"walking:3"`, frames counted from 0 like the game), which
+  keeps working if you add files later, while plain numbers shift.
+- Write a normal recipe (`sections`, as for a sheet) and build with the
+  folder. The same folder can feed a recipe for each game:
+
+      python3 import_sheet.py build ./Green green_frlg.json ./out-frlg
+
+- `"cells": {"odd.png": [32, 32]}` sets a file's frame size if the guess is
+  wrong; `"cells": {"collage.png": "pieces"}` cuts it into pieces instead.
+
+`recipes/example_green_folder_rse.json` / `_frlg.json` are worked examples
+(a Green compilation in decomp format).
+
+### HGSS / DPPt ROM-hack packs
+
+Sprite packs made for HeartGold/SoulSilver or Diamond/Pearl/Platinum ROM
+hacks come in the DS's own formats (`.RGCN`/`.RLCN` tiles and palettes,
+`.btx` overworlds, `.BMD0` models). `nds2png.py` turns a folder of them into
+PNGs, keeping the pack's folder names:
+
+    python3 nds2png.py ./their-pack ./their-pack-png
+
+Overworld files come out as `<name>_strip.png`: square frames one under the
+next. Folder mode reads those directly with `"strip"` (frames per facing)
+and `"first"` (the frame to start from); `"layout": "hgss"` sets the facing
+order to up, down, left, right:
+
+    "walk": { "file": "OWS BTX/1_070_strip.png", "strip": 4, "first": 0 },
+    "run":  { "file": "OWS BTX/1_070_strip.png", "strip": 4, "first": 16 }
+
+Trainer pics are decrypted on the way out (two 80x80 frames side by side).
+Images the game builds from small pieces (animated back pics, some menus)
+come out as loose parts, since the layout data lives in the ROM. Some files
+in these packs replace whole game images and also hold the game's own art;
+keep those out of any repo or release. `recipes/example_kris_lou_*.json`
+are worked examples (LouLilie's HGSS Kris): `_folder` and `_rocket` for the
+overworlds, `_pics` for the battle pics and intro from a small pasted sheet.
 
 Sheets made for other games are other people's work: credit the artist, and
 ask before shipping their art with a release.

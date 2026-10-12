@@ -1,0 +1,122 @@
+{
+  "family": "frlg_wide",
+  "note": "Green compilation folder (decomp-format strips plus a collage). Frames are named file:frame, counting from 0 like the game, so the recipe keeps working if files are added. This surf strip is in pairs by facing (down, up, left). Uses the '(1)' files (Green's palette). Build with the folder: python3 import_sheet.py build ./Green recipe.json ./out FRLG surf and field move frames are 16 wide in the game and these are 32, so this uses the wide sheet.",
+  "sections": {
+    "walk": {
+      "down": [
+        "walking (1):0",
+        "walking (1):3",
+        "walking (1):4"
+      ],
+      "up": [
+        "walking (1):1",
+        "walking (1):5",
+        "walking (1):6"
+      ],
+      "left": [
+        "walking (1):2",
+        "walking (1):7",
+        "walking (1):8"
+      ]
+    },
+    "run": {
+      "down": [
+        "running (1):0",
+        "running (1):3",
+        "running (1):4"
+      ],
+      "up": [
+        "running (1):1",
+        "running (1):5",
+        "running (1):6"
+      ],
+      "left": [
+        "running (1):2",
+        "running (1):7",
+        "running (1):8"
+      ]
+    },
+    "fish": {
+      "down": [
+        "fishing (1):8",
+        "fishing (1):9",
+        "fishing (1):10",
+        "fishing (1):11"
+      ],
+      "up": [
+        "fishing (1):4",
+        "fishing (1):5",
+        "fishing (1):6",
+        "fishing (1):7"
+      ],
+      "left": [
+        "fishing (1):0",
+        "fishing (1):1",
+        "fishing (1):2",
+        "fishing (1):3"
+      ]
+    },
+    "surf": {
+      "down": [
+        "surfing (1):0",
+        "surfing (1):0",
+        "surfing (1):0",
+        "surfing (1):1"
+      ],
+      "up": [
+        "surfing (1):2",
+        "surfing (1):2",
+        "surfing (1):2",
+        "surfing (1):3"
+      ],
+      "left": [
+        "surfing (1):4",
+        "surfing (1):4",
+        "surfing (1):4",
+        "surfing (1):5"
+      ]
+    },
+    "front": [
+      "front:0"
+    ],
+    "bike": {
+      "down": [
+        "mach_bike (1):0",
+        "mach_bike (1):3",
+        "mach_bike (1):4"
+      ],
+      "up": [
+        "mach_bike (1):1",
+        "mach_bike (1):5",
+        "mach_bike (1):6"
+      ],
+      "left": [
+        "mach_bike (1):2",
+        "mach_bike (1):7",
+        "mach_bike (1):8"
+      ]
+    },
+    "walk extra": [
+      "walking (1):0",
+      "walking (1):0"
+    ],
+    "field move / vs seeker": [
+      "field_move (1):0",
+      "field_move (1):1",
+      "field_move (1):2",
+      "field_move (1):3",
+      "field_move (1):4",
+      "field_move (1):4",
+      "field_move (1):4",
+      "field_move (1):4",
+      "field_move (1):4"
+    ],
+    "back": [
+      "leaf_back_pic:0",
+      "leaf_back_pic:1",
+      "leaf_back_pic:2",
+      "leaf_back_pic:3",
+      "leaf_back_pic:4"
+    ]
+  }
+}

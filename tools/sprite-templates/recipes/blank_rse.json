@@ -1,0 +1,266 @@
+{
+  "family": "rse",
+  "note": "Blank recipe with every section for Ruby / Sapphire / Emerald. Replace null with piece numbers from your slice preview and delete the sections you don't need; anything left out or null falls back to another look or the game's own sprite. Use family \"rse_wide\" for 32-wide art. Keys starting with _ are notes and are ignored.",
+  "_how": {
+    "piece": "a number from the slice preview, e.g. 12",
+    "pieces drawn as one sprite": [
+      12,
+      13
+    ],
+    "part of a split piece": "\"29.2\", with \"split\": {\"29\": 4} at the top level",
+    "mirrored": {
+      "piece": 12,
+      "flip": true
+    },
+    "rod hanging below the feet": {
+      "piece": 40,
+      "hang": 5
+    },
+    "moved off centre": {
+      "piece": 151,
+      "shift": -3
+    },
+    "blank frame": null,
+    "one-row sections": "can be a plain list, e.g. \"back\": [12, 13, 14]",
+    "surf drawn with its mount": "use \"surf with blob\": {\"down\": [4 pieces], \"up\": [...], \"left\": [...]} instead of \"surf\" and \"surf blob\"",
+    "other top-level options": "\"scale\", \"background\" (\"#ff7f27\"), \"reach\", \"split\", \"shrink\" (list of section names), \"lossy\", \"colors\""
+  },
+  "_sections": {
+    "front": "front.png: 1 frame. battle front pic, also the trainer card",
+    "back": "back.png: 4 frames. battle back pic: the throw first (wind-up, quick frame, thrown), idle LAST",
+    "walk": "walk.png: 3 down, 3 up, 3 left. stand, step, step",
+    "run": "walk.png: 3 down, 3 up, 3 left. run frames, in the game's order",
+    "mach bike": "bike.png: 3 down, 3 up, 3 left. stand, pedal, pedal",
+    "fish": "fishing.png: 4 down, 4 up, 4 left. the cast, in order",
+    "map icon": "mapIcon.png: 1 frame. 16x16 head for the town map",
+    "acro bike": "acroBike.png: 9 down, 9 up, 9 left. first 3 ride like the Mach Bike, the rest are tricks (repeat the stand frame if you don't have them)",
+    "surf": "surf.png: 4 down, 4 up, 4 left. sit, step, step, jump",
+    "underwater": "underwater.png: 3 down, 3 up, 3 left. diving, in the game's order",
+    "watering": "watering.png: 3 down, 3 up, 3 left. watering, in the game's order",
+    "field move": "fieldMove.png: 5 frames. using an HM, in order",
+    "decorate": "decorating.png: 1 frame. secret base decorating",
+    "surf blob": "surfBlob.png (extras): 1 down, 1 up, 1 left. the surf mount (FRLG has 2 bob frames per facing)",
+    "fly bird": "bird.png (extras): 1 frame. the Fly bird on its own",
+    "bag": "bag.png (extras): 6 frames. bag picture(s) in the bag menu"
+  },
+  "sections": {
+    "front": {
+      "frames": [
+        null
+      ]
+    },
+    "back": {
+      "frames": [
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    "walk": {
+      "down": [
+        null,
+        null,
+        null
+      ],
+      "up": [
+        null,
+        null,
+        null
+      ],
+      "left": [
+        null,
+        null,
+        null
+      ]
+    },
+    "run": {
+      "down": [
+        null,
+        null,
+        null
+      ],
+      "up": [
+        null,
+        null,
+        null
+      ],
+      "left": [
+        null,
+        null,
+        null
+      ]
+    },
+    "mach bike": {
+      "down": [
+        null,
+        null,
+        null
+      ],
+      "up": [
+        null,
+        null,
+        null
+      ],
+      "left": [
+        null,
+        null,
+        null
+      ]
+    },
+    "fish": {
+      "down": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "up": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "left": [
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    "map icon": {
+      "frames": [
+        null
+      ]
+    },
+    "acro bike": {
+      "down": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "up": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "left": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    "surf": {
+      "down": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "up": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "left": [
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    "underwater": {
+      "down": [
+        null,
+        null,
+        null
+      ],
+      "up": [
+        null,
+        null,
+        null
+      ],
+      "left": [
+        null,
+        null,
+        null
+      ]
+    },
+    "watering": {
+      "down": [
+        null,
+        null,
+        null
+      ],
+      "up": [
+        null,
+        null,
+        null
+      ],
+      "left": [
+        null,
+        null,
+        null
+      ]
+    },
+    "field move": {
+      "frames": [
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    "decorate": {
+      "frames": [
+        null
+      ]
+    },
+    "surf blob": {
+      "down": [
+        null
+      ],
+      "up": [
+        null
+      ],
+      "left": [
+        null
+      ]
+    },
+    "fly bird": {
+      "frames": [
+        null
+      ]
+    },
+    "bag": {
+      "frames": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    }
+  }
+}

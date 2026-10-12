@@ -1,0 +1,225 @@
+{
+  "family": "frlg",
+  "note": "Blank recipe with every section for FireRed / LeafGreen. Replace null with piece numbers from your slice preview and delete the sections you don't need; anything left out or null falls back to another look or the game's own sprite. Use family \"frlg_wide\" for 32-wide art. Keys starting with _ are notes and are ignored.",
+  "_how": {
+    "piece": "a number from the slice preview, e.g. 12",
+    "pieces drawn as one sprite": [
+      12,
+      13
+    ],
+    "part of a split piece": "\"29.2\", with \"split\": {\"29\": 4} at the top level",
+    "mirrored": {
+      "piece": 12,
+      "flip": true
+    },
+    "rod hanging below the feet": {
+      "piece": 40,
+      "hang": 5
+    },
+    "moved off centre": {
+      "piece": 151,
+      "shift": -3
+    },
+    "blank frame": null,
+    "one-row sections": "can be a plain list, e.g. \"back\": [12, 13, 14]",
+    "surf drawn with its mount": "use \"surf with blob\": {\"down\": [4 pieces], \"up\": [...], \"left\": [...]} instead of \"surf\" and \"surf blob\"",
+    "other top-level options": "\"scale\", \"background\" (\"#ff7f27\"), \"reach\", \"split\", \"shrink\" (list of section names), \"lossy\", \"colors\""
+  },
+  "_sections": {
+    "front": "front.png: 1 frame. battle front pic, also the trainer card",
+    "intro": "intro.png: 1 frame. Oak's intro (64x96)",
+    "back": "back.png: 5 frames. battle back pic: idle first, then the throw (wind-up, two quick frames, thrown)",
+    "walk": "walk.png: 3 down, 3 up, 3 left. stand, step, step",
+    "run": "walk.png: 3 down, 3 up, 3 left. run frames, in the game's order",
+    "bike": "bike.png: 3 down, 3 up, 3 left. stand, pedal, pedal",
+    "fish": "fishing.png: 4 down, 4 up, 4 left. the cast, in order",
+    "surf": "surf.png: 4 down, 4 up, 4 left. sit, step, step, jump",
+    "field move / vs seeker": "fieldMove.png: 9 frames. using an HM, then holding up the VS Seeker",
+    "vs seeker bike": "vsSeekerBike.png: 6 frames. VS Seeker on the bike",
+    "walk extra": "walk.png: 2 frames. two extra frames (a stand frame works)",
+    "map icon": "mapIcon.png: 1 frame. 16x16 head for the town map",
+    "fly (off / in)": "flyBird.png: 2 frames. flying off, flying in (draw the bird too)",
+    "surf blob": "surfBlob.png (extras): 2 down, 2 up, 2 left. the surf mount (FRLG has 2 bob frames per facing)",
+    "fly bird": "bird.png (extras): 1 frame. the Fly bird on its own",
+    "bag": "bag.png (extras): 4 frames. bag picture(s) in the bag menu"
+  },
+  "sections": {
+    "front": {
+      "frames": [
+        null
+      ]
+    },
+    "intro": {
+      "frames": [
+        null
+      ]
+    },
+    "back": {
+      "frames": [
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    "walk": {
+      "down": [
+        null,
+        null,
+        null
+      ],
+      "up": [
+        null,
+        null,
+        null
+      ],
+      "left": [
+        null,
+        null,
+        null
+      ]
+    },
+    "run": {
+      "down": [
+        null,
+        null,
+        null
+      ],
+      "up": [
+        null,
+        null,
+        null
+      ],
+      "left": [
+        null,
+        null,
+        null
+      ]
+    },
+    "bike": {
+      "down": [
+        null,
+        null,
+        null
+      ],
+      "up": [
+        null,
+        null,
+        null
+      ],
+      "left": [
+        null,
+        null,
+        null
+      ]
+    },
+    "fish": {
+      "down": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "up": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "left": [
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    "surf": {
+      "down": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "up": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "left": [
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    "field move / vs seeker": {
+      "frames": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    "vs seeker bike": {
+      "frames": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    "walk extra": {
+      "frames": [
+        null,
+        null
+      ]
+    },
+    "map icon": {
+      "frames": [
+        null
+      ]
+    },
+    "fly (off / in)": {
+      "frames": [
+        null,
+        null
+      ]
+    },
+    "surf blob": {
+      "down": [
+        null,
+        null
+      ],
+      "up": [
+        null,
+        null
+      ],
+      "left": [
+        null,
+        null
+      ]
+    },
+    "fly bird": {
+      "frames": [
+        null
+      ]
+    },
+    "bag": {
+      "frames": [
+        null,
+        null,
+        null,
+        null
+      ]
+    }
+  }
+}

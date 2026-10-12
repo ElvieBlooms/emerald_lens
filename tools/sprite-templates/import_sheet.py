@@ -28,6 +28,18 @@ import pack_gen3 as P
 
 CLEAR = (0, 0, 0, 0)
 
+def pixels(im):
+    # Pillow 12 renamed getdata; use whichever this Pillow has. -Elvie
+    f = getattr(im, "get_flattened_data", None)
+    return f() if f else im.getdata()
+
+def looks_like_preview(im):
+    """True for a numbers preview from `slice` (its dark backdrop and magenta
+    boxes) rather than a source sheet. -Elvie"""
+    counts = Counter(p[:3] for p in pixels(im.convert("RGBA")))
+    total = sum(counts.values())
+    return counts.most_common(1)[0][0] == (48, 48, 56) and counts[(255, 0, 255)] > total * 0.002
+
 # ------------------------------------------------------------------ cleaning
 
 def parse_color(s):
@@ -39,7 +51,7 @@ def find_background(im):
     one: the most common solid colour, when it covers a big share of the
     sheet (sprites are many colours, a backdrop is one). Fully transparent
     pixels always count as background too."""
-    counts = Counter(p[:3] for p in im.getdata() if p[3] > 0)
+    counts = Counter(p[:3] for p in pixels(im) if p[3] > 0)
     if not counts:
         return None
     color, count = counts.most_common(1)[0]
@@ -98,7 +110,7 @@ def is_lossy(im):
     """A sheet saved as JPEG or WebP (Discord and many hosts convert them)
     smears every colour into thousands of near-copies. Pixel art has a few
     dozen. -Elvie"""
-    return len(Counter(p[:3] for p in im.getdata() if p[3])) > 4000
+    return len(Counter(p[:3] for p in pixels(im) if p[3])) > 4000
 
 def luma(p):
     return 0.299 * p[0] + 0.587 * p[1] + 0.114 * p[2]
@@ -110,7 +122,7 @@ def near_background(im, tol=20):
     light patches inside a sprite, like eye whites, stay. Close means within
     `tol` in brightness; colour gets more slack, since JPEG and WebP keep
     colour at half resolution and bleed it into the backdrop. -Elvie"""
-    counts = Counter(p[:3] for p in im.getdata() if p[3])
+    counts = Counter(p[:3] for p in pixels(im) if p[3])
     bg = counts.most_common(1)[0][0]
     W, H = im.size
     px = im.load()
@@ -140,15 +152,15 @@ def near_background(im, tol=20):
 def snap_colors(im, colors=48):
     """For a lossy sheet: every drawn pixel snapped to a palette of the
     sheet's main colours, so a flat area is flat again. -Elvie"""
-    drawn = [p[:3] for p in im.getdata() if p[3]]
+    drawn = [p[:3] for p in pixels(im) if p[3]]
     if not drawn:
         return
     sample = Image.new("RGB", (len(drawn), 1))
     sample.putdata(drawn)
     pal = sample.quantize(colors, method=Image.Quantize.MEDIANCUT, kmeans=4)
-    lut = pal.convert("RGB").getdata()
+    lut = pixels(pal.convert("RGB"))
     mapping = dict(zip(drawn, lut))
-    im.putdata([mapping[p[:3]] + (255,) if p[3] else CLEAR for p in im.getdata()])
+    im.putdata([mapping[p[:3]] + (255,) if p[3] else CLEAR for p in pixels(im)])
 
 def clean(path, scale=None, background=None, lossy="auto", colors=48):
     """Loads a sheet at its real size with the background made transparent.
@@ -156,7 +168,7 @@ def clean(path, scale=None, background=None, lossy="auto", colors=48):
     im = Image.open(path).convert("RGBA")
     # Transparent pixels can carry any colour underneath; make them all the
     # same so they don't look like detail.
-    im.putdata([p if p[3] else CLEAR for p in im.getdata()])
+    im.putdata([p if p[3] else CLEAR for p in pixels(im)])
     if lossy == "auto":
         lossy = is_lossy(im)
     if lossy:
@@ -164,12 +176,12 @@ def clean(path, scale=None, background=None, lossy="auto", colors=48):
         if background in (None, "auto"):
             background = "%02x%02x%02x" % found
         bgc = parse_color(background)
-        im.putdata([CLEAR if p[3] and p[:3] == bgc else p for p in im.getdata()])
+        im.putdata([CLEAR if p[3] and p[:3] == bgc else p for p in pixels(im)])
         snap_colors(im, colors)
         print(f"  lossy   sheet looks like a JPEG/WebP; backdrop cleared and colours snapped to {colors}")
     bg = parse_color(background) if background not in (None, "auto") else find_background(im)
     if bg:
-        im.putdata([CLEAR if p[3] and p[:3] == bg else p for p in im.getdata()])
+        im.putdata([CLEAR if p[3] and p[:3] == bg else p for p in pixels(im)])
     if scale is None:
         scale = find_scale(im)
     if scale > 1:
@@ -266,20 +278,8 @@ def foot(family, name, h):
     return FOOT[base].get(name, h)
 
 def sections(family):
-    """Recipe keys: our sheet's section labels in lower case, each naming its
-    frames per facing (down, up, left) or as one list ("frames"). Returns
-    {key: {facing: [(file, frame index), ...]}}."""
-    out = {}
-    for label, name, blocks in P.LAYOUT[family]:
-        grids = [P.block_rows(b) for b in blocks]
-        nrows = max(len(g) for g in grids)
-        facings = ("down", "up", "left") if nrows == 3 else ("frames",)
-        entry = out.setdefault(label.lower(), {})
-        for r, facing in enumerate(facings):
-            for g in grids:
-                if r < len(g):
-                    entry.setdefault(facing, []).extend((name, f) for f in g[r])
-    return out
+    """Recipe keys and their frames; see pack_gen3.sections. -Elvie"""
+    return P.sections(family)
 
 def split_boxes(pieces, split):
     """Sprites drawn touching each other come out as one piece. The recipe's
@@ -302,6 +302,101 @@ def tight(im, box):
     bb = im.crop(box).getchannel("A").getbbox()
     return (box[0] + bb[0], box[1] + bb[1], box[0] + bb[2], box[1] + bb[3]) if bb else None
 
+# --------------------------------------------------------- numbered folders
+# A folder of loose images (a character compilation: strips in the decomp's
+# own format, a collage, a back pic...) numbered as if it were one sheet.
+# Strips are cut into frames and every frame keeps its place in its cell,
+# since that art is already lined up; anything else is cut into pieces as
+# usual. -Elvie
+
+IMAGE_EXT = (".png", ".gif", ".bmp", ".webp", ".jpg", ".jpeg")
+
+def crossings(im, xs):
+    """How many of the column boundaries in xs have sprite pixels on both
+    sides in 3 or more rows (so a frame edge can't be there)."""
+    a = im.getchannel("A").load()
+    n = 0
+    for x in xs:
+        rows = sum(1 for y in range(im.height) if a[x - 1, y] and a[x, y])
+        n += rows >= 3
+    return n
+
+def strip_cells(im):
+    """Frame size if the image is a strip of frames: side by side (height up
+    to 96, frames as wide as it is tall or half that) or one under the next
+    (width up to 96, square frames). None for anything else."""
+    w, h = im.size
+    if h <= 96 and w >= h:
+        cands = [c for c in (h, h // 2) if c and w % c == 0]
+        if len(cands) == 2:
+            # 16-wide frames if no sprite runs across the half-way lines
+            halves = [x for x in range(cands[1], w, cands[1]) if x % cands[0]]
+            return (cands[0], h) if crossings(im, halves) else (cands[1], h)
+        return (cands[0], h) if cands else None
+    if w <= 96 and h > w and h % w == 0:
+        return (w, w)
+    return None
+
+def load_numbered_folder(folder, opts):
+    """All images in a folder as one sheet. Returns (image, pieces, cells,
+    rows): pieces numbered from 1 across the folder (files in name order),
+    cells the numbers that are strip frames, rows (file, y, mode, first,
+    last) for the preview."""
+    files = sorted(f for f in os.listdir(folder) if f.lower().endswith(IMAGE_EXT))
+    override = {k: v for k, v in opts.get("cells", {}).items()}
+    loaded = []
+    for f in files:
+        path = os.path.join(folder, f)
+        if looks_like_preview(Image.open(path)):
+            continue
+        im, _, _ = clean(path, opts.get("scale"), opts.get("background", "auto"),
+                         opts.get("lossy", "auto"), opts.get("colors", 48))
+        cell = override.get(f, "auto")
+        cell = strip_cells(im) if cell == "auto" else (None if cell == "pieces" else tuple(cell))
+        loaded.append((f, im, cell))
+    LABEL, GAP = 12, 6
+    W = max([im.width for _, im, _ in loaded] or [1])
+    H = sum(LABEL + im.height + GAP for _, im, _ in loaded)
+    sheet = Image.new("RGBA", (W, max(1, H)), CLEAR)
+    pieces, cells, rows, n, y = {}, set(), [], 0, 0
+    aliases = {}
+    for f, im, cell in loaded:
+        y += LABEL
+        sheet.alpha_composite(im, (0, y))
+        first = n + 1
+        if cell:
+            cw, ch = cell
+            k = 0
+            stem = os.path.splitext(f)[0]
+            for cy in range(0, im.height - ch + 1, ch):
+                for cx in range(0, im.width - cw + 1, cw):
+                    n += 1
+                    pieces[str(n)] = (cx, y + cy, cx + cw, y + cy + ch)
+                    cells.add(str(n))
+                    # also "walking:3": frame 3 of walking.png, counting
+                    # from 0 like the game -Elvie
+                    aliases[f"{stem}:{k}"] = str(n)
+                    k += 1
+            nf = (im.width // cw) * (im.height // ch)
+            mode = f"{nf} frame{'s' if nf > 1 else ''} of {cw}x{ch}, {stem}:0-{nf - 1}"
+        else:
+            for x0, y0, x1, y1 in find_pieces(im, opts.get("reach", 1)):
+                n += 1
+                pieces[str(n)] = (x0, y + y0, x1, y + y1)
+            mode = f"{n - first + 1} pieces"
+        rows.append((f, y - LABEL, mode, first, n))
+        y += im.height + GAP
+    load_numbered_folder.aliases = aliases
+    return sheet, pieces, cells, rows
+
+def folder_preview(sheet, pieces, cells, rows, zoom=3):
+    out = preview(sheet, [pieces[str(i)] for i in range(1, len(pieces) + 1)], zoom)
+    d = ImageDraw.Draw(out)
+    font = ImageFont.load_default()
+    for f, y, mode, first, last in rows:
+        d.text((2, y * zoom), f"{f}  ({mode}, {first}-{last})", fill=(255, 255, 160, 255), font=font)
+    return out
+
 def piece_image(im, pieces, ref):
     """A recipe entry: a piece number ("29.2" for part of a split piece), a
     list drawn together as one sprite, or {"piece": ..., "flip": true}.
@@ -318,6 +413,16 @@ def piece_image(im, pieces, ref):
         shift = int(ref.get("shift", 0))
         ref = ref.get("piece")
     nums = ref if isinstance(ref, list) else [ref]
+    missing = [n for n in nums if str(n) not in pieces]
+    if missing:
+        sys.exit(f"recipe names {', '.join(map(str, missing))}, which isn't on the sheet (check the numbers or file:frame names)")
+    cells = getattr(piece_image, "cells", ())
+    if len(nums) == 1 and str(nums[0]) in cells:
+        # a strip frame: whole cell, as drawn -Elvie
+        sprite = im.crop(pieces[str(nums[0])])
+        sprite = sprite.transpose(Image.FLIP_LEFT_RIGHT) if flip else sprite
+        sprite.info.update(hang=hang, shift=shift, cell=True)
+        return sprite
     boxes = [b for b in (tight(im, pieces[str(n)]) for n in nums) if b]
     if not boxes:
         return None
@@ -360,6 +465,14 @@ def place(sprite, w, h, bottom, warn, where):
     hang = sprite.info.get("hang", 0)
     x = (w - sprite.width) // 2 + sprite.info.get("shift", 0)
     y = bottom - sprite.height + hang
+    if sprite.info.get("cell"):
+        # strip frames are already placed in their cells: bottoms line up
+        y = h - sprite.height + hang
+        bb = sprite.getchannel("A").getbbox()
+        if bb and (x + bb[0] < 0 or x + bb[2] > w or y + bb[1] < 0):
+            warn.append(f"{where}: {sprite.width}x{sprite.height} frame doesn't fit {w}x{h}; the edges are cut off")
+        frame.paste(sprite, (x, y), sprite)
+        return frame
     if x < 0 or x + sprite.width > w or y < 0 or y + sprite.height > h + hang:
         warn.append(f"{where}: sprite is {sprite.width}x{sprite.height}, frame is {w}x{h}; the edges are cut off")
     frame.paste(sprite, (x, y), sprite)
@@ -409,14 +522,31 @@ def write_out(family, strips, filled, warn, out_dir):
 # our frame's foot row, the cell's middle on the frame's middle. Bobs and
 # rods keep where the artist put them. -Elvie
 
-LAYOUTS = {"essentials": {"grid": (4, 4), "rows": ["down", "left", "right", "up"]}}
+LAYOUTS = {"essentials": {"grid": (4, 4), "rows": ["down", "left", "right", "up"]},
+           # HGSS / DPPt overworld files: 4 frames per facing (stand, step,
+           # stand, step), facings up, down, left, right. -Elvie
+           "hgss": {"grid": (4, 4), "rows": ["up", "down", "left", "right"]}}
+
+def strip_grid(path, per, first, nrows):
+    """A vertical strip of square frames (what HGSS/DPPt overworld files turn
+    into, one frame under the next) laid out as a grid: `per` frames to a
+    facing, starting at frame `first`. -Elvie"""
+    im = Image.open(path).convert("RGBA")
+    size = im.width
+    grid = Image.new("RGBA", (size * per, size * nrows), CLEAR)
+    for r in range(nrows):
+        for c in range(per):
+            k = first + r * per + c
+            if (k + 1) * size <= im.height:
+                grid.paste(im.crop((0, k * size, size, (k + 1) * size)), (c * size, r * size))
+    return grid
 
 def load_grid(path, cols, rows, scale=None, background="auto"):
-    im = Image.open(path).convert("RGBA")
-    im.putdata([p if p[3] else CLEAR for p in im.getdata()])
+    im = path if isinstance(path, Image.Image) else Image.open(path).convert("RGBA")
+    im.putdata([p if p[3] else CLEAR for p in pixels(im)])
     bg = parse_color(background) if background not in (None, "auto") else find_background(im)
     if bg:
-        im.putdata([CLEAR if p[3] and p[:3] == bg else p for p in im.getdata()])
+        im.putdata([CLEAR if p[3] and p[:3] == bg else p for p in pixels(im)])
     s = scale or find_scale(im)
     if s > 1:
         im = im.resize((im.width // s, im.height // s), Image.NEAREST)
@@ -478,9 +608,16 @@ def build_folder(folder, recipe):
         if not os.path.exists(path):
             warn.append(f"{key}: {entry['file']} not found")
             continue
-        cols, nrows = entry.get("grid", layout["grid"])
-        cells, (cw, ch), feet, s = load_grid(path, cols, nrows, recipe.get("scale"), recipe.get("background", "auto"))
         rows = entry.get("rows", layout["rows"])
+        if "strip" in entry:
+            # {"file": ..., "strip": 4, "first": 16}: frames in a vertical strip,
+            # 4 to a facing in `rows` order, from frame 16. -Elvie
+            cols, nrows = int(entry["strip"]), len(rows)
+            src = strip_grid(path, cols, int(entry.get("first", 0)), nrows)
+        else:
+            cols, nrows = entry.get("grid", layout["grid"])
+            src = path
+        cells, (cw, ch), feet, s = load_grid(src, cols, nrows, recipe.get("scale"), recipe.get("background", "auto"))
         one_row = sum(1 for row in cells if any(c.getchannel("A").getbbox() for c in row)) == 1
         print(f"  file    {entry['file']}: {cols}x{nrows} cells of {cw}x{ch}, scale {s}x, feet on row {feet}")
         for facing, slots in targets[fam][key].items():
@@ -498,14 +635,27 @@ def build(src, recipe_path, out_dir):
     family = recipe["family"]
     if family not in P.EXTRAS_OF:
         sys.exit(f"recipe family must be frlg, rse, frlg_wide or rse_wide, not {family}")
-    if os.path.isdir(src):
+    piece_image.cells = ()
+    if os.path.isdir(src) and "files" in recipe:
         return write_out(*build_folder(src, recipe), out_dir)
-    im, scale, bg = clean(src, recipe.get("scale"), recipe.get("background", "auto"),
-                          recipe.get("lossy", "auto"), recipe.get("colors", 48))
-    found = find_pieces(im, recipe.get("reach", 1))
-    pieces = split_boxes(found, recipe.get("split"))
-    print(f"  sheet   {os.path.basename(src)}: scale {scale}x, "
-          f"background {'#%02x%02x%02x' % bg if bg else 'transparent'}, {len(found)} pieces")
+    if os.path.isdir(src):
+        im, found, cells, rows = load_numbered_folder(src, recipe)
+        pieces = split_boxes([found[str(i)] for i in range(1, len(found) + 1)], recipe.get("split"))
+        for name, num in load_numbered_folder.aliases.items():
+            pieces[name] = pieces[num]
+            cells.add(name)
+        piece_image.cells = cells
+        print(f"  folder  {os.path.basename(os.path.normpath(src))}: {len(rows)} images, {len(found)} numbered")
+    else:
+        if looks_like_preview(Image.open(src)):
+            sys.exit(f"{os.path.basename(src)} looks like a numbers preview from slice. Build from the "
+                     "original sheet you sliced; the preview is only for reading the numbers.")
+        im, scale, bg = clean(src, recipe.get("scale"), recipe.get("background", "auto"),
+                              recipe.get("lossy", "auto"), recipe.get("colors", 48))
+        found = find_pieces(im, recipe.get("reach", 1))
+        pieces = split_boxes(found, recipe.get("split"))
+        print(f"  sheet   {os.path.basename(src)}: scale {scale}x, "
+              f"background {'#%02x%02x%02x' % bg if bg else 'transparent'}, {len(found)} pieces")
     extras = P.EXTRAS_OF[family]
     targets = {family: sections(family), extras: sections(extras)}
     strips = {family: {}, extras: {}}
@@ -520,6 +670,16 @@ def build(src, recipe_path, out_dir):
 
     for key, facings in recipe.get("sections", {}).items():
         key = key.lower()
+        if isinstance(facings, list):
+            # A plain list is fine for one-row sections (front, back, field
+            # move...); sections with facings need them named. -Elvie
+            known = {**targets[family], **targets[extras]}
+            if "frames" in known.get(key, {}):
+                facings = {"frames": facings}
+            else:
+                shape = '{"down": [...], "up": [...], "left": [...]}'
+                warn.append(f"{key}: give the frames per facing, like \"{key}\": {shape}; skipped")
+                continue
         if key == "surf with blob":
             # player + mount in one sprite, per facing: the surf frames in
             # order (sit, step, step, jump), split as above. The blob comes
@@ -562,6 +722,16 @@ def build(src, recipe_path, out_dir):
 # ------------------------------------------------------------------ commands
 
 def main(a):
+    if len(a) >= 3 and a[0] == "slice" and os.path.isdir(a[1]):
+        opts = dict(zip(a[3::2], a[4::2]))
+        fo = {"reach": int(opts.get("--reach", 1)), "background": opts.get("--bg", "auto")}
+        if "--scale" in opts: fo["scale"] = int(opts["--scale"])
+        sheet, pieces, cells, rows = load_numbered_folder(a[1], fo)
+        folder_preview(sheet, pieces, cells, rows).save(a[2])
+        for f, _, mode, first, last in rows:
+            print(f"  {first:>4}-{last:<4} {f}: {mode}")
+        print(f"  folder  {len(rows)} images, {len(pieces)} numbered -> {a[2]}")
+        return 0
     if len(a) >= 3 and a[0] == "slice":
         opts = dict(zip(a[3::2], a[4::2]))
         lossy = {"yes": True, "no": False}.get(opts.get("--lossy"), "auto")
@@ -574,6 +744,11 @@ def main(a):
         return 0
     if len(a) == 4 and a[0] == "build":
         return 0 if build(a[1], a[2], a[3]) else 1
+    if a and a[0] in ("pack", "convert", "reference", "blank", "surf", "transfer"):
+        # Those live in pack_gen3.py; run it there rather than fail. -Elvie
+        import subprocess
+        print(f"  note    '{a[0]}' is a pack_gen3.py command; running it there")
+        return subprocess.call([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "pack_gen3.py")] + a)
     print(__doc__)
     return 2
 

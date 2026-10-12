@@ -1,0 +1,29 @@
+{
+  "family": "frlg_wide",
+  "layout": "hgss",
+  "note": "Team Rocket costume from LouLilie's HGSS Kris (credit LouLilie): walk and run only, file 1_096.",
+  "files": {
+    "walk": {
+      "file": "OWS BTX/1_096_strip.png",
+      "strip": 4,
+      "first": 0
+    },
+    "run": {
+      "file": "OWS BTX/1_096_strip.png",
+      "strip": 4,
+      "first": 16
+    },
+    "walk extra": {
+      "file": "OWS BTX/1_096_strip.png",
+      "strip": 4,
+      "first": 4,
+      "rows": [
+        "down"
+      ],
+      "columns": [
+        0,
+        0
+      ]
+    }
+  }
+}
