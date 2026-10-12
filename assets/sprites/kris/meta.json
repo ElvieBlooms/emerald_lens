@@ -1,5 +1,6 @@
 {
   "label": "KRIS",
   "character": "KRIS",
-  "genderMode": "girl"
+  "genderMode": "girl",
+  "credit": ["RSE Made by richardPT", "FRLG made by FourLeafSunny"]
 }
