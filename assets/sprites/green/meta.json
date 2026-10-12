@@ -1,5 +1,6 @@
 {
   "label": "PUFF RIDER",
   "character": "GREEN",
-  "genderMode": "girl"
+  "genderMode": "girl",
+  "credit": ["FRLG by virdiangrass", "RSE by virdiangrass and Team Aquas Asset Repo"]
 }
