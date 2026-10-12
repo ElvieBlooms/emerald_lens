@@ -74,7 +74,7 @@ Each sheet is one vertical strip of frames, in the game's own order:
 | `underwater.png` | -- | 32x32, 9 frames (32x288) |
 | `watering.png` | -- | 32x32, 9 frames (32x288) |
 | `decorating.png` | -- | 16x32, 1 frame (16x32) |
-| `back.png` | 64x64, 5 frames (64x320) | 64x64, 4 frames (64x256) |
+| `back.png` | 64x64, 5 frames (64x320): standing first, then the throw | 64x64, 4 frames (64x256): the throw first, standing **last** |
 | `front.png` | 64x64 (also the trainer card) | 64x64 (also the trainer card and Birch intro) |
 | `intro.png` | 64x96 (Oak intro) | -- |
 | `mapIcon.png` | 16x16 (Town Map and Fly map) | 16x16 (region map, Fly, PokeNav and Pokedex area maps) |
@@ -103,14 +103,10 @@ The surf blob and bird have no boy or girl version, so they're only used when yo
 **FR/LG**
 
 <img width="500" height="298" alt="frlg_sheet" src="https://github.com/user-attachments/assets/a51981b9-997d-44f1-a1ff-abcb6020cf51" />
-<img width="560" height="444" alt="frlg_wide_sheet" src="https://github.com/user-attachments/assets/0b6a8a98-fb3d-43ad-a3e1-db8f96ca8bab" />
-
 
 **R/S/E**
 
-<img width="470" height="480" alt="rse_sheet" src="https://github.com/user-attachments/assets/7d5bced8-abb9-4023-b013-3aa834337c3e" />
-<img width="530" height="480" alt="rse_wide_sheet" src="https://github.com/user-attachments/assets/d70c5a04-15ee-4bcd-b4d2-a6cc5419bd3d" />
-
+<img width="470" height="480" alt="rse_sheet" src="https://github.com/user-attachments/assets/d9d7a051-cd6e-4961-8dcd-4abde6fcd81a" />
 
 ## Not covered yet
 * New-game name choices.
