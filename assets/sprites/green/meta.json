@@ -1,5 +1,7 @@
 {
-  "label": "PUFF RIDER",
+  "label": "BIG PUFF",
   "character": "GREEN",
-  "genderMode": "girl"
+  "genderMode": "girl",
+  "credit": ["Sprites compiled from virdiangrass and Team Aquas asset Repo",
+  "Additional Edits and AcroJiggly made by Elvie"]
 }
