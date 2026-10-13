@@ -35,7 +35,9 @@ Each look is a folder at `assets/sprites/FOLDER_NAME_HERE` (no spaces in the fol
   * `"enby"` replaces both, so the player looks like the character whichever gender is picked. Gen 3's text is the game's own for the gender picked. The Hoenn rival battles with the player's portrait and shares the fishing, underwater and watering sprites, so for those an enby character only takes the gender actually picked, and the rival stays themselves.
   
   Left out, it's `"girl"`, the same as Crystal Lens. The game still asks boy or girl at the start, so pick the one that matches your character (any choice works for enby).
-* `credit` lists who made the art, one line each. The game doesn't show it, but keep it with the folder so the artists stay credited wherever it's copied.
+* `credit` (optional) names the artists, as a list of lines. The game doesn't show it; it keeps the credit with the art wherever the folder is copied. Please fill it in when you share a look made from someone else's sprites.
+
+Keep `meta.json` valid JSON: a trailing comma after the last item (`"...",]`) makes it unreadable, and the look falls back to its folder name and `"girl"`.
 
 Crystal Lens's other keys (`overworldColors`, `nameChoices`) are ignored here, so a folder copied from Crystal Lens works as-is once it has a `gen3` folder.
 
@@ -98,17 +100,19 @@ Also optional, in the same folders and with the same fallback. They aren't the p
 The surf blob and bird have no boy or girl version, so they're only used when your character is the player in that save: a girl character's surf blob doesn't show for someone playing as the boy (enby works for either). The bag has one each, so it follows `genderMode` like the sprites.
 
 ## Sprite tools
-`tools/sprite-templates` has blank templates in two formats you can use interchangeably: one combined sheet per game family, laid out like the standard community sheets, or one strip per game sheet. The extras have a smaller sheet of their own (`frlg_extras.png`, `rse_extras.png`). `pack_gen3.py` exports the game's own sprites from your imported cache to draw from, converts between the two formats, and packs your art into a look's `gen3` folder. `import_sheet.py` turns a sprite sheet made for something else (a fan game, a community collage) into our sheets. See its README. It needs Python 3 and Pillow, and isn't needed to play. The same tools also run as a web page in `tools/web`, with nothing to install: number a sheet's sprites, fill in the recipe by clicking them into the game's frames, build and pack it, watch it walk, run and surf, and download a ready look folder.
+`tools/sprite-templates` has blank templates in two formats you can use interchangeably: one combined sheet per game family, laid out like the standard community sheets, or one strip per game sheet. The extras have a smaller sheet of their own (`frlg_extras.png`, `rse_extras.png`). `pack_gen3.py` exports the game's own sprites from your imported cache to draw from, converts between the two formats, and packs your art into a look's `gen3` folder. `import_sheet.py` turns a sprite sheet made for something else (a fan game, a community collage) into our sheets. See its README. It needs Python 3 and Pillow, and isn't needed to play. The same tools also run as a web page in `tools/web`, with nothing to install: number a sheet's sprites, fill in the recipe by clicking them into the game's frames, build and pack it, watch it walk, run and surf, and download a ready look folder. For now it runs on your own computer only: double-click the launcher for your system in `tools/` (see `HOW TO TRY THE SPRITE TOOLS.txt`). A hosted version will follow once it's had some testing.
 
 **Sheet Examples:**
 
 **FR/LG**
 
-<img width="500" height="298" alt="frlg_sheet" src="https://github.com/user-attachments/assets/a51981b9-997d-44f1-a1ff-abcb6020cf51" />
+<img width="500" height="378" alt="frlg_sheet" src="https://github.com/user-attachments/assets/a8ac5db8-e3b7-4a88-80cb-4164e082b5f8" />
+<img width="500" height="138" alt="frlg_extras" src="https://github.com/user-attachments/assets/d09a906e-c4a4-469e-a6ab-72c3653092c2" />
 
 **R/S/E**
 
 <img width="470" height="480" alt="rse_sheet" src="https://github.com/user-attachments/assets/d9d7a051-cd6e-4961-8dcd-4abde6fcd81a" />
+<img width="470" height="169" alt="rse_extras" src="https://github.com/user-attachments/assets/4decd6a4-f0e7-4d31-b0c0-cce6f22fdb3d" />
 
 ## Not covered yet
 * New-game name choices.
@@ -118,3 +122,6 @@ The surf blob and bird have no boy or girl version, so they're only used when yo
 ## Credits
 * Built on the Crystal Lens framework by Dgray66, used with permission.
 * Gen 3 support: Elvie
+* KRIS: R/S/E sprites by richardPT, FR/LG sprites by FourLeafSunny; KRIS BLUE edits by eykav
+* KRIS G4 (KRIS and RKT LOU): HGSS Kris sprites by LouLilie
+* GREEN (BIG PUFF): sprites compiled from virdiangrass and Team Aqua's Asset Repo; additional edits and AcroJiggly by Elvie

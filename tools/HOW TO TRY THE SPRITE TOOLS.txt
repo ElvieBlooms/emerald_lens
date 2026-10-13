@@ -1,0 +1,58 @@
+EMERALD LENS SPRITE TOOLS: TRY THEM ON YOUR COMPUTER
+=====================================================
+
+The sprite tools turn a sprite sheet into a character folder for Emerald
+Lens. They run in your web browser, and your art stays on your computer:
+nothing is uploaded anywhere.
+
+You need: a recent Chrome, Edge, Firefox or Safari, and an internet
+connection the first time (the page downloads about 13 MB of Python).
+
+
+1. GET THE FILES
+----------------
+On https://github.com/ElvieBlooms/emerald_lens press the green "Code"
+button, then "Download ZIP". Unzip it, then open the "tools" folder.
+
+
+2. START IT
+-----------
+WINDOWS
+  Double-click "Start sprite tools (Windows).bat".
+  If Windows says "Windows protected your PC", click "More info", then
+  "Run anyway".
+
+MAC
+  Double-click "Start sprite tools (Mac).command".
+  The first time, macOS may say it can't be opened. Right-click (or
+  Control-click) the file, choose "Open", then "Open" again.
+  If it says you don't have permission: open the Terminal app, type
+  sh  (with a space after it), drag the file into the Terminal window,
+  and press Return.
+
+LINUX
+  Open a terminal in the "tools" folder and run:
+      sh start-sprite-tools.sh
+
+A small window opens and your browser shows the tools. If the browser
+doesn't open by itself, copy the address shown in the window into it.
+
+Leave that window open while you use the tools. Close it when you're done.
+
+
+3. TELL US WHAT BROKE
+---------------------
+Anything odd is worth reporting: an error, a button that does nothing, a
+sprite in the wrong place, something confusing. Please include:
+
+  - what you clicked or did, step by step;
+  - what happened, and what you expected;
+  - the grey log text under the step (select it and copy it);
+  - your system (Windows, Mac, Linux) and browser;
+  - the sheet you used, if you're allowed to share it.
+
+Post it in the Emerald Lens thread on the gen1recomp Discord, or open an
+issue at https://github.com/ElvieBlooms/emerald_lens/issues
+
+Please don't share sprites ripped from the games, and credit the artist of
+any fan art you post.

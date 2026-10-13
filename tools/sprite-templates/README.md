@@ -2,7 +2,8 @@
 
 No terminal? `../web` runs these same scripts as a web page in your
 browser (slice, a click-to-place recipe builder, animated previews, build,
-pack, transfer, and a look folder download); see its README.
+pack, transfer, and a look folder download); see its README. To start it, double-click the
+launcher for your system in `tools/`.
 
 Two formats, usable interchangeably -- draw in either, convert between them
 at any point, and pack from either or both:
