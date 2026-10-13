@@ -1,5 +1,9 @@
 # Emerald Lens sprite templates
 
+No terminal? `../web` runs these same scripts as a web page in your
+browser (slice, a click-to-place recipe builder, animated previews, build,
+pack, transfer, and a look folder download); see its README.
+
 Two formats, usable interchangeably -- draw in either, convert between them
 at any point, and pack from either or both:
 
@@ -80,10 +84,6 @@ the player would vanish in those poses. The script also warns if guide pixels
 were painted over. Needs Pillow: `python3 -m pip install --user pillow`.
 
 Need a fresh blank sheet? `python3 pack_gen3.py blank rse rse_sheet.png`
-
-The look folder also needs a `meta.json` (label, character, genderMode; see
-the mod README). If the art is someone else's, add their name under
-`"credit"` so it travels with the folder.
 
 ## Frame sizes
 

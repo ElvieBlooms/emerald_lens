@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Emerald Lens sprite tools</title>
+<meta name="description" content="Turn a sprite sheet into an Emerald Lens look folder, in your browser.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Silkscreen&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <h1>Emerald Lens<br>sprite tools</h1>
+  <p class="lede">Turn a sprite sheet into a look folder for <a href="https://github.com/ElvieBlooms/emerald_lens">Emerald Lens</a>. Everything runs in your browser: your art is never uploaded anywhere.</p>
+  <p id="status" class="status" role="status" aria-live="polite">Loading Python and Pillow (about 13 MB, only the first visit)…</p>
+</header>
+
+<main>
+
+<section class="step" id="step-source" aria-labelledby="h-source">
+  <h2 id="h-source"><span class="num">1</span> Number the sprites</h2>
+  <p>Start with the sheet you want to use: a fan game sheet, a collage, or a folder of one image per action (a .zip works too). The tools cut out every sprite and number it, so a recipe can say which sprite goes where.</p>
+  <p class="aside">Already drew on our own template? <a href="#step-pack">Skip to packing</a>.</p>
+
+  <div class="drop" data-target="source">
+    <p>Drop a sheet, several images, or a .zip here</p>
+    <div class="row">
+      <label class="btn">Choose a sheet<input type="file" id="src-file" accept="image/*,.zip" hidden></label>
+      <label class="btn">Choose a folder<input type="file" id="src-folder" webkitdirectory multiple hidden></label>
+    </div>
+  </div>
+  <p id="src-name" class="picked" hidden></p>
+
+  <details class="opts">
+    <summary>Slicing options</summary>
+    <div class="grid">
+      <label>Scale <input id="o-scale" type="number" min="1" max="8" placeholder="auto"></label>
+      <label>Backdrop colour <input id="o-bg" type="text" placeholder="auto" pattern="auto|#?[0-9a-fA-F]{6}"></label>
+      <label>Reach <input id="o-reach" type="number" min="0" max="8" placeholder="1"></label>
+      <label>Lossy cleanup
+        <select id="o-lossy"><option value="">auto</option><option value="yes">yes</option><option value="no">no</option></select>
+      </label>
+      <label>Colours <input id="o-colors" type="number" min="2" max="256" placeholder="48"></label>
+    </div>
+    <p class="hint">Scale: how many times the sheet is enlarged. Backdrop: the flat colour around the sprites, like #ff7f27. Reach: how far apart pixels can be and still count as one sprite. Lossy cleanup and colours only matter for JPEG or WebP sheets.</p>
+  </details>
+
+  <div class="row"><button id="do-slice" class="btn primary" disabled>Number the sprites</button></div>
+  <div class="result" id="slice-result" hidden>
+    <div class="viewer-bar"><span>Numbered preview</span><label>Zoom <select class="zoom" data-for="slice-view"><option selected>1</option><option>2</option><option>3</option></select></label></div>
+    <div class="viewer" id="slice-view"></div>
+  </div>
+  <pre class="log" id="slice-log" hidden></pre>
+</section>
+
+<section class="step wide-step" id="step-recipe" aria-labelledby="h-recipe">
+  <h2 id="h-recipe"><span class="num">2</span> Write the recipe and build</h2>
+  <p>The recipe says which numbered sprite goes in which frame of the game's sheets. Fill it in with the builder below, or write the JSON yourself; they're two views of the same recipe. The <a href="https://github.com/ElvieBlooms/emerald_lens/tree/main/tools/sprite-templates">tools README</a> explains every option.</p>
+  <div class="row">
+    <button class="btn" data-blank="frlg">Blank FR/LG recipe</button>
+    <button class="btn" data-blank="rse">Blank R/S/E recipe</button>
+    <label class="btn">Open a recipe file<input type="file" id="recipe-file" accept=".json,application/json" hidden></label>
+    <button class="btn" id="recipe-save">Save the recipe</button>
+  </div>
+
+  <div class="builder" id="builder">
+    <div class="row b-start">
+      <label class="inline">Game family
+        <select id="b-family">
+          <option value="frlg">FireRed / LeafGreen</option>
+          <option value="rse" selected>Ruby / Sapphire / Emerald</option>
+          <option value="frlg_wide">FireRed / LeafGreen, wide</option>
+          <option value="rse_wide">Ruby / Sapphire / Emerald, wide</option>
+        </select>
+      </label>
+      <button class="btn primary" id="b-open" disabled>Open the sheet in the builder</button>
+    </div>
+    <p class="hint" id="b-empty">Choose a sheet in step 1 first. The builder numbers it the same way, so its numbers match the preview.</p>
+    <div id="b-work" class="b-work" hidden>
+      <p class="hint b-how">Pick a frame on the right, then click the sprite that goes in it; the next frame is picked for you. Shift-click adds a sprite to the same frame, drawn together as one. Ctrl+Z undoes.</p>
+      <div class="b-sheet">
+        <div class="viewer-bar">
+          <span id="b-tip" aria-live="polite"></span>
+          <label>Zoom <select id="b-zoom"><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
+        </div>
+        <div class="viewer b-viewer"><canvas id="b-canvas" aria-label="The sheet. Click a sprite to put it in the selected frame."></canvas></div>
+      </div>
+      <div class="b-side">
+        <div class="b-inspector" aria-labelledby="b-where">
+          <p class="b-where" id="b-where"></p>
+          <p class="b-chips">Pieces: <span id="b-chips">empty</span></p>
+          <div class="b-fields">
+            <label>Type pieces <input id="b-typed" type="text" inputmode="text" placeholder="12 13" aria-describedby="b-typed-hint"></label>
+            <label class="b-check"><input id="b-flip" type="checkbox"> Mirror</label>
+            <label>Hang <input id="b-hang" type="number" min="0" max="32" placeholder="0" title="Pixels that hang below the feet, like a fishing rod"></label>
+            <label>Shift <input id="b-shift" type="number" min="-32" max="32" placeholder="0" title="Move right (or left, negative) from the centre"></label>
+          </div>
+          <p class="hint" id="b-typed-hint">Press Enter to put typed pieces in the frame. Hang: pixels below the feet (a rod). Shift: move off centre.</p>
+          <div class="b-cut" id="b-cutrow" hidden>
+            <span>Two sprites stuck together? Cut this piece into</span>
+            <input id="b-cols" type="number" min="1" max="16" value="2" aria-label="Columns"> by
+            <input id="b-rows" type="number" min="1" max="16" value="1" aria-label="Rows">
+            <button class="btn" id="b-cut" type="button">Cut</button>
+          </div>
+          <div class="row">
+            <button class="btn quiet" id="b-clear" type="button">Empty this frame</button>
+            <button class="btn quiet" id="b-undo" type="button">Undo</button>
+          </div>
+        </div>
+        <div id="b-preview" hidden></div>
+        <div id="b-sections" class="b-sections"></div>
+        <p class="hint" id="b-other" hidden></p>
+        <pre class="log" id="b-log" hidden></pre>
+      </div>
+    </div>
+  </div>
+
+  <details class="json" id="json-box" open>
+    <summary>Recipe as JSON</summary>
+    <textarea id="recipe" spellcheck="false" rows="16" aria-label="Recipe JSON" placeholder='{"family": "rse", "sections": {"walk": {"down": [1, 2, 3]}}}'></textarea>
+  </details>
+  <p id="recipe-error" class="error" hidden></p>
+  <div class="row"><button id="do-build" class="btn primary" disabled>Build the sheets</button></div>
+  <div id="build-result" class="sheets" hidden></div>
+  <pre class="log" id="build-log" hidden></pre>
+</section>
+
+<section class="step" id="step-pack" aria-labelledby="h-pack">
+  <h2 id="h-pack"><span class="num">3</span> Pack into the game's sheets</h2>
+  <p>Packing cuts a filled sheet into the files the mod reads. Use the sheets from step 2, or your own: a combined sheet, an extras sheet, or a folder of separate templates. Blank templates: <a href="../sprite-templates/frlg_sheet.png" download>FR/LG</a>, <a href="../sprite-templates/rse_sheet.png" download>R/S/E</a>, <a href="../sprite-templates/frlg_wide_sheet.png" download>FR/LG wide</a>, <a href="../sprite-templates/rse_wide_sheet.png" download>R/S/E wide</a>, <a href="../sprite-templates/frlg_extras.png" download>FR/LG extras</a>, <a href="../sprite-templates/rse_extras.png" download>R/S/E extras</a>.</p>
+
+  <fieldset class="choice">
+    <legend>Sheets to pack</legend>
+    <label><input type="radio" name="pack-src" value="built" checked> The sheets built in step 2</label>
+    <label><input type="radio" name="pack-src" value="own"> My own sheets</label>
+  </fieldset>
+  <div id="pack-own" hidden>
+    <div class="drop" data-target="pack">
+      <p>Drop finished sheets, or a templates folder, here</p>
+      <div class="row">
+        <label class="btn">Choose sheets<input type="file" id="pack-files" accept="image/png" multiple hidden></label>
+        <label class="btn">Choose a templates folder<input type="file" id="pack-folder" webkitdirectory multiple hidden></label>
+      </div>
+    </div>
+    <p id="pack-name" class="picked" hidden></p>
+    <label class="inline">Game family
+      <select id="pack-family">
+        <option value="frlg">FireRed / LeafGreen</option>
+        <option value="rse">Ruby / Sapphire / Emerald</option>
+        <option value="frlg_wide">FireRed / LeafGreen, wide</option>
+        <option value="rse_wide">Ruby / Sapphire / Emerald, wide</option>
+      </select>
+    </label>
+    <p class="hint">An extras sheet is recognised by its size and packed with the rest.</p>
+  </div>
+  <div class="row">
+    <button id="do-pack" class="btn primary" disabled>Pack into the look</button>
+    <button id="do-transfer" class="btn" disabled>Start the other game's sheet from this one</button>
+  </div>
+  <div id="transfer-result" class="sheets" hidden></div>
+  <pre class="log" id="pack-log" hidden></pre>
+</section>
+
+<section class="step" id="step-look" aria-labelledby="h-look">
+  <h2 id="h-look"><span class="num">4</span> Name the look and download it</h2>
+  <p>A look is one folder with a <code>meta.json</code> and the packed art. Pack both game families into it if you have art for both. Unzip the download into the mod's <code>assets/sprites</code> folder and restart the game.</p>
+  <div class="row">
+    <label class="btn">Add to a look I already have (.zip)<input type="file" id="look-zip" accept=".zip" hidden></label>
+  </div>
+  <form id="meta" class="grid meta" autocomplete="off">
+    <label>Folder name <input id="m-folder" required pattern="[A-Za-z0-9_\-]+" placeholder="kris_hgss"></label>
+    <label>Label <input id="m-label" required placeholder="KRIS HGSS"><span class="note" id="m-label-note"></span></label>
+    <label>Character <input id="m-character" placeholder="KRIS"><span class="note" id="m-character-note"></span></label>
+    <label>Replaces
+      <select id="m-gender">
+        <option value="girl">the girl (Leaf, May)</option>
+        <option value="boy">the boy (Red, Brendan)</option>
+        <option value="enby">both</option>
+      </select>
+    </label>
+    <label class="wide">Credits, one line each <textarea id="m-credit" rows="3" placeholder="RSE by richardPT&#10;FRLG by FourLeafSunny"></textarea></label>
+  </form>
+  <p class="hint">The options menu shows 8 characters of a label or character name. Looks of the same character are grouped under it as LOOK choices.</p>
+  <h3 class="sub">In this look</h3>
+  <div id="look-files" class="files"><p class="empty">Nothing packed yet. Pack a sheet in step 3 and it shows up here.</p></div>
+  <div id="look-play" hidden>
+    <h3 class="sub">Watch it move</h3>
+    <p class="hint">Plays the packed files, the way the game reads them.</p>
+    <div class="row">
+      <label class="inline">Game family <select id="lp-family"></select></label>
+      <label class="inline">Section <select id="lp-section"></select></label>
+    </div>
+    <div id="look-preview" hidden></div>
+  </div>
+  <div class="row">
+    <button id="do-download" class="btn primary" disabled>Download the look</button>
+    <button id="do-clear" class="btn quiet" disabled>Start a new look</button>
+  </div>
+</section>
+
+</main>
+
+<footer class="foot">
+  <p>Runs the same <code>import_sheet.py</code> and <code>pack_gen3.py</code> as the command line, via Pyodide. Each step shows the command it ran, so you can repeat it there. Emerald Lens is built on the Crystal Lens framework by Dgray66, used with permission. Gen 3 support and tools by Elvie.</p>
+  <p>Don't share sprites exported from the games themselves; fan art needs its artist's credit.</p>
+</footer>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
