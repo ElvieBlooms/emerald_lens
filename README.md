@@ -22,7 +22,8 @@ Each look is a folder at `assets/sprites/FOLDER_NAME_HERE` (no spaces in the fol
 {
   "label": "KRIS",
   "character": "KRIS",
-  "genderMode": "girl"
+  "genderMode": "girl",
+  "credit": ["RSE Made by richardPT", "FRLG made by FourLeafSunny"]
 }
 ```
 
@@ -34,6 +35,9 @@ Each look is a folder at `assets/sprites/FOLDER_NAME_HERE` (no spaces in the fol
   * `"enby"` replaces both, so the player looks like the character whichever gender is picked. Gen 3's text is the game's own for the gender picked. The Hoenn rival battles with the player's portrait and shares the fishing, underwater and watering sprites, so for those an enby character only takes the gender actually picked, and the rival stays themselves.
   
   Left out, it's `"girl"`, the same as Crystal Lens. The game still asks boy or girl at the start, so pick the one that matches your character (any choice works for enby).
+* `credit` (optional) names the artists, as a list of lines. The game doesn't show it; it keeps the credit with the art wherever the folder is copied. Please fill it in when you share a look made from someone else's sprites.
+
+Keep `meta.json` valid JSON: a trailing comma after the last item (`"...",]`) makes it unreadable, and the look falls back to its folder name and `"girl"`.
 
 Crystal Lens's other keys (`overworldColors`, `nameChoices`) are ignored here, so a folder copied from Crystal Lens works as-is once it has a `gen3` folder.
 
