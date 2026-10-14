@@ -122,6 +122,10 @@ were painted over. Needs Pillow: `python3 -m pip install --user pillow`.
 
 Need a fresh blank sheet? `python3 pack_gen3.py blank rse rse_sheet.png`
 
+The look folder also needs a `meta.json` (label, character, genderMode, and
+`"generation": 4` for DS-style art; see the mod README). If the art is
+someone else's, add their name under `"credit"` so it travels with the folder.
+
 ## Frame sizes
 
 | Game sheet | FireRed/LeafGreen | Ruby/Sapphire/Emerald | Combined sheet block(s) |
