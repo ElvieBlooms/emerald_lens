@@ -1,7 +1,8 @@
 {
   "label": "RKT LOU",
-  "character": "KRIS G4",
+  "character": "KRIS",
   "genderMode": "girl",
+  "generation": 4,
   "credit": [
     "HGSS Kris sprites by LouLilie"
   ]

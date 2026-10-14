@@ -14,8 +14,13 @@ The page walks through four steps:
    below) or as JSON, starting blank, from `recipes/blank_frlg.json` /
    `blank_rse.json`, or from a recipe file; then `import_sheet.py build`.
 3. **Pack into the game's sheets**: `pack_gen3.py pack`, either the sheets
-   from step 2 or your own (combined, extras or a templates folder).
-   `pack_gen3.py transfer` starts the other game's sheet from this one.
+   from step 2 or your own (combined, extras or a templates folder). When
+   the look already has files, "Keep what's already in the look" (on by
+   default) packs with `--merge`, so new work only fills blank frames and
+   redrawn frames are clashes to pick (see Combining). `pack_gen3.py
+   transfer` starts the other game's sheet from this one. "Combine sheets"
+   runs `pack_gen3.py merge` on any sheets, templates folders, the step 2
+   sheets or the look's own files, in an order you set.
 4. **Name the look and download it**: a `meta.json` form (label,
    character, genderMode, credit) and a zip of the look folder, ready for
    `assets/sprites/`. A look zip can be opened again to add the other
@@ -48,6 +53,15 @@ Opening the builder copies step 1's slicing options into the recipe
 (`scale`, `background`, `reach`, `lossy`, `colors`), so build numbers the
 sheet the same way.
 
+## Combining
+Both merging paths ask `merge` for a report (`--report`) and a PNG of
+every clashing version (`--clash-frames`), then show each clash as a card:
+the file and frame, where it sits ("walk, down 3"), and each version to
+click. "Keep all from" buttons set every clash at once. Applying reruns
+the same command with `--pick file:frame=source`, so the result matches
+the command line exactly. Sources are snapshots: rebuilding in step 2
+doesn't change a source already added.
+
 ## Previews
 An animated preview plays a section the way the game does. The builder
 shows one for the section you're working on, from the frames as build will
@@ -79,6 +93,7 @@ Motion starts paused when the system asks for reduced motion.
 - `index.html`, `style.css`, `app.js`: the page.
 - `builder.js`: the recipe builder.
 - `preview.js`: the animated previews.
+- `merge.js`: the clash picker for combining and merged packing.
 - `web_runner.py`: the glue. It runs a tool's command line with `runpy`
   (same argv as the CLI) and captures its output, plus a few file helpers
   (zip, unzip, listing). `builder_data` gives the builder its pieces, slots,

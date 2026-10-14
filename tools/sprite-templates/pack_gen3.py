@@ -35,6 +35,23 @@ transfer   Start the other game's sheet from this one: every section that has
              python3 pack_gen3.py transfer rse rse_sheet.png frlg frlg_sheet.png
              python3 pack_gen3.py transfer frlg_extras frlg_extras.png rse_extras rse_extras.png
 
+merge      Combine partial work, frame by frame: sheets, templates folders or
+           packed look folders, into one sheet (out ending in .png) or a
+           packed folder. A frame drawn in only one source is taken from it.
+           Where two sources draw the same frame differently, the first one
+           listed is kept and the clash is listed; choose another with
+           --pick file:frame=source (sources counted from 1). Extras sheets
+           and files come along too:
+             python3 pack_gen3.py merge rse rse_sheet.png walk_work.png bike_work.png
+             python3 pack_gen3.py merge rse rse_sheet.png a.png b.png --pick walk.png:3=2
+           Add --report clashes.json to write the clashes as JSON, and
+           --clash-frames DIR to save each clashing version as a PNG.
+
+           pack --merge packs into a look folder without losing what's there:
+           the folder's own files come first, the new work fills their blank
+           frames, and clashes work as above (source 2 is the new work):
+             python3 pack_gen3.py pack rse run_work.png ../../assets/sprites/<folder>/gen3/rse --merge
+
 Extras (optional): the surf blob, the Fly bird and the bag have their own
 smaller sheet, frlg_extras.png / rse_extras.png, with separate templates in
 frlg_extras/ and rse_extras/. Use frlg_extras or rse_extras in place of frlg
@@ -53,7 +70,7 @@ surf       Placement reference for the player on the surf blob, exactly as the
 
 Needs Pillow (python3 -m pip install --user pillow).
 """
-import os, sys, zlib
+import json, os, sys, zlib
 from PIL import Image, ImageDraw, ImageFont
 
 # (file, frame width, frame height, frame count) -- the game's own sizes.
@@ -476,14 +493,16 @@ def write_templates(family, strips, dst_dir):
 
 # ------------------------------------------------------------------ commands
 
-def write_strips(family, strips, dst_dir):
+def write_strips(family, strips, dst_dir, quiet=False):
     """Saves each drawn strip; skips untouched ones and flags half-drawn ones,
-    since a blank frame would make the player vanish for that pose."""
+    since a blank frame would make the player vanish for that pose. quiet
+    leaves out sheets no source had (merge). -Elvie"""
     os.makedirs(dst_dir, exist_ok=True)
     for name, w, h, n in SPECS[family]:
         strip = strips.get(name)
         if strip is None:
-            print(f"  skip    {name} (not found -- a fallback folder or the game's own sprite will be used)")
+            if not quiet:
+                print(f"  skip    {name} (not found -- a fallback folder or the game's own sprite will be used)")
             continue
         empty = [i for i in range(n) if is_blank(strip.crop((0, i * h, w, (i + 1) * h)))]
         if len(empty) == n:
@@ -767,12 +786,236 @@ def transfer(src_family, src, dst_family, dst):
     print(f"  wrote   {dst}")
     return True
 
+
+# ------------------------------------------------------------------- merging
+# Several partial sources into one, frame by frame. A frame drawn in one
+# source is taken from it; the same frame drawn differently in two is a
+# clash: the first source listed keeps it unless a --pick says otherwise,
+# and every clash is reported so nothing is chosen silently. -Elvie
+
+def fit_strip(family, name, im):
+    """An exact-size strip for this family, or None. A 16-wide sheet goes
+    into a wide family centred; a 32-wide one into a narrow family only if
+    every frame's drawing fits the narrow frame. -Elvie"""
+    w, h, n = spec(family, name)
+    if im.height != h * n:
+        return None
+    if im.width == w:
+        return im
+    if im.width < w:
+        return widen(im, w, h, n)
+    x0 = (im.width - w) // 2
+    bb = im.getchannel("A").getbbox()
+    if bb and (bb[0] < x0 or bb[2] > x0 + w):
+        return None
+    return im.crop((x0, 0, x0 + w, h * n))
+
+def read_file_strip(family, name, path):
+    """One file: a separate template (with guides) or a packed strip."""
+    w, h, n = spec(family, name)
+    im = Image.open(path).convert("RGBA")
+    if im.size == (w + 2, n * (h + 1) + 1):
+        strip = Image.new("RGBA", (w, h * n), CLEAR)
+        for i in range(n):
+            strip.paste(im.crop(frame_box(i, w, h)), (0, i * h))
+        return strip
+    strip = fit_strip(family, name, im)
+    if strip is None:
+        print(f"  ERROR   {path}: {im.width}x{im.height} isn't a {name} strip or template for {family}"
+              + (" (too wide: try the _wide family)" if im.height == h * n and im.width > w else ""))
+    return strip
+
+def other_width(family):
+    """rse <-> rse_wide; None for extras, which have no wide form."""
+    if family.endswith("_wide"):
+        return base_of(family)
+    return family + "_wide" if family + "_wide" in SPECS else None
+
+def read_sheet_as(family, path):
+    """A sheet for this family, or for the other width converted frame by
+    frame (16-wide frames centred; 32-wide ones only if they fit). -Elvie"""
+    size = Image.open(path).size
+    alt = other_width(family)
+    if size != layout(family)[0] and alt and size == layout(alt)[0]:
+        strips = read_sheet(alt, path)
+        if strips is None:
+            return None
+        out = {}
+        for name, strip in strips.items():
+            fitted = fit_strip(family, name, strip)
+            if fitted is None:
+                print(f"  ERROR   {os.path.basename(path)}: {name} is drawn too wide for {family}; use {alt}")
+                return None
+            out[name] = fitted
+        print(f"  note    {os.path.basename(path)}: {alt} sheet, read as {family}")
+        return out
+    return read_sheet(family, path)
+
+def read_source(family, src):
+    """{family: {file: strip}} for the main family and its extras, from a
+    sheet file or a folder (sheets, templates or packed strips). A drawn
+    separate file wins over the same block of a sheet in that folder."""
+    extras = EXTRAS_OF.get(family)
+    fams = [family] + ([extras] if extras else [])
+    out = {f: {} for f in fams}
+    if os.path.isfile(src):
+        im = Image.open(src)
+        fam = extras if extras and im.size == layout(extras)[0] else family
+        strips = read_sheet_as(fam, src)
+        if strips is None:
+            return None
+        out[fam] = {k: v for k, v in strips.items() if not is_blank(v)}
+        return out
+    if not os.path.isdir(src):
+        print(f"  ERROR   {src} is not a file or folder")
+        return None
+    for fam in fams:
+        alt = other_width(fam)
+        sheet = find_sheet(fam, src) or (alt and find_sheet(alt, src))
+        if sheet:
+            strips = read_sheet_as(fam, sheet)
+            if strips:
+                out[fam].update({k: v for k, v in strips.items() if not is_blank(v)})
+        for name, w, h, n in SPECS[fam]:
+            path = os.path.join(src, name)
+            if os.path.isfile(path):
+                strip = read_file_strip(fam, name, path)
+                if strip is None:
+                    # stop rather than merge without it and overwrite it -Elvie
+                    return None
+                if not is_blank(strip):
+                    out[fam][name] = strip
+    return out
+
+def parse_picks(values):
+    """['walk.png:3=2', ...] -> {('walk.png', 3): 2}"""
+    picks = {}
+    for v in values:
+        try:
+            where, src = v.rsplit("=", 1)
+            name, frame = where.rsplit(":", 1)
+            picks[(name, int(frame))] = int(src)
+        except ValueError:
+            print(f"  ERROR   --pick {v}: write it as file:frame=source, like walk.png:3=2")
+            return None
+    return picks
+
+def merge_strips(family, sources, picks=None, clash_dir=None):
+    """sources: [{family: {file: strip}}] -> ({family: {file: strip}}, clashes)."""
+    picks = picks or {}
+    fams = [family] + ([EXTRAS_OF[family]] if family in EXTRAS_OF else [])
+    merged, clashes, used = {f: {} for f in fams}, [], set()
+    for fam in fams:
+        for name, w, h, n in SPECS[fam]:
+            have = [(k, src[fam][name]) for k, src in enumerate(sources, 1) if name in src.get(fam, {})]
+            if not have:
+                continue
+            strip = Image.new("RGBA", (w, h * n), CLEAR)
+            for i in range(n):
+                box = (0, i * h, w, (i + 1) * h)
+                drawn = [(k, s.crop(box)) for k, s in have]
+                drawn = [(k, f) for k, f in drawn if not is_blank(f)]
+                if not drawn:
+                    continue
+                versions = {}
+                for k, f in drawn:
+                    versions.setdefault(f.tobytes(), []).append(k)
+                choice = drawn[0]
+                if len(versions) > 1:
+                    want = picks.get((name, i))
+                    chosen = next(((k, f) for k, f in drawn if k == want), None)
+                    if want is not None:
+                        used.add((name, i))
+                        if chosen is None:
+                            print(f"  warning --pick {name}:{i}={want}: source {want} has no drawing there; kept source {choice[0]}")
+                    choice = chosen or choice
+                    clashes.append({"family": fam, "file": name, "frame": i,
+                                    "sources": [ks[0] for ks in versions.values()],
+                                    "same_as": {str(ks[0]): ks[1:] for ks in versions.values() if len(ks) > 1},
+                                    "kept": choice[0]})
+                    if clash_dir:
+                        os.makedirs(clash_dir, exist_ok=True)
+                        for ks in versions.values():
+                            f = next(f for k, f in drawn if k == ks[0])
+                            f.save(os.path.join(clash_dir, f"{name[:-4]}_{i}_{ks[0]}.png"))
+                strip.paste(choice[1], (0, i * h))
+            merged[fam][name] = strip
+    for name, i in picks:
+        if (name, i) not in used:
+            print(f"  note    --pick {name}:{i}: no clash there, nothing to choose")
+    return merged, clashes
+
+def merge(family, out, srcs, picks=None, report=None, clash_dir=None):
+    sources = []
+    for src in srcs:
+        got = read_source(family, src)
+        if got is None:
+            return False
+        n = sum(len(v) for v in got.values())
+        print(f"  source  {len(sources) + 1}: {src} ({n} sheet{'s' if n != 1 else ''} with drawing)")
+        sources.append(got)
+    merged, clashes = merge_strips(family, sources, picks, clash_dir)
+    for c in clashes:
+        alts = ", ".join(str(k) for k in c["sources"] if k != c["kept"])
+        print(f"  clash   {c['file']} frame {c['frame']}: drawn differently in sources "
+              f"{', '.join(map(str, c['sources']))}; kept {c['kept']} "
+              f"(or --pick {c['file']}:{c['frame']}={alts.split(', ')[0]})")
+    if report:
+        with open(report, "w") as f:
+            json.dump({"family": family, "sources": list(srcs), "clashes": clashes}, f, indent=1)
+    extras = EXTRAS_OF.get(family)
+    if out.lower().endswith(".png"):
+        folder = os.path.dirname(out) or "."
+        os.makedirs(folder, exist_ok=True)
+        sheet_from_strips(family, merged[family]).save(out)
+        print(f"  wrote   {out}")
+        if extras and merged[extras]:
+            ex = os.path.join(folder, SHEET_FILE[extras])
+            sheet_from_strips(extras, merged[extras]).save(ex)
+            print(f"  wrote   {ex}")
+    else:
+        write_strips(family, merged[family], out, quiet=True)
+        if extras and merged[extras]:
+            print("  extras")
+            write_strips(extras, merged[extras], out, quiet=True)
+    print(f"  merged  {len(srcs)} sources, {len(clashes)} clash{'es' if len(clashes) != 1 else ''}")
+    return True
+
+def merge_options(args):
+    """The --pick / --report / --clash-frames options after a command."""
+    picks, report, clash_dir, rest, i = [], None, None, [], 0
+    while i < len(args):
+        if args[i] in ("--pick", "--report", "--clash-frames") and i + 1 < len(args):
+            if args[i] == "--pick": picks.append(args[i + 1])
+            elif args[i] == "--report": report = args[i + 1]
+            else: clash_dir = args[i + 1]
+            i += 2
+        else:
+            rest.append(args[i])
+            i += 1
+    return parse_picks(picks), report, clash_dir, rest
+
 FORMAT_FLAGS = {"--sheet": ("sheet",), "--separate": ("separate",), "--both": ("sheet", "separate")}
 
 if __name__ == "__main__":
     a = sys.argv[1:]
+    if len(a) >= 4 and a[0] == "pack" and a[1] in SPECS and "--merge" in a[4:]:
+        # into what's already in the look folder, frame by frame -Elvie
+        picks, report, clash_dir, rest = merge_options([x for x in a[4:] if x != "--merge"])
+        if picks is None or rest:
+            print(__doc__); sys.exit(2)
+        family = a[1]
+        if os.path.isfile(a[2]) and family in EXTRAS_OF and Image.open(a[2]).size == layout(EXTRAS_OF[family])[0]:
+            family = EXTRAS_OF[family]
+        srcs = [a[3], a[2]] if os.path.isdir(a[3]) else [a[2]]
+        sys.exit(0 if merge(family, a[3], srcs, picks, report, clash_dir) else 1)
     if len(a) == 4 and a[0] == "pack" and a[1] in SPECS:
         sys.exit(0 if pack(a[1], a[2], a[3]) else 1)
+    if len(a) >= 4 and a[0] == "merge" and a[1] in SPECS:
+        picks, report, clash_dir, rest = merge_options(a[3:])
+        if picks is None or not rest:
+            print(__doc__); sys.exit(2)
+        sys.exit(0 if merge(a[1], a[2], rest, picks, report, clash_dir) else 1)
     if len(a) == 4 and a[0] == "convert" and a[1] in SPECS:
         sys.exit(0 if convert(a[1], a[2], a[3]) else 1)
     if len(a) in (5, 6) and a[0] == "reference" and a[1] in SPECS and a[2] in ("male", "female", "boy", "girl"):

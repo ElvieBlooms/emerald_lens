@@ -66,6 +66,42 @@ start from your RSE work (or the other way round):
 - The source can be a sheet or a templates folder, as with `pack`. The
   output is a combined sheet to check, finish and pack as usual.
 
+## Combining partial work
+
+`merge` puts several partial sheets together, frame by frame: say walking
+on one sheet, biking on another, and the front pic in a templates folder.
+Sources can be combined sheets, extras sheets, separate templates folders
+or packed look folders, in any mix, and the result is one combined sheet
+(an output ending in `.png`, plus the extras sheet beside it if any source
+had extras) or a packed folder:
+
+    python3 pack_gen3.py merge rse rse_sheet.png walk_work.png bike_work.png ./front-templates
+
+- A frame drawn in only one source is taken from it, and frames no source
+  drew stay blank.
+- A frame drawn differently in two sources is a clash. The first source
+  listed keeps it, and every clash is printed with the option to choose
+  another: `--pick walk.png:4=2` takes frame 4 of `walk.png` from source 2
+  (sources count from 1, frames from 0 like the game).
+- `--report clashes.json` writes the clashes as JSON, and
+  `--clash-frames DIR` saves each clashing version as a PNG to compare.
+- A sheet of the other width is converted: 16-wide frames are centred in a
+  `_wide` family, and 32-wide ones are read into a narrow family only if
+  the drawing fits.
+
+To add new art to a finished sheet, list the finished sheet first: the new
+work fills its blank frames, and any frame you redrew shows up as a clash
+to pick.
+
+`pack --merge` packs into a look folder without losing what's already there.
+The folder's own files are source 1 and the new work source 2, so the new
+work fills blank frames and redrawn frames are clashes as above:
+
+    python3 pack_gen3.py pack rse run_work.png ../../assets/sprites/<folder>/gen3/rse --merge
+    python3 pack_gen3.py pack rse run_work.png ../../assets/sprites/<folder>/gen3/rse --merge --pick walk.png:9=2
+
+Plain `pack` still replaces each file it writes, whole.
+
 ## Packing into the mod
 Run these from this folder. Point `pack` at a combined sheet, a folder of separate templates, or a folder
 holding both:

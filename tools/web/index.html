@@ -155,12 +155,44 @@
     </label>
     <p class="hint">An extras sheet is recognised by its size and packed with the rest.</p>
   </div>
+  <label class="check-line"><input type="checkbox" id="pack-keep" checked> Keep what's already in the look: fill its blank frames, and let me choose where frames clash</label>
   <div class="row">
     <button id="do-pack" class="btn primary" disabled>Pack into the look</button>
     <button id="do-transfer" class="btn" disabled>Start the other game's sheet from this one</button>
   </div>
+  <div id="pack-clashes" hidden></div>
   <div id="transfer-result" class="sheets" hidden></div>
   <pre class="log" id="pack-log" hidden></pre>
+
+  <details class="combine" id="combine">
+    <summary>Combine sheets, or add new art to a finished sheet</summary>
+    <p>Put partial sheets together frame by frame: walking from one, biking from another. Each frame comes from whichever source drew it. Where two sources drew the same frame differently, you choose which to keep. To add to a finished sheet, put the finished one first.</p>
+    <div class="row">
+      <label class="inline">Game family
+        <select id="cb-family">
+          <option value="frlg">FireRed / LeafGreen</option>
+          <option value="rse" selected>Ruby / Sapphire / Emerald</option>
+          <option value="frlg_wide">FireRed / LeafGreen, wide</option>
+          <option value="rse_wide">Ruby / Sapphire / Emerald, wide</option>
+        </select>
+      </label>
+    </div>
+    <div class="drop" data-target="combine">
+      <p>Drop sheets or a templates folder here to add them</p>
+      <div class="row">
+        <label class="btn">Add sheets<input type="file" id="cb-files" accept="image/png" multiple hidden></label>
+        <label class="btn">Add a templates folder<input type="file" id="cb-folder" webkitdirectory multiple hidden></label>
+        <button type="button" class="btn" id="cb-built" disabled>Add the sheets built in step 2</button>
+        <button type="button" class="btn" id="cb-look" disabled>Add the look's packed files</button>
+      </div>
+    </div>
+    <ol id="cb-list" class="cb-list"></ol>
+    <p class="hint" id="cb-empty">No sources yet. Add two or more; the order sets which one is kept until you choose.</p>
+    <div class="row"><button type="button" class="btn primary" id="do-combine" disabled>Combine</button></div>
+    <div id="cb-clashes" hidden></div>
+    <div id="cb-result" class="sheets" hidden></div>
+    <pre class="log" id="cb-log" hidden></pre>
+  </details>
 </section>
 
 <section class="step" id="step-look" aria-labelledby="h-look">

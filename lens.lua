@@ -277,8 +277,8 @@ function lens.init(mod)
   mod.options:define(buildRows())
 
   -- Resolve this family's selected look, then hand gen3.lua the fallback
-  -- chain: that look first, then the character's other folders in menu
-  -- order. nil means OFF. Only the running game's family is set up. -Elvie
+  -- chain (see resolve below). nil means OFF. Only the running game's
+  -- family is set up. -Elvie
   -- --------------------------------------------------
   local okVersion, GameVersion = pcall(require, "src.core.GameVersion")
   local layout = okVersion and GameVersion.layout(GameVersion.get())
@@ -306,15 +306,28 @@ function lens.init(mod)
   end
   updateGender()
 
+  -- "generation" in meta.json: 3 for art in the games' own style, 4 for
+  -- bigger DS-style art. Left out, it's 3. -Elvie
+  local function generationOf(key)
+    local g = tonumber((metaFor[key] or {}).generation)
+    return g == 4 and 4 or 3
+  end
+
   local handle
   local function resolve()
     local character = currentCharacter(running)
     if not character then return nil end
     local selected = selectedLook(running, character)
 
+    -- Fallback: the selected look, then the character's looks of the same
+    -- generation, then its other looks, each in menu order. -Elvie
     local folderKeys = { selected }
-    for _, entry in ipairs(allFolders[character]) do
-      if entry.key ~= selected then table.insert(folderKeys, entry.key) end
+    local gen = generationOf(selected)
+    for pass = 1, 2 do
+      for _, entry in ipairs(allFolders[character]) do
+        local same = generationOf(entry.key) == gen
+        if entry.key ~= selected and same == (pass == 1) then table.insert(folderKeys, entry.key) end
+      end
     end
     return { folderKeys = folderKeys, genderMode = genderModeOf(selected), spritesDir = SPRITES_DIR }
   end

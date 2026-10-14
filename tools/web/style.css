@@ -304,3 +304,43 @@ details.json > summary { cursor: pointer; color: var(--act); margin-bottom: 8px;
 .stage-note { margin: 4px 0 0; font-size: 0.85rem; }
 #look-play .row { align-items: flex-end; }
 .stage-trick { min-width: 9rem; }
+
+/* ------------------------------------------------------- merging, clashes */
+.check-line { display: flex; gap: 8px; align-items: flex-start; margin: 14px 0 0; max-width: 40rem; font-size: 0.95rem; }
+.check-line input { margin-top: 0.3em; }
+details.combine { margin: 20px 0 0; border-top: 1px solid var(--line); padding-top: 14px; }
+details.combine > summary { cursor: pointer; color: var(--act); font-weight: 700; }
+details.combine > p { max-width: 40rem; }
+.cb-list { margin: 12px 0 0; padding-left: 1.6rem; display: flex; flex-direction: column; gap: 6px; }
+.cb-list li { padding-left: 4px; }
+.cb-list li > span:first-child { overflow-wrap: anywhere; }
+.cb-tools { display: inline-flex; gap: 6px; margin-left: 10px; vertical-align: middle; }
+.cb-tools .btn { padding: 2px 8px; font-size: 0.82rem; }
+
+.clashes { margin: 16px 0 0; border: 1px solid var(--guide); border-radius: 6px; padding: 12px 14px; background: var(--bg); }
+.clashes .sub { margin-top: 0; }
+.clashes .hint { margin: 4px 0 0; }
+.clash-head .row { margin: 10px 0 4px; }
+.clash-grid { display: flex; flex-wrap: wrap; gap: 12px; margin: 10px 0 0; }
+.clash { border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px 10px; margin: 0; min-width: 0; }
+.clash legend { font-size: 0.88rem; font-weight: 700; padding: 0 4px; }
+.clash-where { display: block; font-weight: 400; color: var(--muted); font-size: 0.8rem; }
+.clash-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.clash-pick {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 6px; font: inherit; font-size: 0.78rem; color: var(--muted);
+  background: transparent; border: 1px solid var(--line); border-radius: 4px; cursor: pointer;
+  max-width: 11rem;
+}
+.clash-pick img {
+  display: block; image-rendering: pixelated; width: auto; height: 96px;
+  border: 1px solid var(--guide);
+  background-color: var(--check-a);
+  background-image:
+    linear-gradient(45deg, var(--check-b) 25%, transparent 25%, transparent 75%, var(--check-b) 75%),
+    linear-gradient(45deg, var(--check-b) 25%, transparent 25%, transparent 75%, var(--check-b) 75%);
+  background-size: 12px 12px; background-position: 0 0, 6px 6px;
+}
+.clash-pick span { overflow-wrap: anywhere; text-align: center; }
+.clash-pick:hover { border-color: var(--act); }
+.clash-pick.on { border-color: var(--guide); box-shadow: 0 0 0 2px var(--guide); color: var(--ink); }

@@ -3,6 +3,7 @@
 
 import { createBuilder } from "./builder.js";
 import { createStage, sceneFor } from "./preview.js";
+import { createClashPicker } from "./merge.js";
 
 const PYODIDE_VERSION = "314.0.7";
 const CDN = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`;
@@ -492,17 +493,89 @@ function packSource() {
   return [$("pack-family").value, state.own];
 }
 
+// ------------------------------------------------------ 3b. merging
+// Packing into a look that already has files merges frame by frame
+// (pack --merge); the combine panel merges any sources into one sheet.
+// Clashes come back as a report plus one PNG per version, for the
+// picker; choosing reruns the same command with --pick. -Elvie
+
+let mergeRuns = 0;
+
+function readJSON(path) {
+  return JSON.parse(new TextDecoder().decode(FS.readFile(work(path))));
+}
+
+// "walk, down 2" for walk.png frame 4: where a frame sits in our sections.
+function frameLabel(fam, file, frame) {
+  const lay = familyLayout(baseFamily(fam));
+  for (const [key, sec] of Object.entries(lay.sections)) {
+    for (const [facing, slots] of Object.entries(sec.facings)) {
+      const i = slots.findIndex(([f, n]) => f === file && n === frame);
+      if (i >= 0) return facing === "frames" ? `${key}, ${i + 1}` : `${key}, ${facing} ${i + 1}`;
+    }
+  }
+  return "";
+}
+
+const pickerApi = {
+  imageURL,
+  freeURLs,
+  label: frameLabel,
+  busy,
+};
+
+// Run a merge-style command with a report; returns the report, or null.
+function runMerge(script, argv, logEl, tag) {
+  const dir = `merge/${tag}-${++mergeRuns}`;
+  W.clear(dir);
+  FS.mkdirTree(work(dir));
+  const full = [...argv, "--report", `${dir}/report.json`, "--clash-frames", `${dir}/frames`];
+  if (run(script, full, logEl) !== 0 || !exists(`${dir}/report.json`)) return null;
+  return { report: readJSON(`${dir}/report.json`), framesDir: `${dir}/frames` };
+}
+
+function lookHas(fam) {
+  return list(`look/gen3/${baseFamily(fam)}`).length > 0;
+}
+
+function packOne(fam, path, logEl, picks = [], box = null) {
+  const dst = `look/gen3/${baseFamily(fam)}`;
+  if (!$("pack-keep").checked || !lookHas(fam)) {
+    return run("pack_gen3.py", ["pack", fam, path, dst], logEl) === 0;
+  }
+  const argv = ["pack", fam, path, dst, "--merge", ...picks.flatMap((p) => ["--pick", p])];
+  const got = runMerge("pack_gen3.py", argv, logEl, "pack");
+  if (!got) return false;
+  if (!box) {
+    box = document.createElement("div");
+    box.id = `pack-clash-${mergeRuns}`;
+    $("pack-clashes").append(box);
+    box.picker = createClashPicker(box, pickerApi);
+  }
+  box.picker.show({
+    ...got,
+    names: ["the look", path.split("/").pop()],
+    apply: async (chosen) => {
+      packOne(fam, path, logEl, chosen, box);
+      showLook();
+      status("Applied your choices to the look.", "ready");
+    },
+  });
+  $("pack-clashes").hidden = !$("pack-clashes").querySelector(".clash");
+  return true;
+}
+
 function packInto(fam, paths, logEl) {
   let failed = 0;
-  for (const p of paths) {
-    if (run("pack_gen3.py", ["pack", fam, p, `look/gen3/${baseFamily(fam)}`], logEl) !== 0) failed++;
-  }
+  for (const p of paths) if (!packOne(fam, p, logEl)) failed++;
   return failed;
 }
 
 $("do-pack").addEventListener("click", (e) =>
   busy(e.currentTarget, async () => {
     const [fam, paths] = packSource();
+    $("pack-clashes").replaceChildren();
+    $("pack-clashes").hidden = true;
     packInto(fam, paths, $("pack-log"));
     showLook();
   })
@@ -540,6 +613,125 @@ $("do-transfer").addEventListener("click", (e) =>
     box.hidden = !made.length;
   })
 );
+
+// ------------------------------------------------------ 3c. combine
+
+const combine = { sources: [], n: 0 };
+const cbPicker = createClashPicker($("cb-clashes"), pickerApi);
+
+function copyInto(src, dst) {
+  if (FS.isDir(FS.stat(work(src)).mode)) W.replace_dir(src, dst);
+  else writeFile(dst, FS.readFile(work(src)));
+}
+
+function addCombine(path, name) {
+  const dst = `combine/${++combine.n}-${path.split("/").pop()}`;
+  copyInto(path, dst); // a snapshot: rebuilding later doesn't change it
+  combine.sources.push({ path: dst, name });
+  showCombine();
+}
+
+async function addCombineUpload(items) {
+  const s = await store(items, `combine/up-${++combine.n}`, "templates");
+  if (s.isFolder && items.length > 1 && !items.some((i) => i.path.includes("/"))) {
+    for (const f of list(s.path)) combine.sources.push({ path: `${s.path}/${f}`, name: f });
+  } else {
+    combine.sources.push({ path: s.path, name: s.name });
+  }
+  showCombine();
+}
+
+function showCombine() {
+  const ol = $("cb-list");
+  ol.replaceChildren(
+    ...combine.sources.map((src, i) => {
+      const li = document.createElement("li");
+      const name = document.createElement("span");
+      name.textContent = src.name;
+      const tools = document.createElement("span");
+      tools.className = "cb-tools";
+      const mk = (text, label, fn, off) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "btn quiet";
+        b.textContent = text;
+        b.setAttribute("aria-label", `${label} ${src.name}`);
+        b.disabled = off;
+        b.addEventListener("click", () => {
+          fn();
+          showCombine();
+        });
+        return b;
+      };
+      const swap = (j) => ([combine.sources[i], combine.sources[j]] = [combine.sources[j], combine.sources[i]]);
+      tools.append(
+        mk("Up", "Move up", () => swap(i - 1), i === 0),
+        mk("Down", "Move down", () => swap(i + 1), i === combine.sources.length - 1),
+        mk("Remove", "Remove", () => combine.sources.splice(i, 1), false)
+      );
+      li.append(name, tools);
+      return li;
+    })
+  );
+  $("cb-empty").hidden = combine.sources.length > 0;
+  refresh();
+}
+
+function doCombine(picks = []) {
+  const fam = $("cb-family").value;
+  W.clear("combined");
+  FS.mkdirTree(work("combined"));
+  const out = `combined/${W.sheet_file(fam)}`;
+  const argv = ["merge", fam, out, ...combine.sources.map((s) => s.path), ...picks.flatMap((p) => ["--pick", p])];
+  const got = runMerge("pack_gen3.py", argv, $("cb-log"), "combine");
+  const made = got ? list("combined").map((f) => `combined/${f}`) : [];
+  const box = $("cb-result");
+  freeURLs("cb-result");
+  box.replaceChildren(
+    ...made.map((p) => {
+      const use = document.createElement("button");
+      use.type = "button";
+      use.className = "btn";
+      use.textContent = "Pack these into the look";
+      use.addEventListener("click", (ev) =>
+        busy(ev.currentTarget, async () => {
+          // the combined sheets become "my own sheets" in step 3
+          W.clear("pack");
+          for (const f of made) writeFile(`pack/${f.split("/").pop()}`, FS.readFile(work(f)));
+          state.own = made.map((f) => `pack/${f.split("/").pop()}`);
+          state.ownFolder = null;
+          $("pack-family").value = fam;
+          document.querySelector('input[name="pack-src"][value="own"]').checked = true;
+          $("pack-own").hidden = false;
+          $("pack-name").hidden = false;
+          $("pack-name").textContent = `Sheets: ${state.own.map((x) => x.split("/").pop()).join(", ")} (combined)`;
+          $("pack-clashes").replaceChildren();
+          packInto(fam, state.own, $("pack-log"));
+          showLook();
+        })
+      );
+      return sheetCard(p, "cb-result", use);
+    })
+  );
+  box.hidden = !made.length;
+  if (got) {
+    cbPicker.show({ ...got, names: combine.sources.map((s) => s.name), apply: async (chosen) => doCombine(chosen) });
+  } else {
+    cbPicker.hide();
+  }
+}
+
+$("do-combine").addEventListener("click", (e) => busy(e.currentTarget, async () => doCombine()));
+$("cb-built").addEventListener("click", () => {
+  for (const p of state.built) addCombine(p, `${p.split("/").pop()} (built in step 2)`);
+});
+$("cb-look").addEventListener("click", () => {
+  const fam = $("cb-family").value;
+  addCombine(`look/gen3/${baseFamily(fam)}`, `the look's ${FAMILY_NAMES[baseFamily(fam)]} files`);
+});
+$("cb-files").addEventListener("change", (e) => upload(fromInput(e.target), addCombineUpload, e.target));
+$("cb-folder").addEventListener("change", (e) => upload(fromInput(e.target), addCombineUpload, e.target));
+$("cb-family").addEventListener("change", refresh);
 
 // --------------------------------------------------------------- 4. look
 
@@ -813,7 +1005,8 @@ document.querySelectorAll(".drop").forEach((zone) => {
     e.preventDefault();
     zone.classList.remove("over");
     const items = await fromDrop(e.dataTransfer);
-    await upload(items, zone.dataset.target === "source" ? setSource : setOwn);
+    const fn = { source: setSource, pack: setOwn, combine: addCombineUpload }[zone.dataset.target];
+    await upload(items, fn);
   });
 });
 
@@ -827,6 +1020,9 @@ function refresh() {
   const [, paths] = ready ? packSource() : [null, []];
   $("do-pack").disabled = !ready || !paths.length;
   $("do-transfer").disabled = !ready || !paths.length;
+  $("cb-built").disabled = !ready || !state.built.length;
+  $("cb-look").disabled = !ready || !lookHas($("cb-family").value);
+  $("do-combine").disabled = !ready || combine.sources.length < 2;
   const packed = ready && list("look/gen3").length > 0;
   $("do-download").disabled = !packed;
   $("do-clear").disabled = !packed;
