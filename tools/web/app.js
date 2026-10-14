@@ -226,6 +226,26 @@ function run(script, argv, logEl) {
 
 // --------------------------------------------------------------- previews
 
+// A preview's frames -> GIF via Pillow (web_runner.make_gif), downloaded.
+async function saveGif({ width, height, frames, delays, name }) {
+  const size = width * height * 4;
+  const raw = new Uint8Array(size * frames.length);
+  frames.forEach((f, i) => raw.set(f, i * size));
+  W.clear("gif");
+  writeFile("gif/frames.raw", raw);
+  W.make_gif("gif/frames.raw", width, height, frames.length, JSON.stringify(delays), "gif/out.gif");
+  const bytes = FS.readFile(work("gif/out.gif"));
+  download(bytes, name, "image/gif");
+  const kb = Math.round(bytes.length / 1024);
+  status(`Saved ${name} (${frames.length} frame${frames.length === 1 ? "" : "s"}, ${kb} KB).`, "ready");
+}
+
+// "kris-rse-walk": the look's folder name, or "sprite" before it has one
+function gifName(fam, key) {
+  const folder = ($("m-folder").value || "").trim() || "sprite";
+  return `${folder}-${fam}-${key}`;
+}
+
 function zoomed(img, zoom) {
   const apply = () => (img.style.width = img.naturalWidth * zoom + "px");
   img.complete ? apply() : img.addEventListener("load", apply, { once: true });
@@ -456,6 +476,8 @@ const builder = createBuilder({
   onRecipeInput: (fn) => recipeBox.addEventListener("input", fn),
   busy,
   status,
+  saveGif,
+  gifName,
 });
 
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => builder.refreshTheme());
@@ -816,7 +838,7 @@ function showLook() {
 
 // --------------------------------------------------- 4b. look preview
 
-const lookStage = createStage($("look-preview"));
+const lookStage = createStage($("look-preview"), { saveGif, busy });
 const layouts = {};
 let lookImages = {}; // "frlg/walk.png" -> loaded <img>
 
@@ -874,7 +896,7 @@ function showLookPreview() {
       const img = lookImages[`${fam}/${first}`];
       return [img && img.naturalWidth ? img.naturalWidth : lay.frames[first][0], lay.frames[first][1]];
     },
-  }, `${FAMILY_NAMES[fam]}: ${key}`);
+  }, `${FAMILY_NAMES[fam]}: ${key}`, gifName(fam, key));
 }
 
 // Sections the packed files can show, for the chosen family.

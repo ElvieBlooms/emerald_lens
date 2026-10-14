@@ -153,6 +153,46 @@ def builder_data(src, recipe_json):
         "sections": sections, "frames": frames, "log": out.getvalue(),
     })
 
+def make_gif(raw, width, height, count, delays_json, out):
+    """Raw RGBA frames (one after another) -> a looping GIF. Pixel art
+    rarely has 255 colours, so the palette is exact; only past that is it
+    quantized. Mostly transparent pixels become the transparent index. -Elvie"""
+    from PIL import Image
+    data = open(os.path.join(WORK, raw), "rb").read()
+    size = width * height * 4
+    frames = [Image.frombytes("RGBA", (width, height), data[i * size:(i + 1) * size]) for i in range(count)]
+    colours = set()
+    for f in frames:
+        for _, c in f.getcolors(width * height) or []:
+            if c[3] >= 128:
+                colours.add(c[:3])
+    if len(colours) <= 255:
+        flat = [v for c in sorted(colours) for v in c]
+    else:
+        strip = Image.new("RGB", (width, height * count))
+        for i, f in enumerate(frames):
+            strip.paste(f.convert("RGB"), (0, i * height))
+        q = strip.quantize(255, method=Image.Quantize.MEDIANCUT)
+        flat = q.getpalette()[:255 * 3]
+    flat += [0] * (256 * 3 - len(flat))
+    pal = Image.new("P", (1, 1))
+    pal.putpalette(flat)
+    out_frames = []
+    for f in frames:
+        p = f.convert("RGB").quantize(palette=pal, dither=Image.Dither.NONE)
+        clear = f.getchannel("A").point(lambda a: 255 if a < 128 else 0)
+        p.paste(255, mask=clear)
+        out_frames.append(p)
+    path = os.path.join(WORK, out)
+    if count == 1:
+        # one frame: a still GIF, no timing or looping -Elvie
+        out_frames[0].save(path, transparency=255, optimize=False)
+    else:
+        out_frames[0].save(path, save_all=True, append_images=out_frames[1:],
+                           duration=json.loads(delays_json), loop=0,
+                           transparency=255, disposal=2, optimize=False)
+    return len(colours)
+
 def read_meta(path):
     """A look's meta.json, or {} when missing or unreadable."""
     try:

@@ -89,6 +89,19 @@ biking 4, Acro Bike tricks 4, moving 1 or 2 pixels a frame. The surf bob
 speed is a guess; check it in game. Pause, step a frame at a time, change the speed or zoom.
 Motion starts paused when the system asks for reduced motion.
 
+**Save as GIF** saves the preview as a looping GIF, to share. It's the
+loop exactly as shown: every facing side by side at the zoom on screen,
+with the trick, speed and Moving setting as chosen. Frames are rendered one
+game frame at a time; scenes with the ground moving are sampled every 2
+game frames, since GIFs can't show 60 a second. Frames that don't change
+are merged, and the delays are rounded so the whole loop keeps the game's
+timing (a walk cycle is 530 ms in the GIF, 533 ms in the game). Between
+facings, and around battle pics, the GIF is transparent, so it sits on
+Discord's dark or light background. Pillow (`web_runner.make_gif`) writes
+it with an exact palette, since sprites rarely have 255 colours. The file is named
+from the look's folder name, family and section (`kris-rse-walk.gif`).
+A single-frame section, like the front pic, saves as a still GIF.
+
 ## Files
 - `index.html`, `style.css`, `app.js`: the page.
 - `builder.js`: the recipe builder.

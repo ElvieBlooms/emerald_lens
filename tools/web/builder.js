@@ -63,7 +63,7 @@ export function createBuilder(api) {
     typed: $("b-typed"), clear: $("b-clear"), undo: $("b-undo"), cols: $("b-cols"), rows: $("b-rows"),
     cut: $("b-cut"), cutRow: $("b-cutrow"), other: $("b-other"), log: $("b-log"),
   };
-  const stage = createStage($("b-preview"), { zoom: 2 });
+  const stage = createStage($("b-preview"), { zoom: 2, saveGif: api.saveGif, busy: api.busy });
   let data = null;        // from builder_data
   let sheet = null;       // ImageBitmap-like <img> of the cleaned sheet
   let pixels = null;      // its ImageData, for tight boxes
@@ -422,7 +422,7 @@ export function createBuilder(api) {
       blob: sectionFrames(r, "surf blob"),
       blobCount: (facing) => (blobSec && blobSec.facings[facing] ? blobSec.facings[facing].length : 0),
       size: () => data.frames[first].slice(0, 2),
-    }, `Preview: ${active.key}`);
+    }, `Preview: ${active.key}`, api.gifName ? api.gifName(r.family || "rse", active.key) : null);
   }
 
   function slotButton(key, facing, index, file, frame, value) {

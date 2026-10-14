@@ -12,7 +12,7 @@ Emerald Lens is the Gen 3 companion to [Crystal Lens](https://github.com/dburton
 * Optional extras: the surf blob, the Fly bird and the Bag.
 * Pick a character for FireRed/LeafGreen and for Ruby/Sapphire/Emerald separately, so a character only needs art for one of them.
 * Per-character gender: replace the boy, the girl, or both.
-* Falls back sheet by sheet: the selected look, then the same character's other looks of the same generation, then its looks of the other generation, then the game's own sprite. Draw as much or as little as you like.
+* Falls back sheet by sheet: the selected look, then the same character's other looks, then the game's own sprite. Draw as much or as little as you like.
 * Sprite tools to draw from the game's own sprites and pack your art (`tools/sprite-templates`).
 
 ## Adding a character
@@ -35,7 +35,6 @@ Each look is a folder at `assets/sprites/FOLDER_NAME_HERE` (no spaces in the fol
   * `"enby"` replaces both, so the player looks like the character whichever gender is picked. Gen 3's text is the game's own for the gender picked. The Hoenn rival battles with the player's portrait and shares the fishing, underwater and watering sprites, so for those an enby character only takes the gender actually picked, and the rival stays themselves.
   
   Left out, it's `"girl"`, the same as Crystal Lens. The game still asks boy or girl at the start, so pick the one that matches your character (any choice works for enby).
-* `generation` (optional) is `3` for art in the games' own style or `4` for bigger DS-style art (HGSS/DPPt sprites, usually on the 32-wide sheets). It only decides fallback order: a missing sheet is taken from the character's looks of the same generation first, then from its other looks, so a Gen 4 look borrows from other Gen 4 looks before Gen 3 ones. Left out, it's `3`.
 * `credit` (optional) names the artists, as a list of lines. The game doesn't show it; it keeps the credit with the art wherever the folder is copied. Please fill it in when you share a look made from someone else's sprites.
 
 Keep `meta.json` valid JSON: a trailing comma after the last item (`"...",]`) makes it unreadable, and the look falls back to its folder name and `"girl"`.
@@ -56,7 +55,7 @@ The options menu has a section for each family, **FR/LG** and **R/S/E**, each wi
 
 A boy or girl character only replaces that player, so the menu ends with a reminder: **GENDER MUST MATCH SAVE TO SHOW**. Enby characters replace either player. (The section names, GENDER and the reminder can be selected but don't do anything; the game's mod options don't have rows the cursor skips.)
 
-Every folder of a character is still used as a fallback, in this order: the selected look, the character's other looks of the same `generation`, then its looks of the other generation (menu order within each), then the game's own sprite.
+Every folder of a character is still used as a fallback.
 
 Changing a character or look applies straight away, no restart needed: the player changes as soon as you're back in the game. The one exception is the FireRed/LeafGreen trainer card, which keeps the portrait it first loaded until the game restarts. Adding or editing files in a character folder still needs a restart.
 
@@ -101,7 +100,7 @@ Also optional, in the same folders and with the same fallback. They aren't the p
 The surf blob and bird have no boy or girl version, so they're only used when your character is the player in that save: a girl character's surf blob doesn't show for someone playing as the boy (enby works for either). The bag has one each, so it follows `genderMode` like the sprites.
 
 ## Sprite tools
-`tools/sprite-templates` has blank templates in two formats you can use interchangeably: one combined sheet per game family, laid out like the standard community sheets, or one strip per game sheet. The extras have a smaller sheet of their own (`frlg_extras.png`, `rse_extras.png`). `pack_gen3.py` exports the game's own sprites from your imported cache to draw from, converts between the two formats, and packs your art into a look's `gen3` folder. `import_sheet.py` turns a sprite sheet made for something else (a fan game, a community collage) into our sheets. See its README. It needs Python 3 and Pillow, and isn't needed to play. The same tools also run as a web page in `tools/web`, with nothing to install: number a sheet's sprites, fill in the recipe by clicking them into the game's frames, build and pack it, watch it walk, run and surf, and download a ready look folder. For now it runs on your own computer only: double-click the launcher for your system in `tools/` (see `HOW TO TRY THE SPRITE TOOLS.txt`). A hosted version will follow once it's had some testing.
+`tools/sprite-templates` has blank templates in two formats you can use interchangeably: one combined sheet per game family, laid out like the standard community sheets, or one strip per game sheet. The extras have a smaller sheet of their own (`frlg_extras.png`, `rse_extras.png`). `pack_gen3.py` exports the game's own sprites from your imported cache to draw from, converts between the two formats, and packs your art into a look's `gen3` folder. `import_sheet.py` turns a sprite sheet made for something else (a fan game, a community collage) into our sheets. See its README. It needs Python 3 and Pillow, and isn't needed to play. The same tools also run as a web page in `tools/web`, with nothing to install: number a sheet's sprites, fill in the recipe by clicking them into the game's frames, build and pack it, watch it walk, run and surf (and save that as a GIF to share), combine partial sheets, and download a ready look folder. For now it runs on your own computer only: double-click the launcher for your system in `tools/` (see `HOW TO TRY THE SPRITE TOOLS.txt`). A hosted version will follow once it's had some testing.
 
 **Sheet Examples:**
 

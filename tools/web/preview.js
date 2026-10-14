@@ -114,6 +114,7 @@ export function createStage(root, opts = {}) {
       <label>Speed <select class="stage-speed"><option value="0.25">¼</option><option value="0.5">½</option><option value="1" selected>1</option><option value="2">2</option></select></label>
       <label class="stage-move-label"><input type="checkbox" class="stage-move" checked> Moving</label>
       <label>Zoom <select class="stage-zoom"><option>2</option><option selected>3</option><option>4</option></select></label>
+      <button type="button" class="btn quiet stage-gif">Save as GIF</button>
     </div>
     <div class="stage-cells"></div>
     <p class="hint stage-note"></p>`;
@@ -121,7 +122,9 @@ export function createStage(root, opts = {}) {
   const ui = { title: q(".stage-title"), play: q(".stage-play"), step: q(".stage-step"), speed: q(".stage-speed"),
                move: q(".stage-move"), moveLabel: q(".stage-move-label"), zoom: q(".stage-zoom"),
                cells: q(".stage-cells"), note: q(".stage-note"),
-               trick: q(".stage-trick"), trickLabel: q(".stage-trick-label") };
+               trick: q(".stage-trick"), trickLabel: q(".stage-trick-label"), gif: q(".stage-gif") };
+  ui.gif.hidden = !opts.saveGif;
+  let fileName = "preview";
   ui.zoom.value = String(opts.zoom || 3);
   // base: the scene as given; scene: base with its chosen variant applied
   let base = null, scene = null, source = null, cells = [];
@@ -318,6 +321,82 @@ export function createStage(root, opts = {}) {
     draw();
   });
   ui.zoom.addEventListener("change", sizeCells);
+
+  // ------------------------------------------------------------ GIF export
+  // The loop rendered one game frame at a time, at the zoom on screen:
+  // every facing side by side, transparent between them. Frames that don't
+  // change are merged, and their lengths become GIF delays (hundredths of
+  // a second, rounded so the loop keeps the game's timing). Moving scenes
+  // are sampled every 2 game frames: GIFs can't show 60 a second. -Elvie
+
+  const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+  const lcm = (a, b) => (a / gcd(a, b)) * b;
+
+  function loopLength() {
+    let n = total() || 1;
+    if (scene.surf) n = lcm(n, 2 * BOB);
+    if (scene.move && ui.move.checked) n = lcm(n, 16 / gcd(16, scene.move));
+    return n;
+  }
+
+  function gifScale() {
+    const z = Number(ui.zoom.value) || 3;
+    return scene.kind === "frames" && cells[0] && cells[0].canvas.width >= 64 ? Math.max(1, z - 1) : z;
+  }
+
+  async function exportGif() {
+    if (!scene || !opts.saveGif) return;
+    const wasPlaying = playing, keep = tick;
+    playing = false;
+    const s = gifScale(), gap = 4 * s;
+    const W = cells.reduce((n, c) => n + c.canvas.width * s, 0) + gap * (cells.length - 1);
+    const H = Math.max(...cells.map((c) => c.canvas.height * s));
+    const out = document.createElement("canvas");
+    out.width = W;
+    out.height = H;
+    const g = out.getContext("2d", { willReadFrequently: true });
+    g.imageSmoothingEnabled = false;
+    const len = loopLength();
+    const step = (scene.move && ui.move.checked) || scene.hop ? 2 : 1;
+    const frames = [];
+    for (let t = 0; t < len; t += step) {
+      tick = t;
+      draw();
+      g.clearRect(0, 0, W, H);
+      let x = 0;
+      for (const { canvas } of cells) {
+        g.drawImage(canvas, x, H - canvas.height * s, canvas.width * s, canvas.height * s);
+        x += canvas.width * s + gap;
+      }
+      const data = g.getImageData(0, 0, W, H).data;
+      const prev = frames[frames.length - 1];
+      if (prev && sameBytes(prev.data, data)) prev.ticks += Math.min(step, len - t);
+      else frames.push({ data, ticks: Math.min(step, len - t) });
+    }
+    // ticks -> hundredths of a second, carrying the remainder along
+    const speed = Number(ui.speed.value) || 1;
+    let carry = 0;
+    const delays = frames.map((f) => {
+      const exact = (f.ticks * 100) / 60 / speed + carry;
+      const cs = Math.max(2, Math.round(exact));
+      carry = exact - cs;
+      return cs * 10;
+    });
+    tick = keep;
+    playing = wasPlaying;
+    draw();
+    start();
+    const variant = base.variants && scene.id ? `-${scene.id}` : "";
+    await opts.saveGif({ width: W, height: H, frames: frames.map((f) => f.data), delays, name: `${fileName}${variant}.gif` });
+  }
+
+  function sameBytes(a, b) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+    return true;
+  }
+
+  ui.gif.addEventListener("click", (e) => (opts.busy ? opts.busy(e.currentTarget, exportGif) : exportGif()));
   ui.trick.addEventListener("change", () => {
     chosen[base.key] = ui.trick.value;
     tick = 0;
@@ -329,7 +408,8 @@ export function createStage(root, opts = {}) {
 
   return {
     // source: {frame(facing, slot), blob(facing, k), blobCount(facing), size()}
-    show(nextScene, nextSource, title) {
+    show(nextScene, nextSource, title, name) {
+      fileName = (name || title || "preview").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "preview";
       const same = base && nextScene.key === base.key && nextScene.kind === base.kind;
       base = nextScene;
       source = nextSource;
