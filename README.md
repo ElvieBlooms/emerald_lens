@@ -107,13 +107,11 @@ The surf blob and bird have no boy or girl version, so they're only used when yo
 
 **FR/LG**
 
-<img width="500" height="378" alt="frlg_sheet" src="https://github.com/user-attachments/assets/a8ac5db8-e3b7-4a88-80cb-4164e082b5f8" />
-<img width="500" height="138" alt="frlg_extras" src="https://github.com/user-attachments/assets/d09a906e-c4a4-469e-a6ab-72c3653092c2" />
+<img width="500" height="378" alt="frlg_sheet" src="https://github.com/user-attachments/assets/a8ac5db8-e3b7-4a88-80cb-4164e082b5f8" /><img width="500" height="138" alt="frlg_extras" src="https://github.com/user-attachments/assets/d09a906e-c4a4-469e-a6ab-72c3653092c2" />
 
 **R/S/E**
 
-<img width="470" height="480" alt="rse_sheet" src="https://github.com/user-attachments/assets/d9d7a051-cd6e-4961-8dcd-4abde6fcd81a" />
-<img width="470" height="169" alt="rse_extras" src="https://github.com/user-attachments/assets/4decd6a4-f0e7-4d31-b0c0-cce6f22fdb3d" />
+<img width="470" height="480" alt="rse_sheet" src="https://github.com/user-attachments/assets/d9d7a051-cd6e-4961-8dcd-4abde6fcd81a" /><img width="470" height="169" alt="rse_extras" src="https://github.com/user-attachments/assets/4decd6a4-f0e7-4d31-b0c0-cce6f22fdb3d" />
 
 ## Not covered yet
 * New-game name choices.
@@ -124,5 +122,5 @@ The surf blob and bird have no boy or girl version, so they're only used when yo
 * Built on the Crystal Lens framework by Dgray66, used with permission.
 * Gen 3 support: Elvie
 * KRIS: R/S/E sprites by richardPT, FR/LG sprites by FourLeafSunny; KRIS BLUE edits by eykav
-* KRIS G4 (KRIS and RKT LOU): HGSS Kris sprites by LouLilie
+* KRIS: LOULILIE and RKT LOU (Gen 4 style): HGSS Kris sprites by LouLilie
 * GREEN (BIG PUFF): sprites compiled from virdiangrass and Team Aqua's Asset Repo; additional edits and AcroJiggly by Elvie
