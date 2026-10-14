@@ -212,9 +212,15 @@
         <option value="enby">both</option>
       </select>
     </label>
+    <label>Generation
+      <select id="m-generation">
+        <option value="3">Gen 3 (the games' own style)</option>
+        <option value="4">Gen 4 (bigger, DS style)</option>
+      </select>
+    </label>
     <label class="wide">Credits, one line each <textarea id="m-credit" rows="3" placeholder="RSE by richardPT&#10;FRLG by FourLeafSunny"></textarea></label>
   </form>
-  <p class="hint">The options menu shows 8 characters of a label or character name. Looks of the same character are grouped under it as LOOK choices.</p>
+  <p class="hint">The options menu shows 8 characters of a label or character name. Looks of the same character are grouped under it as LOOK choices. Generation sets the fallback order: a sheet this look doesn't have comes from the character's looks of the same generation first.</p>
   <h3 class="sub">In this look</h3>
   <div id="look-files" class="files"><p class="empty">Nothing packed yet. Pack a sheet in step 3 and it shows up here.</p></div>
   <div id="look-play" hidden>

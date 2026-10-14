@@ -22,7 +22,7 @@ The page walks through four steps:
    runs `pack_gen3.py merge` on any sheets, templates folders, the step 2
    sheets or the look's own files, in an order you set.
 4. **Name the look and download it**: a `meta.json` form (label,
-   character, genderMode, credit) and a zip of the look folder, ready for
+   character, genderMode, generation, credit) and a zip of the look folder, ready for
    `assets/sprites/`. A look zip can be opened again to add the other
    family. "Watch it move" plays the packed files (see Previews).
 

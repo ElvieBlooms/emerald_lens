@@ -949,6 +949,7 @@ function metaJson() {
   const character = $("m-character").value.trim();
   if (character) meta.character = character;
   meta.genderMode = $("m-gender").value;
+  meta.generation = Number($("m-generation").value);
   const credit = $("m-credit").value.split("\n").map((s) => s.trim()).filter(Boolean);
   if (credit.length) meta.credit = credit;
   return JSON.stringify(meta, null, 2) + "\n";
@@ -978,6 +979,8 @@ $("look-zip").addEventListener("change", async (e) => {
     $("m-label").value = meta.label || "";
     $("m-character").value = meta.character || "";
     $("m-gender").value = ["girl", "boy", "enby"].includes(meta.genderMode) ? meta.genderMode : "girl";
+    // left out (or anything but 4) is Gen 3, as lens.lua reads it -Elvie
+    $("m-generation").value = Number(meta.generation) === 4 ? "4" : "3";
     $("m-credit").value = (Array.isArray(meta.credit) ? meta.credit : meta.credit ? [meta.credit] : []).join("\n");
     noteLength($("m-label"), $("m-label-note"));
     noteLength($("m-character"), $("m-character-note"));
