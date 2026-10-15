@@ -28,6 +28,15 @@ The page walks through four steps:
 
 Each step logs the command it ran, so it can be repeated on the command line.
 
+A folder is read a file at a time, with a progress bar, since Python holds
+the page while it works and a folder of a few hundred files takes a while
+(on a phone most of all). It's kept for the builder, so opening the builder
+doesn't read it again. A big folder's numbered preview comes in pages, the
+ones `slice` writes on the command line, with a Page picker; the builder
+shows the sheet a page at a time too (picking a frame or typing a number
+turns to its page). Drawn as one image, a folder that size ran Pyodide out
+of memory.
+
 `reference` isn't on the site: it reads the game's own art from a local
 install, so it stays command-line only.
 

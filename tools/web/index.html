@@ -48,8 +48,9 @@
   </details>
 
   <div class="row"><button id="do-slice" class="btn primary" disabled>Number the sprites</button></div>
+  <div class="progress" id="slice-progress" hidden><progress></progress><span aria-live="polite"></span></div>
   <div class="result" id="slice-result" hidden>
-    <div class="viewer-bar"><span>Numbered preview</span><label>Zoom <select class="zoom" data-for="slice-view"><option selected>1</option><option>2</option><option>3</option></select></label></div>
+    <div class="viewer-bar"><span>Numbered preview</span><label id="slice-pager" hidden>Page <select id="slice-page"></select></label><label>Zoom <select class="zoom" data-for="slice-view"><option selected>1</option><option>2</option><option>3</option></select></label></div>
     <div class="viewer" id="slice-view"></div>
   </div>
   <pre class="log" id="slice-log" hidden></pre>
@@ -77,12 +78,14 @@
       </label>
       <button class="btn primary" id="b-open" disabled>Open the sheet in the builder</button>
     </div>
+    <div class="progress" id="b-progress" hidden><progress></progress><span aria-live="polite"></span></div>
     <p class="hint" id="b-empty">Choose a sheet in step 1 first. The builder numbers it the same way, so its numbers match the preview.</p>
     <div id="b-work" class="b-work" hidden>
       <p class="hint b-how">Pick a frame on the right, then click the sprite that goes in it; the next frame is picked for you. Shift-click adds a sprite to the same frame, drawn together as one. Ctrl+Z undoes.</p>
       <div class="b-sheet">
         <div class="viewer-bar">
           <span id="b-tip" aria-live="polite"></span>
+          <label id="b-pager" hidden>Page <select id="b-page"></select></label>
           <label>Zoom <select id="b-zoom"><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
         </div>
         <div class="viewer b-viewer"><canvas id="b-canvas" aria-label="The sheet. Click a sprite to put it in the selected frame."></canvas></div>

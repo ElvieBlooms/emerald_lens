@@ -7,6 +7,8 @@ into our frames.
 slice   Clean a sheet up and number every sprite on it. Writes a preview with
         the numbers, to look at while writing a recipe:
           python3 import_sheet.py slice rikku.png rikku_numbers.png
+        A folder of images is numbered as one sheet. A big folder's preview
+        is split into pages (rikku_numbers.png, rikku_numbers-2.png...).
 
 build   Use a recipe to fill our combined sheet (and the extras sheet) from a
         source sheet. Check the result, then pack it as usual:
@@ -247,14 +249,15 @@ def find_pieces(im, reach=1, min_pixels=12, order=True):
         ordered.extend(sorted(row["items"], key=lambda b: b[0]))
     return ordered
 
-def preview(im, pieces, zoom=3):
-    """The cleaned sheet blown up, every piece boxed and numbered."""
+def preview(im, pieces, zoom=3, first=1):
+    """The cleaned sheet blown up, every piece boxed and numbered (from
+    first)."""
     W, H = im.size
     out = Image.new("RGBA", (W * zoom, H * zoom), (48, 48, 56, 255))
     out.alpha_composite(im.resize((W * zoom, H * zoom), Image.NEAREST))
     d = ImageDraw.Draw(out)
     font = ImageFont.load_default()
-    for i, (x0, y0, x1, y1) in enumerate(pieces, 1):
+    for i, (x0, y0, x1, y1) in enumerate(pieces, first):
         d.rectangle((x0 * zoom - 1, y0 * zoom - 1, x1 * zoom, y1 * zoom), outline=(255, 0, 255, 255))
         label = str(i)
         tx, ty = x0 * zoom, max(0, y0 * zoom - 11)
@@ -342,18 +345,33 @@ def load_numbered_folder(folder, opts):
     rows): pieces numbered from 1 across the folder (files in name order),
     cells the numbers that are strip frames, rows (file, y, mode, first,
     last) for the preview."""
+    steps = numbered_folder(folder, opts)
+    while True:
+        try:
+            next(steps)
+        except StopIteration as done:
+            sheet, pieces, cells, rows, aliases = done.value
+            load_numbered_folder.aliases = aliases
+            return sheet, pieces, cells, rows
+
+def numbered_folder(folder, opts):
+    """load_numbered_folder a file at a time: yields (done, total) after
+    each file is read, then returns its result plus the aliases. The web
+    page steps through it to show progress. -Elvie"""
     files = sorted(f for f in os.listdir(folder) if f.lower().endswith(IMAGE_EXT))
     override = {k: v for k, v in opts.get("cells", {}).items()}
     loaded = []
-    for f in files:
+    for i, f in enumerate(files):
         path = os.path.join(folder, f)
-        if looks_like_preview(Image.open(path)):
-            continue
-        im, _, _ = clean(path, opts.get("scale"), opts.get("background", "auto"),
-                         opts.get("lossy", "auto"), opts.get("colors", 48))
-        cell = override.get(f, "auto")
-        cell = strip_cells(im) if cell == "auto" else (None if cell == "pieces" else tuple(cell))
-        loaded.append((f, im, cell))
+        with Image.open(path) as probe:
+            skip = looks_like_preview(probe)
+        if not skip:
+            im, _, _ = clean(path, opts.get("scale"), opts.get("background", "auto"),
+                             opts.get("lossy", "auto"), opts.get("colors", 48))
+            cell = override.get(f, "auto")
+            cell = strip_cells(im) if cell == "auto" else (None if cell == "pieces" else tuple(cell))
+            loaded.append((f, im, cell))
+        yield i + 1, len(files)
     LABEL, GAP = 12, 6
     W = max([im.width for _, im, _ in loaded] or [1])
     H = sum(LABEL + im.height + GAP for _, im, _ in loaded)
@@ -386,16 +404,64 @@ def load_numbered_folder(folder, opts):
             mode = f"{n - first + 1} pieces"
         rows.append((f, y - LABEL, mode, first, n))
         y += im.height + GAP
-    load_numbered_folder.aliases = aliases
-    return sheet, pieces, cells, rows
+    return sheet, pieces, cells, rows, aliases
 
-def folder_preview(sheet, pieces, cells, rows, zoom=3):
-    out = preview(sheet, [pieces[str(i)] for i in range(1, len(pieces) + 1)], zoom)
+# A big folder drawn as one preview runs out of memory (in a browser most of
+# all), so the preview is split into pages of whole files, each at most this
+# many sheet pixels (about 21 MB once drawn 3x) and this tall. -Elvie
+PAGE_AREA, PAGE_TALL = 600_000, 4000
+
+def folder_pages(rows, width, height):
+    """Pages for a folder's preview: (top, bottom, first row, end row)."""
+    tall = max(1, min(PAGE_TALL, PAGE_AREA // max(1, width)))
+    ends = [r[1] for r in rows[1:]] + [height]
+    pages, start = [], 0
+    for i in range(1, len(rows)):
+        if ends[i] - rows[start][1] > tall:
+            pages.append((rows[start][1], rows[i][1], start, i))
+            start = i
+    pages.append((rows[start][1] if rows else 0, height, start, len(rows)))
+    return pages
+
+def page_name(out, k):
+    """numbers.png, numbers-2.png, numbers-3.png..."""
+    stem, ext = os.path.splitext(out)
+    return out if k == 0 else f"{stem}-{k + 1}{ext}"
+
+def folder_preview(sheet, pieces, cells, rows, zoom=3, page=None):
+    top, bottom, r0, r1 = page or (0, sheet.height, 0, len(rows))
+    part = rows[r0:r1]
+    first = part[0][3] if part else 1
+    last = part[-1][4] if part else 0
+    boxes = [pieces[str(i)] for i in range(first, last + 1)]
+    boxes = [(x0, y0 - top, x1, y1 - top) for x0, y0, x1, y1 in boxes]
+    out = preview(sheet.crop((0, top, sheet.width, bottom)), boxes, zoom, first)
     d = ImageDraw.Draw(out)
     font = ImageFont.load_default()
-    for f, y, mode, first, last in rows:
-        d.text((2, y * zoom), f"{f}  ({mode}, {first}-{last})", fill=(255, 255, 160, 255), font=font)
+    for f, y, mode, a, b in part:
+        d.text((2, (y - top) * zoom), f"{f}  ({mode}, {a}-{b})", fill=(255, 255, 160, 255), font=font)
     return out
+
+def folder_report(rows, pieces, pages, out):
+    """What slice prints for a folder."""
+    lines = [f"  {first:>4}-{last:<4} {f}: {mode}" for f, _, mode, first, last in rows]
+    if len(pages) == 1:
+        lines.append(f"  folder  {len(rows)} images, {len(pieces)} numbered -> {out}")
+        return "\n".join(lines)
+    for k, (_, _, r0, r1) in enumerate(pages):
+        a, b = rows[r0], rows[r1 - 1]
+        nums = f"pieces {a[3]}-{b[4]}" if b[4] >= a[3] else "no pieces"
+        lines.append(f"  page {k + 1:<3} {a[0]} to {b[0]}, {nums} -> {page_name(out, k)}")
+    lines.append(f"  folder  {len(rows)} images, {len(pieces)} numbered -> "
+                 f"{len(pages)} pages, {page_name(out, 0)} to {os.path.basename(page_name(out, len(pages) - 1))}")
+    return "\n".join(lines)
+
+def folder_options(opts):
+    """slice's options for a folder, from its command line flags."""
+    opts = dict(zip(opts[::2], opts[1::2]))
+    fo = {"reach": int(opts.get("--reach", 1)), "background": opts.get("--bg", "auto")}
+    if "--scale" in opts: fo["scale"] = int(opts["--scale"])
+    return fo
 
 def piece_image(im, pieces, ref):
     """A recipe entry: a piece number ("29.2" for part of a split piece), a
@@ -723,14 +789,11 @@ def build(src, recipe_path, out_dir):
 
 def main(a):
     if len(a) >= 3 and a[0] == "slice" and os.path.isdir(a[1]):
-        opts = dict(zip(a[3::2], a[4::2]))
-        fo = {"reach": int(opts.get("--reach", 1)), "background": opts.get("--bg", "auto")}
-        if "--scale" in opts: fo["scale"] = int(opts["--scale"])
-        sheet, pieces, cells, rows = load_numbered_folder(a[1], fo)
-        folder_preview(sheet, pieces, cells, rows).save(a[2])
-        for f, _, mode, first, last in rows:
-            print(f"  {first:>4}-{last:<4} {f}: {mode}")
-        print(f"  folder  {len(rows)} images, {len(pieces)} numbered -> {a[2]}")
+        sheet, pieces, cells, rows = load_numbered_folder(a[1], folder_options(a[3:]))
+        pages = folder_pages(rows, sheet.width, sheet.height)
+        for k, page in enumerate(pages):
+            folder_preview(sheet, pieces, cells, rows, page=page).save(page_name(a[2], k))
+        print(folder_report(rows, pieces, pages, a[2]))
         return 0
     if len(a) >= 3 and a[0] == "slice":
         opts = dict(zip(a[3::2], a[4::2]))

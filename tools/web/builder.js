@@ -62,6 +62,7 @@ export function createBuilder(api) {
     where: $("b-where"), chips: $("b-chips"), flip: $("b-flip"), hang: $("b-hang"), shift: $("b-shift"),
     typed: $("b-typed"), clear: $("b-clear"), undo: $("b-undo"), cols: $("b-cols"), rows: $("b-rows"),
     cut: $("b-cut"), cutRow: $("b-cutrow"), other: $("b-other"), log: $("b-log"),
+    pager: $("b-pager"), page: $("b-page"),
   };
   const stage = createStage($("b-preview"), { zoom: 2, saveGif: api.saveGif, busy: api.busy });
   let data = null;        // from builder_data
@@ -70,6 +71,7 @@ export function createBuilder(api) {
   let sheetKey = "";      // recipe keys the data was made with
   let active = null;      // {key, facing, index}
   let hover = null;       // piece name under the pointer
+  let page = 0;           // which page of a big folder is shown
   let notes = {};
   let writing = false;    // true while the builder writes the recipe box
   const history = [];
@@ -172,7 +174,7 @@ export function createBuilder(api) {
     if (!force && key === sheetKey) return;
     let fresh;
     try {
-      fresh = api.load(r);
+      fresh = await api.load(r);
     } catch (e) {
       api.status(`The builder couldn't read the sheet: ${e.message}`, "failed");
       return;
@@ -216,6 +218,7 @@ export function createBuilder(api) {
     }
     el.empty.hidden = true;
     el.work.hidden = false;
+    renderPages();
     if (!el.zoom.dataset.set) {
       const fit = Math.max(1, Math.min(4, Math.floor((el.work.clientWidth - 4) / data.width)));
       el.zoom.value = String(fit);
@@ -279,7 +282,8 @@ export function createBuilder(api) {
     let src = spr, shrunk = false;
     const r = recipe() || {};
     const shrinkKeys = (r.shrink || []).map((k) => String(k).toLowerCase());
-    if (!cell && shrinkKeys.includes(sectionKey)) {
+    // strip frames shrink too, whole cell and all, as build's shrink() does -Elvie
+    if (shrinkKeys.includes(sectionKey)) {
       const k = Math.min(1, w / sw, bottom / sh);
       if (k < 1) {
         const small = document.createElement("canvas");
@@ -463,6 +467,7 @@ export function createBuilder(api) {
   function select(slot) {
     const hadFocus = document.activeElement && document.activeElement.classList.contains("b-slot");
     active = slot;
+    follow(current());
     renderSections();
     draw();
     const btn = el.sections.querySelector(".b-slot.active");
@@ -525,6 +530,7 @@ export function createBuilder(api) {
       return;
     }
     setActive(names, optsOf(current()));
+    follow(names);
     if (names.length) {
       next();
       afterRecipeChange();
@@ -559,15 +565,58 @@ export function createBuilder(api) {
     return used;
   }
 
+  // A big folder is drawn a page at a time (the pages slice's preview
+  // uses), since one canvas that tall runs out of memory, on phones most
+  // of all. Typed numbers still reach every page. -Elvie
+  function pageBox() {
+    const p = data.pages[page] || data.pages[0];
+    return { top: p.top, bottom: p.bottom };
+  }
+
+  function renderPages() {
+    const pages = data.pages;
+    if (page >= pages.length) page = 0;
+    el.page.replaceChildren(
+      ...pages.map((p, k) => {
+        const a = data.rows[p.from], b = data.rows[p.to - 1];
+        const nums = a && b && b.last >= a.first ? `: pieces ${a.first}-${b.last}` : "";
+        return new Option(`${k + 1} of ${pages.length}${nums}`, k);
+      })
+    );
+    el.page.value = String(page);
+    el.pager.hidden = pages.length < 2;
+  }
+
+  // Show the page with this frame's piece on it.
+  function follow(v) {
+    if (!data || data.pages.length < 2) return;
+    const n = piecesOf(v).map(resolve).find((x) => x && data.pieces[x]);
+    if (!n) return;
+    const y = data.pieces[n][1];
+    const k = data.pages.findIndex((p) => y >= p.top && y < p.bottom);
+    if (k >= 0 && k !== page) {
+      page = k;
+      el.page.value = String(k);
+    }
+  }
+
+  el.page.addEventListener("change", () => {
+    page = Number(el.page.value) || 0;
+    hover = null;
+    draw();
+  });
+
   function draw() {
     if (!data || !sheet) return;
     const z = zoom();
     const c = el.canvas;
+    const { top, bottom } = pageBox();
     c.width = data.width * z;
-    c.height = data.height * z;
+    c.height = (bottom - top) * z;
     const g = c.getContext("2d");
     g.imageSmoothingEnabled = false;
-    g.drawImage(sheet, 0, 0, c.width, c.height);
+    g.drawImage(sheet, 0, top, data.width, bottom - top, 0, 0, c.width, c.height);
+    g.translate(0, -top * z);
     const used = usedPieces();
     const mine = new Set(piecesOf(current()).map(resolve).filter(Boolean));
     const style = getComputedStyle(document.documentElement);
@@ -576,12 +625,14 @@ export function createBuilder(api) {
     g.font = `${Math.max(9, 4 * z + 2)}px ui-monospace, monospace`;
     g.textBaseline = "top";
     for (const row of data.rows) {
+      if (row.y < top || row.y >= bottom) continue;
       g.fillStyle = act;
       g.fillText(`${row.file}  (${row.first}-${row.last})`, 2, row.y * z + 1);
     }
     const names = Object.keys(data.pieces);
     for (const n of names) {
       const [x0, y0, x1, y1] = data.pieces[n];
+      if (y1 <= top || y0 >= bottom) continue;
       const strong = mine.has(n) || hover === n;
       g.globalAlpha = strong ? 1 : used.has(n) ? 0.25 : 0.55;
       g.strokeStyle = guide;
@@ -606,7 +657,7 @@ export function createBuilder(api) {
     const rect = el.canvas.getBoundingClientRect();
     const z = zoom();
     const x = (e.clientX - rect.left) * (el.canvas.width / rect.width) / z;
-    const y = (e.clientY - rect.top) * (el.canvas.height / rect.height) / z;
+    const y = (e.clientY - rect.top) * (el.canvas.height / rect.height) / z + pageBox().top;
     let best = null, area = Infinity;
     for (const [n, [x0, y0, x1, y1]] of Object.entries(data.pieces)) {
       if (x >= x0 && x < x1 && y >= y0 && y < y1) {

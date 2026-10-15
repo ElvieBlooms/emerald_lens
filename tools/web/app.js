@@ -325,14 +325,89 @@ function sliceArgs() {
   return a;
 }
 
+// ------------------------------------------------------------ big folders
+// A folder is read a file at a time (web_runner.folder_step) so a bar can
+// show how far along it is; Python holds the page while it works, so it
+// works in short steps. A big folder's preview comes in pages, the same
+// pages slice writes on the command line. -Elvie
+
+let folderQueue = Promise.resolve();
+
+function progress(el, done, total, text) {
+  el.hidden = false;
+  const bar = el.querySelector("progress");
+  bar.max = total || 1;
+  bar.value = done;
+  el.querySelector("span").textContent = text;
+}
+
+// Read the source folder with these options (kept for the builder too).
+// One read at a time; a second waits for the first. -Elvie
+function readFolder(opts, el) {
+  const job = folderQueue.then(async () => {
+    let p = JSON.parse(W.folder_start(state.src, JSON.stringify(opts), state.srcVersion));
+    while (!p.finished) {
+      progress(el, p.done, p.total, `Reading image ${p.done} of ${p.total}`);
+      await pause();
+      p = JSON.parse(W.folder_step(document.hidden ? 64 : 8));
+    }
+  });
+  folderQueue = job.catch(() => {});
+  return job;
+}
+
+let slicePages = [];
+
+function showSlicePages(pages) {
+  slicePages = pages;
+  const sel = $("slice-page");
+  sel.replaceChildren(
+    ...pages.map((p, k) => new Option(p.first && p.last >= p.first ? `${k + 1} of ${pages.length}: pieces ${p.first}-${p.last}` : `${k + 1} of ${pages.length}`, k))
+  );
+  $("slice-pager").hidden = pages.length < 2;
+  $("slice-result").hidden = false;
+  showSlicePage(0);
+}
+
+function showSlicePage(k) {
+  $("slice-page").value = String(k);
+  showImage($("slice-view"), slicePages[k].name, Number(document.querySelector("[data-for=slice-view]").value));
+}
+
+$("slice-page").addEventListener("change", (e) => showSlicePage(Number(e.target.value)));
+
+async function sliceFolder(argv) {
+  const el = $("slice-progress");
+  try {
+    await readFolder(JSON.parse(W.slice_options(py.toPy(argv))), el);
+    const pages = JSON.parse(W.slice_folder_pages("numbers.png"));
+    for (let k = 0; k < pages.length; k++) {
+      if (pages.length > 1) {
+        progress(el, k, pages.length, `Drawing page ${k + 1} of ${pages.length}`);
+        await pause();
+      }
+      W.slice_folder_page(k, "numbers.png");
+    }
+    logRun($("slice-log"), "import_sheet.py", argv, 0, W.slice_folder_report("numbers.png"));
+    showSlicePages(pages);
+  } catch (e) {
+    console.error(e);
+    // run the command itself, so the log shows the error as the CLI would
+    if (run("import_sheet.py", argv, $("slice-log")) === 0) status("Numbered, but not in steps; see the console.", "failed");
+  } finally {
+    el.hidden = true;
+  }
+}
+
 $("do-slice").addEventListener("click", (e) =>
   busy(e.currentTarget, async () => {
-    W.clear("numbers.png");
-    const code = run("import_sheet.py", sliceArgs(), $("slice-log"));
-    if (code === 0 && exists("numbers.png")) {
-      $("slice-result").hidden = false;
-      showImage($("slice-view"), "numbers.png", Number(document.querySelector("[data-for=slice-view]").value));
-    }
+    for (const p of slicePages) W.clear(p.name);
+    slicePages = [];
+    $("slice-result").hidden = true;
+    const argv = sliceArgs();
+    if (state.srcIsFolder) return sliceFolder(argv);
+    const code = run("import_sheet.py", argv, $("slice-log"));
+    if (code === 0 && exists("numbers.png")) showSlicePages([{ name: "numbers.png" }]);
   })
 );
 
@@ -458,8 +533,16 @@ async function sectionNotes(base) {
 }
 
 const builder = createBuilder({
-  load(recipe) {
-    return JSON.parse(W.builder_data(state.src, JSON.stringify(recipe)));
+  async load(recipe) {
+    if (state.srcIsFolder) {
+      const el = $("b-progress");
+      try {
+        await readFolder(recipe, el);
+      } finally {
+        el.hidden = true;
+      }
+    }
+    return JSON.parse(W.builder_data(state.src, JSON.stringify(recipe), state.srcVersion));
   },
   sheetURL() {
     freeURLs("builder");

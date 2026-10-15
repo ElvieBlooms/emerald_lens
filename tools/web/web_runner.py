@@ -119,7 +119,75 @@ def layout_data(family):
     sections, frames = layout(family)
     return json.dumps({"sections": sections, "frames": frames})
 
-def builder_data(src, recipe_json):
+# ------------------------------------------------------------ big folders
+# A folder is read a file at a time (import_sheet.numbered_folder), so the
+# page can show progress between steps, and the result is kept for the
+# builder instead of reading it all again. -Elvie
+
+_folder = {}
+
+def _folder_key(src, version, opts):
+    keep = {k: opts.get(k) for k in ("scale", "background", "lossy", "colors", "reach", "cells")}
+    keep["background"] = keep["background"] or "auto"
+    keep["lossy"] = "auto" if keep["lossy"] is None else keep["lossy"]
+    keep["colors"] = keep["colors"] or 48
+    keep["reach"] = 1 if keep["reach"] is None else keep["reach"]
+    keep["cells"] = keep["cells"] or {}
+    return json.dumps([src, version, keep], sort_keys=True)
+
+def folder_start(src, opts_json, version):
+    """Start reading a folder (or find it already read). Then call
+    folder_step until it says finished."""
+    import import_sheet as I
+    opts = json.loads(opts_json)
+    key = _folder_key(src, version, opts)
+    if _folder.get("key") == key and "result" in _folder:
+        return json.dumps({"finished": True})
+    _folder.clear()
+    _folder.update(key=key, steps=I.numbered_folder(os.path.join(WORK, src), opts))
+    return folder_step(1)
+
+def folder_step(n):
+    """Read up to n more files: {done, total, finished}."""
+    done = total = 0
+    try:
+        for _ in range(max(1, n)):
+            done, total = next(_folder["steps"])
+    except StopIteration as e:
+        _folder["result"] = e.value
+        del _folder["steps"]
+        return json.dumps({"finished": True})
+    except Exception:
+        _folder.clear()
+        raise
+    return json.dumps({"done": done, "total": total, "finished": False})
+
+def slice_options(argv):
+    """The options slice uses for a folder, from its argv."""
+    import import_sheet as I
+    return json.dumps(I.folder_options(list(argv)[3:]))
+
+def slice_folder_pages(out):
+    """The page names the preview of the folder just read will use."""
+    import import_sheet as I
+    sheet, pieces, cells, rows, _ = _folder["result"]
+    pages = _folder["pages"] = I.folder_pages(rows, sheet.width, sheet.height)
+    return json.dumps([{"name": I.page_name(out, k), "first": rows[r0][3] if r1 > r0 else 0,
+                        "last": rows[r1 - 1][4] if r1 > r0 else 0} for k, (_, _, r0, r1) in enumerate(pages)])
+
+def slice_folder_page(k, out):
+    """Draw page k of the preview, as slice does."""
+    import import_sheet as I
+    sheet, pieces, cells, rows, _ = _folder["result"]
+    I.folder_preview(sheet, pieces, cells, rows, page=_folder["pages"][k]).save(
+        os.path.join(WORK, I.page_name(out, k)))
+
+def slice_folder_report(out):
+    import import_sheet as I
+    sheet, pieces, cells, rows, _ = _folder["result"]
+    return I.folder_report(rows, pieces, _folder["pages"], out)
+
+def builder_data(src, recipe_json, version=None):
     """What the recipe builder needs, worked out by import_sheet's own
     functions so its numbers match slice and build exactly: the cleaned
     sheet (saved to builder/sheet.png), every piece's box, which pieces are
@@ -133,14 +201,20 @@ def builder_data(src, recipe_json):
     with redirect_stdout(out), redirect_stderr(out):
         rows, aliases = [], {}
         if os.path.isdir(path):
-            im, found, cells, rows = I.load_numbered_folder(path, recipe)
+            if _folder.get("key") == _folder_key(src, version, recipe) and "result" in _folder:
+                im, found, cells, rows, aliases = _folder["result"]
+            else:
+                im, found, cells, rows = I.load_numbered_folder(path, recipe)
+                aliases = I.load_numbered_folder.aliases
             pieces = I.split_boxes([found[str(i)] for i in range(1, len(found) + 1)], recipe.get("split"))
-            aliases = dict(I.load_numbered_folder.aliases)
+            aliases = dict(aliases)
+            pages = I.folder_pages(rows, im.width, im.height)
         else:
             im, _, _ = I.clean(path, recipe.get("scale"), recipe.get("background", "auto"),
                                recipe.get("lossy", "auto"), recipe.get("colors", 48))
             pieces = I.split_boxes(I.find_pieces(im, recipe.get("reach", 1)), recipe.get("split"))
             cells = set()
+            pages = [(0, im.height, 0, 0)]
     os.makedirs(os.path.join(WORK, "builder"), exist_ok=True)
     im.save(os.path.join(WORK, "builder", "sheet.png"))
     sections, frames = layout(family)
@@ -150,6 +224,8 @@ def builder_data(src, recipe_json):
         "cells": sorted(cells, key=lambda s: float(s)),
         "aliases": aliases,
         "rows": [{"file": f, "y": y, "mode": m, "first": a, "last": b} for f, y, m, a, b in rows],
+        # a big folder is shown a page at a time, like slice's preview -Elvie
+        "pages": [{"top": t, "bottom": b, "from": r0, "to": r1} for t, b, r0, r1 in pages],
         "sections": sections, "frames": frames, "log": out.getvalue(),
     })
 

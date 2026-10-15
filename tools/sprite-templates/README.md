@@ -361,6 +361,11 @@ maybe a collage) can be numbered as one sheet. Slice the folder:
 
 - `"cells": {"odd.png": [32, 32]}` sets a file's frame size if the guess is
   wrong; `"cells": {"collage.png": "pieces"}` cuts it into pieces instead.
+- A big folder (a few hundred files, like a whole pack from `nds2png.py`)
+  gets its preview in pages of whole files, `green_numbers.png`,
+  `green_numbers-2.png` and so on; slice lists which files and numbers each
+  page holds. One preview that size runs out of memory, in the web page
+  most of all. The numbers are the same as in one preview.
 
 `recipes/example_green_folder_rse.json` / `_frlg.json` are worked examples
 (a Green compilation in decomp format).
