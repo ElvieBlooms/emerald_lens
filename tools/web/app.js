@@ -919,6 +919,18 @@ function showLook() {
   refresh();
 }
 
+// The dive helpers: pack_gen3.py dive on the look's R/S/E folder. -Elvie
+function runDive(flag, e) {
+  busy(e.currentTarget, async () => {
+    const argv = ["dive", "look/gen3/rse", flag];
+    if ($("dive-force").checked) argv.push("--force");
+    run("pack_gen3.py", argv, $("dive-log"));
+    showLook();
+  });
+}
+$("dive-blob").addEventListener("click", (e) => runDive("--blob", e));
+$("dive-under").addEventListener("click", (e) => runDive("--underwater", e));
+
 // --------------------------------------------------- 4b. look preview
 
 const lookStage = createStage($("look-preview"), { saveGif, busy });
@@ -975,6 +987,7 @@ function showLookPreview() {
     frame: fromSection(key),
     blob: fromSection("surf blob"),
     blobCount: (facing) => (blobSec && blobSec.facings[facing] ? blobSec.facings[facing].length : 0),
+    diveBlob: (facing) => fromSection("dive blob")(facing, 0),
     size: () => {
       const img = lookImages[`${fam}/${first}`];
       return [img && img.naturalWidth ? img.naturalWidth : lay.frames[first][0], lay.frames[first][1]];
@@ -1133,6 +1146,10 @@ function refresh() {
   $("do-combine").disabled = !ready || combine.sources.length < 2;
   const packed = ready && list("look/gen3").length > 0;
   $("do-download").disabled = !packed;
+  const rse = ready && exists("look/gen3/rse");
+  $("look-dive").hidden = !rse;
+  $("dive-blob").disabled = !rse || !exists("look/gen3/rse/surfBlob.png");
+  $("dive-under").disabled = !rse || !exists("look/gen3/rse/surf.png");
   $("do-clear").disabled = !packed;
 }
 

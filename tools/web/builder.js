@@ -61,7 +61,9 @@ export function createBuilder(api) {
     canvas: $("b-canvas"), zoom: $("b-zoom"), tip: $("b-tip"), sections: $("b-sections"),
     where: $("b-where"), chips: $("b-chips"), flip: $("b-flip"), hang: $("b-hang"), shift: $("b-shift"),
     typed: $("b-typed"), clear: $("b-clear"), undo: $("b-undo"), cols: $("b-cols"), rows: $("b-rows"),
-    cut: $("b-cut"), cutRow: $("b-cutrow"), other: $("b-other"), log: $("b-log"),
+    cut: $("b-cut"), cutRow: $("b-cutrow"), cutWhat: $("b-cutwhat"), cutPiece: $("b-cutpiece"),
+    cutInto: $("b-cutinto"),
+    other: $("b-other"), log: $("b-log"),
     pager: $("b-pager"), page: $("b-page"),
   };
   const stage = createStage($("b-preview"), { zoom: 2, saveGif: api.saveGif, busy: api.busy });
@@ -425,6 +427,7 @@ export function createBuilder(api) {
       frame: sectionFrames(r, active.key),
       blob: sectionFrames(r, "surf blob"),
       blobCount: (facing) => (blobSec && blobSec.facings[facing] ? blobSec.facings[facing].length : 0),
+      diveBlob: (facing) => sectionFrames(r, "dive blob")(facing, 0),
       size: () => data.frames[first].slice(0, 2),
     }, `Preview: ${active.key}`, api.gifName ? api.gifName(r.family || "rse", active.key) : null);
   }
@@ -506,9 +509,7 @@ export function createBuilder(api) {
     el.shift.value = o.shift || "";
     if (document.activeElement !== el.typed) el.typed.value = names.join(" ");
     [el.flip, el.hang, el.shift, el.clear].forEach((x) => (x.disabled = !names.length));
-    // strip frames can be cut too, when a strip was read as frames too wide -Elvie
-    const one = names.length === 1 && resolve(names[0]) && !resolve(names[0]).includes(".");
-    el.cutRow.hidden = !one;
+    showCut(names);
     el.undo.disabled = !history.length;
   }
 
@@ -537,14 +538,65 @@ export function createBuilder(api) {
       afterRecipeChange();
     }
   });
+  // Cut is offered for any piece in the frame, strip frames and pieces
+  // already cut included: a cut piece is cut again from the whole one, and
+  // 1 by 1 puts it back together. -Elvie
+  let cutTarget = null; // the piece the Cut row is for
+  let cutFilled = null; // the piece whose cut is filled in below
+
+  function baseOf(name) {
+    return name.includes(".") ? name.slice(0, name.indexOf(".")) : name;
+  }
+
+  function showCut(names) {
+    const bases = [...new Set(names.map(resolve).filter(Boolean).map(baseOf))];
+    el.cutRow.hidden = !bases.length;
+    if (!bases.length) return;
+    let target = bases[0];
+    if (bases.length > 1) {
+      const keep = bases.includes(cutTarget) ? cutTarget : bases[0];
+      el.cutPiece.replaceChildren(...bases.map((b) => new Option(`piece ${b}`, b)));
+      el.cutPiece.value = target = keep;
+    }
+    el.cutPiece.hidden = bases.length < 2;
+    const split = (recipe() || {}).split || {};
+    const grid = split[target];
+    const again = grid !== undefined;
+    const into = again ? "(1 by 1 puts it back together) into" : "into";
+    const what = again ? "Cut again" : "Two sprites stuck together? Cut";
+    el.cutWhat.textContent = bases.length > 1 ? what : `${what} piece ${target} ${into}`;
+    el.cutInto.textContent = into;
+    el.cutInto.hidden = bases.length < 2;
+    cutTarget = target;
+    if (target === cutFilled) return; // only when the piece changes, not while typing
+    cutFilled = target;
+    const [cols, rows] = grid === undefined ? [2, 1] : Array.isArray(grid) ? grid : [grid, 1];
+    el.cols.value = String(cols);
+    el.rows.value = String(rows);
+  }
+
+  el.cutPiece.addEventListener("change", () => {
+    cutTarget = el.cutPiece.value;
+    showCut(piecesOf(current()));
+  });
+
   el.cut.addEventListener("click", async () => {
-    const name = resolve(piecesOf(current())[0]);
+    const name = cutTarget;
     const cols = Number(el.cols.value) || 1, rows = Number(el.rows.value) || 1;
-    if (!name || cols * rows < 2) return;
+    if (!name || !data.pieces[name]) return;
     const r = recipe();
-    r.split = { ...(r.split || {}), [name]: rows > 1 ? [cols, rows] : cols };
+    const split = { ...(r.split || {}) };
+    if (cols * rows < 2) {
+      if (!(name in split)) return;
+      delete split[name];
+    } else {
+      split[name] = rows > 1 ? [cols, rows] : cols;
+    }
+    if (Object.keys(split).length) r.split = split;
+    else delete r.split;
+    cutFilled = null;
     write(r); // the new split reloads the sheet
-    api.status(`Piece ${name} is now cut into ${name}.1 to ${name}.${cols * rows}.`, "ready");
+    api.status(cols * rows < 2 ? `Piece ${name} is whole again.` : `Piece ${name} is now cut into ${name}.1 to ${name}.${cols * rows}.`, "ready");
   });
 
   // --------------------------------------------------------------- sheet

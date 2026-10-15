@@ -39,6 +39,14 @@ const JUMP_LOW = [0, -2, -3, -4, -5, -6, -6, -6, -5, -5, -4, -3, -2, 0, 0, 0];
 const BALANCE = 48;  // how long the preview holds a wheelie before landing
 
 const BOB = 16;      // surf bob: game frames per half (approximate)
+// Underwater the game bobs the diver 1px every 4 frames, turning round
+// every 16 (field_effect_helpers.c, SpriteCB_UnderwaterSurfBlob): down 4px
+// and back up, 32 frames a round. Moving or not. -Elvie
+const DIVE_BOB = 32;
+const diveBob = (t) => {
+  const k = Math.floor(t) % DIVE_BOB;
+  return k < 16 ? Math.floor(k / 4) + 1 : 3 - Math.floor((k - 16) / 4);
+};
 const CYCLE = 8;     // anything else: each frame in turn
 const HOLD = 60;     // battle idle between throws
 
@@ -64,6 +72,12 @@ export function sceneFor(key, family, sec) {
              note: "The sit frame on the surf blob, bobbing while still, as the game lines them up." };
   }
   if (key === "acro bike") return acroScene(key, sec);
+  if (key === "underwater") {
+    const w = WALKERS[key];
+    const seq = [[1, w.ticks], [0, w.ticks], [2, w.ticks], [0, w.ticks]];
+    return { key, kind: "facing", dive: true, seq, move: w.move,
+             note: "Diving: step, stand, step, stand, bobbing as the game does. A dive blob, if the look has one, goes behind, where the surf blob would." };
+  }
   const w = WALKERS[key];
   if (w) {
     const seq = [[1, w.ticks], [0, w.ticks], [2, w.ticks], [0, w.ticks]];
@@ -134,7 +148,7 @@ export function createStage(root, opts = {}) {
 
   const seqOf = (facing) => (scene.seqs && scene.seqs[facing]) || scene.seq;
   const total = () => seqOf("down").reduce((n, [, t]) => n + (Number.isFinite(t) ? t : 0), 0);
-  const animated = () => scene && (scene.surf || scene.hop || total() > 0 && seqOf("down").length > 1 || (scene.move && ui.move.checked));
+  const animated = () => scene && (scene.surf || scene.hop || scene.dive || total() > 0 && seqOf("down").length > 1 || (scene.move && ui.move.checked));
 
   function slotAt(t, facing) {
     const seq = seqOf(facing);
@@ -235,16 +249,18 @@ export function createStage(root, opts = {}) {
       const off = moving ? (tick * scene.move) % 16 : 0;
       const dx = { left: off, right: -off, up: 0, down: 0 }[face];
       const dy = { up: off, down: -off, left: 0, right: 0 }[face];
-      g.fillStyle = scene.surf ? col.water : col.ground;
+      const wet = scene.surf || scene.dive;
+      g.fillStyle = wet ? col.water : col.ground;
       g.fillRect(0, 0, 48, 48);
-      g.strokeStyle = scene.surf ? col.wave : col.line;
+      g.strokeStyle = wet ? col.wave : col.line;
       g.lineWidth = 1;
       g.beginPath();
       for (let x = ((dx % 16) + 16) % 16; x <= 48; x += 16) { g.moveTo(x + 0.5, 0); g.lineTo(x + 0.5, 48); }
       for (let y = ((dy % 16) + 16) % 16 + 8; y <= 48; y += 16) { g.moveTo(0, y + 0.5); g.lineTo(48, y + 0.5); }
       g.stroke();
       // the player's tile: top-left at (16, 24), feet on its bottom edge
-      const tx = 16, ty = 24;
+      // (4px higher underwater, so the blob's bob stays in the cell)
+      const tx = 16, ty = scene.dive ? 20 : 24;
       let bob = 0, half = 0;
       if (scene.surf) {
         half = !moving && Math.floor(tick / BOB) % 2 === 1 ? 1 : 0;
@@ -252,6 +268,12 @@ export function createStage(root, opts = {}) {
         const blobs = source.blobCount(facing);
         const blob = source.blob(facing, blobs > 1 ? half : 0) || standInBlob();
         drawImg(g, blob, tx - 8, ty - 8 + bob, mirror);
+      }
+      if (scene.dive) {
+        // the blob moves with the diver, as it does in the mod -Elvie
+        bob = diveBob(tick);
+        const blob = source.diveBlob && source.diveBlob(facing);
+        if (blob) drawImg(g, blob, tx - 8, ty - 8 + bob, mirror);
       }
       if (scene.hop) {
         // the hop: the game's low jump arc, over a plain stand-in shadow
@@ -335,6 +357,7 @@ export function createStage(root, opts = {}) {
   function loopLength() {
     let n = total() || 1;
     if (scene.surf) n = lcm(n, 2 * BOB);
+    if (scene.dive) n = lcm(n, DIVE_BOB);
     if (scene.move && ui.move.checked) n = lcm(n, 16 / gcd(16, scene.move));
     return n;
   }
@@ -407,7 +430,8 @@ export function createStage(root, opts = {}) {
   ui.move.addEventListener("change", () => { draw(); start(); });
 
   return {
-    // source: {frame(facing, slot), blob(facing, k), blobCount(facing), size()}
+    // source: {frame(facing, slot), blob(facing, k), blobCount(facing),
+    // diveBlob(facing), size()}
     show(nextScene, nextSource, title, name) {
       fileName = (name || title || "preview").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "preview";
       const same = base && nextScene.key === base.key && nextScene.kind === base.kind;

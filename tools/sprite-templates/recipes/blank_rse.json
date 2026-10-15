@@ -35,13 +35,14 @@
     "map icon": "mapIcon.png: 1 frame. 16x16 head for the town map",
     "acro bike": "acroBike.png: 9 down, 9 up, 9 left. first 3 ride like the Mach Bike, the rest are tricks (repeat the stand frame if you don't have them)",
     "surf": "surf.png: 4 down, 4 up, 4 left. sit, step, step, jump",
-    "underwater": "underwater.png: 3 down, 3 up, 3 left. diving, in the game's order",
+    "underwater": "underwater.png: 3 down, 3 up, 3 left. diving, in the game's order. The game's diver has its Pokemon drawn in; with a dive blob, draw the player alone",
     "watering": "watering.png: 3 down, 3 up, 3 left. watering, in the game's order",
     "field move": "fieldMove.png: 5 frames. using an HM, in order",
     "decorate": "decorating.png: 1 frame. secret base decorating",
     "surf blob": "surfBlob.png (extras): 1 down, 1 up, 1 left. the surf mount (FRLG has 2 bob frames per facing)",
     "fly bird": "bird.png (extras): 1 frame. the Fly bird on its own",
-    "bag": "bag.png (extras): 6 frames. bag picture(s) in the bag menu"
+    "bag": "bag.png (extras): 6 frames. bag picture(s) in the bag menu",
+    "dive blob": "diveBlob.png (extras): 1 down, 1 up, 1 left. optional: a mount drawn behind the underwater frames, where the surf blob goes (the game has none of its own)"
   },
   "sections": {
     "front": {
@@ -259,6 +260,17 @@
         null,
         null,
         null,
+        null
+      ]
+    },
+    "dive blob": {
+      "down": [
+        null
+      ],
+      "up": [
+        null
+      ],
+      "left": [
         null
       ]
     }

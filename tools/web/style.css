@@ -234,6 +234,7 @@ pre.log .warn { color: var(--warn); }
 .b-inspector .hint { margin: 8px 0 0; font-size: 0.85rem; }
 .b-cut { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; font-size: 0.9rem; }
 .b-cut input { width: 4.2rem; }
+.b-cut select { width: auto; }
 @media (max-width: 30rem) { .b-fields { grid-template-columns: 1fr 1fr; } }
 
 .b-sections { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; }
@@ -349,3 +350,5 @@ details.combine > p { max-width: 40rem; }
 .clash-pick span { overflow-wrap: anywhere; text-align: center; }
 .clash-pick:hover { border-color: var(--act); }
 .clash-pick.on { border-color: var(--guide); box-shadow: 0 0 0 2px var(--guide); color: var(--ink); }
+.row .check-line { margin: 0; align-items: center; }
+.row .check-line input { margin-top: 0; }

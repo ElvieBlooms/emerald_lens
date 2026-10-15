@@ -151,7 +151,7 @@ the missing block is read as blank and you're told so.
 
 ## Extras (optional)
 
-The surf blob, the Fly bird and the bag have their own smaller sheet,
+The surf blob, the Fly bird, the bag and the dive blob have their own smaller sheet,
 `frlg_extras.png` / `rse_extras.png`, with separate templates in
 `frlg_extras/` and `rse_extras/`. Every command takes `frlg_extras` or
 `rse_extras` in place of `frlg` or `rse`:
@@ -172,6 +172,31 @@ holds both the main work and the extras packs both:
 | surfBlob.png | 32x32 x 6 | 32x32 x 3 | SURF BLOB (rows down, up, left; FRLG has two bob frames each) |
 | bird.png | 64x64 | 32x32 | FLY BIRD (FRLG: the bird alone, before and after the rider frames in `flyBird.png`) |
 | bag.png | 64x64 x 4 | 64x64 x 6 | BAG (one per pocket; frame 0 also shows while the bag opens) |
+| diveBlob.png | -- | 32x32 x 3 | DIVE BLOB (rows down, up, left; drawn behind the underwater frames) |
+
+The DIVE BLOB block was added after the first release, in space that was
+background on older `rse_extras.png` sheets; on those it's read as blank and
+you're told so. `reference` has no game art for it: the games' diver has its
+Pokemon drawn into the underwater frames, and the mod draws a dive blob
+where the surf blob goes (blob at (-8, -8) from the tile, as above).
+
+### Underwater art from surf art
+
+Most sets drawn for other games (Gen 4 ones especially) have no diving
+sprites. `dive` makes a start from a packed R/S/E look folder's surf art:
+
+    python3 pack_gen3.py dive ../../assets/sprites/<folder>/gen3/rse
+    python3 pack_gen3.py dive ../../assets/sprites/<folder>/gen3/rse --blob
+
+- `--blob` makes `diveBlob.png` from `surfBlob.png`, recolored into four
+  dark blues by brightness, like the games' diver.
+- `--underwater` fills `underwater.png` with the `surf.png` sitting frame
+  for each facing (the game draws underwater frames in the same place as
+  surf ones).
+- With neither, it does both. A file that's already there is kept unless
+  you add `--force`.
+
+A recipe can fill the `dive blob` section too, like `surf blob`.
 
 ## Surf placement (reference only)
 

@@ -52,6 +52,15 @@ merge      Combine partial work, frame by frame: sheets, templates folders or
            frames, and clashes work as above (source 2 is the new work):
              python3 pack_gen3.py pack rse run_work.png ../../assets/sprites/<folder>/gen3/rse --merge
 
+dive       Underwater art for sets that have none (most Gen 4 sets), in a
+           packed R/S/E look folder. --blob makes diveBlob.png from the
+           folder's surfBlob.png, recolored dark like the game's own diver;
+           --underwater fills underwater.png with the surf.png sitting
+           frames. Both by default; files already there are kept unless
+           --force:
+             python3 pack_gen3.py dive ../../assets/sprites/<folder>/gen3/rse
+             python3 pack_gen3.py dive ../../assets/sprites/<folder>/gen3/rse --blob
+
 Extras (optional): the surf blob, the Fly bird and the bag have their own
 smaller sheet, frlg_extras.png / rse_extras.png, with separate templates in
 frlg_extras/ and rse_extras/. Use frlg_extras or rse_extras in place of frlg
@@ -91,7 +100,8 @@ SPECS = {
   # alone (on FRLG, the first frame of the Fly sheet; the rider frames are
   # flyBird.png on the main sheet).
   "frlg_extras": [("surfBlob.png", 32, 32, 6), ("bird.png", 64, 64, 1), ("bag.png", 64, 64, 4)],
-  "rse_extras":  [("surfBlob.png", 32, 32, 3), ("bird.png", 32, 32, 1), ("bag.png", 64, 64, 6)],
+  "rse_extras":  [("surfBlob.png", 32, 32, 3), ("bird.png", 32, 32, 1), ("bag.png", 64, 64, 6),
+                  ("diveBlob.png", 32, 32, 3)],
 }
 EXTRAS_OF = {"frlg": "frlg_extras", "rse": "rse_extras"}
 GUIDE = (255, 0, 255, 255)
@@ -153,13 +163,17 @@ LAYOUT = {
     ("SURF BLOB", "surfBlob.png", [((0, 1, 2), 1)]),
     ("FLY BIRD", "bird.png", [((0,), 1)]),
     ("BAG", "bag.png", [((0, 3), 3)]),
+    # The game has no dive blob: its diver's Pokemon is drawn into the
+    # underwater frames. The mod puts this behind them, where the surf blob
+    # goes. Added after the first release, so last. -Elvie
+    ("DIVE BLOB", "diveBlob.png", [((0, 1, 2), 1)]),
   ],
 }
 SHEET_W = {"frlg": 500, "rse": 470, "frlg_extras": 500, "rse_extras": 470}
 TITLE = {"frlg": "FireRed / LeafGreen", "rse": "Ruby / Sapphire / Emerald",
          "frlg_extras": "FireRed / LeafGreen extras", "rse_extras": "Ruby / Sapphire / Emerald extras"}
 HINT = {"frlg_extras": "Optional. Surf blob rows: down, up, left.",
-        "rse_extras": "Optional. Surf blob rows: down, up, left.",
+        "rse_extras": "Optional. Surf and dive blob rows: down, up, left.",
         # RSE's back pic stands in its last frame, FRLG's in its first -Elvie
         "rse": "Draw inside the boxes. Rows: down, up, left. BACK: throw first, standing last.",
         "rse_wide": "Draw inside the boxes. Rows: down, up, left. BACK: throw first, standing last."}
@@ -384,16 +398,26 @@ def split_sheet(family, im):
         else:
             return None, [f"sheet is {im.size[0]}x{im.size[1]}, the {family} sheet is {size[0]}x{size[1]}"]
     px = im.load()
+    missing = set()
     for s in sections:
-        damaged = sum(1 for b in s["blocks"] for p in guide_pixels(b) if px[p] != GUIDE)
-        if damaged:
+        guides = [p for b in s["blocks"] for p in guide_pixels(b)]
+        damaged = sum(1 for p in guides if px[p] != GUIDE)
+        if damaged == len(guides):
+            # A block added since the sheet was made, in space that was
+            # background then (the dive blob): no guides at all. -Elvie
+            missing.add(s["label"])
+            warnings.append(f"{s['label']}: not on this sheet (made before it was added); read as blank")
+        elif damaged:
             warnings.append(f"{s['label']}: {damaged} guide pixel(s) were painted over -- check frame edges")
     strips = {}
+    blank = {b_cell[:2] for s in sections if s["label"] in missing
+             for b in s["blocks"] for b_cell in b["cells"]}
     for name, frames in cells_by_file(family).items():
         w, h, n = spec(family, name)
         strip = Image.new("RGBA", (w, h * n), CLEAR)
         for i, box in frames.items():
-            strip.paste(im.crop(box), (0, i * h))
+            if (name, i) not in blank:
+                strip.paste(im.crop(box), (0, i * h))
         strips[name] = strip
     return strips, warnings
 
@@ -564,7 +588,10 @@ def reference(family, gender, game_dir, dst_dir, formats=("sheet", "separate")):
     game = os.path.basename(os.path.normpath(game_dir)).lower()
     strips = {}
     for name, w, h, n in SPECS[base_of(family)]:
-        src = SOURCES[base_of(family)][gender][name]
+        src = SOURCES[base_of(family)][gender].get(name)
+        if src is None:
+            print(f"  skip    {name} (the game has none)")
+            continue
         if name == "front.png" and game in ("ruby", "sapphire"):
             src = RS_FRONT[gender]
         first, total = 0, n
@@ -995,6 +1022,76 @@ def merge_options(args):
             i += 1
     return parse_picks(picks), report, clash_dir, rest
 
+# ------------------------------------------------------------------- dive
+# Underwater art for sets with none. The game's diver rides a dark
+# silhouette of a Pokemon; this recolors the surf blob to match, keeping its
+# shading in four dark blues. The surf sitting frames stand in for the
+# diver: underwater frames are drawn in the same place as surf ones. -Elvie
+DIVE_RAMP = [(8, 16, 40), (24, 40, 80), (40, 64, 112), (64, 96, 144)]
+
+def dive_tint(im):
+    """A sprite recolored into DIVE_RAMP by brightness, alpha kept."""
+    im = im.convert("RGBA")
+    px = im.load()
+    lumas = sorted({(299 * r + 587 * g + 114 * b) // 1000
+                    for y in range(im.height) for x in range(im.width)
+                    for r, g, b, a in [px[x, y]] if a})
+    if not lumas:
+        return im
+    lo, hi = lumas[0], lumas[-1]
+    out = Image.new("RGBA", im.size, CLEAR)
+    po = out.load()
+    for y in range(im.height):
+        for x in range(im.width):
+            r, g, b, a = px[x, y]
+            if a:
+                t = ((299 * r + 587 * g + 114 * b) // 1000 - lo) / max(1, hi - lo)
+                po[x, y] = DIVE_RAMP[min(len(DIVE_RAMP) - 1, int(t * len(DIVE_RAMP)))] + (a,)
+    return out
+
+def dive(folder, blob=True, underwater=True, force=False):
+    """diveBlob.png and/or underwater.png in a packed R/S/E look folder."""
+    if not os.path.isdir(folder):
+        print(f"  ERROR   {folder} is not a folder")
+        return False
+    made = 0
+    jobs = []
+    if blob:
+        jobs.append(("diveBlob.png", "surfBlob.png", "rse_extras"))
+    if underwater:
+        jobs.append(("underwater.png", "surf.png", "rse"))
+    for name, src_name, fam in jobs:
+        out = os.path.join(folder, name)
+        if os.path.exists(out) and not force:
+            print(f"  skip    {name} (already there; --force to replace it)")
+            continue
+        src = os.path.join(folder, src_name)
+        sw, sh, sn = spec(fam, src_name)
+        if not os.path.isfile(src):
+            print(f"  skip    {name} (no {src_name} in this folder to make it from)")
+            continue
+        im = Image.open(src).convert("RGBA")
+        if im.size != (sw, sh * sn):
+            print(f"  skip    {name} ({src_name} is {im.width}x{im.height}, expected {sw}x{sh * sn})")
+            continue
+        w, h, n = spec(fam, name)
+        if name == "diveBlob.png":
+            strip = dive_tint(im)
+        else:
+            # standard order: stand down, up, left, then two steps each;
+            # every one is the surf sitting frame for that facing
+            strip = Image.new("RGBA", (w, h * n), CLEAR)
+            for fi in range(n):
+                facing = fi if fi < 3 else (fi - 3) // 2
+                strip.paste(im.crop((0, facing * sh, sw, (facing + 1) * sh)), (0, fi * h))
+        if not strip.getbbox():
+            print(f"  skip    {name} ({src_name} is blank)")
+            continue
+        strip.save(out)
+        print(f"  made    {name} from {src_name}")
+        made += 1
+    return made > 0
+
 FORMAT_FLAGS = {"--sheet": ("sheet",), "--separate": ("separate",), "--both": ("sheet", "separate")}
 
 if __name__ == "__main__":
@@ -1032,6 +1129,9 @@ if __name__ == "__main__":
         sys.exit(0)
     if len(a) == 5 and a[0] == "transfer" and a[1] in SPECS and a[3] in SPECS:
         sys.exit(0 if transfer(a[1], a[2], a[3], a[4]) else 1)
+    if len(a) >= 2 and a[0] == "dive" and set(a[2:]) <= {"--blob", "--underwater", "--force"}:
+        both = not ({"--blob", "--underwater"} & set(a[2:]))
+        sys.exit(0 if dive(a[1], both or "--blob" in a, both or "--underwater" in a, "--force" in a) else 1)
     if len(a) == 3 and a[0] == "blank" and a[1] in SPECS:
         blank_sheet(a[1]).save(a[2])
         print(f"  wrote   {a[2]}")

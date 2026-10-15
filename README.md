@@ -9,7 +9,7 @@ Emerald Lens is the Gen 3 companion to [Crystal Lens](https://github.com/dburton
 
 ## Features
 * Replaces the player everywhere Gen 3 draws them: walking, running, biking, surfing, fishing and other overworld poses, the battle back pic and throw, the front pic (Hall of Fame, battle intro), the trainer card, the new-game intro, the map icon, and riding the bird in FRLG's Fly.
-* Optional extras: the surf blob, the Fly bird and the Bag.
+* Optional extras: the surf blob, the Fly bird and the Bag, plus a dive blob for Ruby/Sapphire/Emerald, which the games don't have.
 * Pick a character for FireRed/LeafGreen and for Ruby/Sapphire/Emerald separately, so a character only needs art for one of them.
 * Per-character gender: replace the boy, the girl, or both.
 * Falls back sheet by sheet: the selected look, then the same character's other looks of the same generation, then its looks of the other generation, then the game's own sprite. Draw as much or as little as you like.
@@ -97,11 +97,14 @@ Also optional, in the same folders and with the same fallback. They aren't the p
 | `surfBlob.png` | 32x32, 6 frames (32x192): down, up, left, two bob frames each | 32x32, 3 frames (32x96): down, up, left |
 | `bird.png` | 64x64 (the bird alone as it flies in and away; `flyBird.png` has the rider frames) | 32x32 (the bird the player rides) |
 | `bag.png` | 64x64, 4 frames (64x256), one per pocket | 64x64, 6 frames (64x384), one per pocket |
+| `diveBlob.png` | -- | 32x32, 3 frames (32x96): down, up, left |
+
+The games have no dive blob: their diver's Pokémon is drawn into the `underwater.png` frames. With a `diveBlob.png`, Emerald Lens puts it behind your underwater frames, where the surf blob goes, and it bobs along with the diver, so `underwater.png` can be the player alone (a free-floating diver, or surf-style sitting frames). It's only used with underwater art from a look; the game's own diver already has its Pokémon. The sprite tools can make both from a look's surf art (see their README).
 
 The surf blob and bird have no boy or girl version, so they're only used when your character is the player in that save: a girl character's surf blob doesn't show for someone playing as the boy (enby works for either). The bag has one each, so it follows `genderMode` like the sprites.
 
 ## Sprite tools
-`tools/sprite-templates` has blank templates in two formats you can use interchangeably: one combined sheet per game family, laid out like the standard community sheets, or one strip per game sheet. The extras have a smaller sheet of their own (`frlg_extras.png`, `rse_extras.png`). `pack_gen3.py` exports the game's own sprites from your imported cache to draw from, converts between the two formats, and packs your art into a look's `gen3` folder. `import_sheet.py` turns a sprite sheet made for something else (a fan game, a community collage) into our sheets. See its README. It needs Python 3 and Pillow, and isn't needed to play. The same tools also run as a web page in `tools/web`, with nothing to install: number a sheet's sprites, fill in the recipe by clicking them into the game's frames, build and pack it, watch it walk, run and surf (and save that as a GIF to share), combine partial sheets, and download a ready look folder. For now it runs on your own computer only: double-click the launcher for your system in `tools/` (see `HOW TO TRY THE SPRITE TOOLS.txt`). A hosted version will follow once it's had some testing.
+`tools/sprite-templates` has blank templates in two formats you can use interchangeably: one combined sheet per game family, laid out like the standard community sheets, or one strip per game sheet. The extras have a smaller sheet of their own (`frlg_extras.png`, `rse_extras.png`). `pack_gen3.py` exports the game's own sprites from your imported cache to draw from, converts between the two formats, and packs your art into a look's `gen3` folder. `import_sheet.py` turns a sprite sheet made for something else (a fan game, a community collage) into our sheets. See its README. It needs Python 3 and Pillow, and isn't needed to play. The same tools also run as a web page in `tools/web`, with nothing to install: number a sheet's sprites, fill in the recipe by clicking them into the game's frames, build and pack it, watch it walk, run, surf and dive (and save that as a GIF to share), combine partial sheets, and download a ready look folder. For now it runs on your own computer only: double-click the launcher for your system in `tools/` (see `HOW TO TRY THE SPRITE TOOLS.txt`). A hosted version will follow once it's had some testing.
 
 **Sheet Examples:**
 

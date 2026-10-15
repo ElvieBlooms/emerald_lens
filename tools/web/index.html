@@ -102,7 +102,9 @@
           </div>
           <p class="hint" id="b-typed-hint">Press Enter to put typed pieces in the frame. Hang: pixels below the feet (a rod). Shift: move off centre.</p>
           <div class="b-cut" id="b-cutrow" hidden>
-            <span>Two sprites stuck together? Cut this piece into</span>
+            <span id="b-cutwhat">Two sprites stuck together? Cut this piece into</span>
+            <select id="b-cutpiece" aria-label="Piece to cut" hidden></select>
+            <span id="b-cutinto" hidden></span>
             <input id="b-cols" type="number" min="1" max="16" value="2" aria-label="Columns"> by
             <input id="b-rows" type="number" min="1" max="16" value="1" aria-label="Rows">
             <button class="btn" id="b-cut" type="button">Cut</button>
@@ -226,6 +228,16 @@
   <p class="hint">The options menu shows 8 characters of a label or character name. Looks of the same character are grouped under it as LOOK choices. Generation sets the fallback order: a sheet this look doesn't have comes from the character's looks of the same generation first.</p>
   <h3 class="sub">In this look</h3>
   <div id="look-files" class="files"><p class="empty">Nothing packed yet. Pack a sheet in step 3 and it shows up here.</p></div>
+  <div id="look-dive" hidden>
+    <h3 class="sub">No diving art?</h3>
+    <p class="hint">Most sets drawn for other games have none. These make a start from the look's R/S/E surf art: a dark dive blob from the surf blob (the game puts it behind the diver, where the surf blob goes), and diving frames from the surf sitting frames.</p>
+    <div class="row">
+      <button type="button" class="btn" id="dive-blob">Dive blob from the surf blob</button>
+      <button type="button" class="btn" id="dive-under">Diving frames from surf</button>
+      <label class="check-line"><input type="checkbox" id="dive-force"> Replace what's there</label>
+    </div>
+    <pre class="log" id="dive-log" hidden></pre>
+  </div>
   <div id="look-play" hidden>
     <h3 class="sub">Watch it move</h3>
     <p class="hint">Plays the packed files, the way the game reads them.</p>

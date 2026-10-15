@@ -28,6 +28,10 @@ The page walks through four steps:
 
 Each step logs the command it ran, so it can be repeated on the command line.
 
+Step 4 also has the dive helpers (`pack_gen3.py dive`) for a look with R/S/E
+art but no diving art: a dive blob from the surf blob, and diving frames
+from the surf sitting frames.
+
 A folder is read a file at a time, with a progress bar, since Python holds
 the page while it works and a folder of a few hundred files takes a while
 (on a phone most of all). It's kept for the builder, so opening the builder
@@ -47,8 +51,9 @@ as build will place it: centred, feet on the game's foot row. Pick a frame,
 click the sprite that goes in it, and the next frame is picked. Shift-click
 adds a sprite to the same frame (drawn together as one). For the picked
 frame you can mirror it, set hang and shift, type piece numbers (`12 13`,
-`29.2`, `walk:3`), or cut a piece in two when sprites touch (`split`), strip
-frames included. A
+`29.2`, `walk:3`), or cut a piece when sprites touch (`split`). Cut is
+there for any piece in the frame, strip frames included; a piece already cut
+can be cut again from the whole, and 1 by 1 puts it back together. A
 section's "Shrink" box adds it to `shrink`. A frame turns red when its
 sprite won't fit or names a piece that isn't on the sheet, the same cases
 build warns about.
@@ -81,6 +86,9 @@ them. Both use `preview.js`.
 - **Walking-style sections** (walk, run, bike, Mach Bike, underwater):
   step, stand, step, stand, with the ground scrolling under the player. Down, up, left, and right as the game
   draws it (left mirrored).
+- **Underwater**: step, stand, step, stand, with the game's diving bob
+  (down 4px and back, 1px every 4 frames), the dive blob behind if there is
+  one.
 - **Surf**: the sit frame on the surf blob, both bobbing a pixel while
   still, lined up as the game does (blob 32x32 at -8,-8 from the tile,
   behind the player; FRLG swaps its two blob frames as it bobs). Without

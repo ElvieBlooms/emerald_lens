@@ -59,7 +59,7 @@ local ONLY_MALE, ONLY_FEMALE, NONE = { "male" }, { "female" }, {}
 -- scene kit below. -Elvie
 local EXTRAS = {
   frlg = { surfBlob = { 32, 192 }, bag = { 64, 256 } },
-  rse  = { surfBlob = { 32, 96 },  bird = { 32, 32 } },
+  rse  = { surfBlob = { 32, 96 },  bird = { 32, 32 }, diveBlob = { 32, 96 } },
 }
 
 local FRAME = 64 * 64 * 4 -- one 64x64 RGBA frame of the FRLG Fly sheet
@@ -189,6 +189,50 @@ function gen3.init(mod, ctx)
     end
   end
 
+  -- Underwater the game draws no mount: the Pokemon is drawn into the
+  -- underwater frames themselves. A look can give it one as diveBlob.png
+  -- (down, up, left), set behind each frame where the surf blob sits:
+  -- centred, its top 8 below the tile's top. That reaches 8 below the
+  -- frame, so the frames grow 8 taller and are drawn 8 lower, and the
+  -- blob bobs with the player. Only with underwater art from a look; the
+  -- game's own already has its Pokemon. -Elvie
+  local DIVE_DROP = 8
+  local function diveFrames(data, w, h, n)
+    local _, blob = loadImage("diveBlob.png", extras.diveBlob[1], extras.diveBlob[2])
+    if not blob then return nil end
+    local H = h + DIVE_DROP
+    local out = love.image.newImageData(w, H * n)
+    local bx, by = (w - 32) / 2, h - 16 - 8 -- blob top-left within the frame
+    for fi = 0, n - 1 do
+      -- standard frame order: stand down, up, left, then two steps each
+      local facing = fi < 3 and fi or math.floor((fi - 3) / 2)
+      for y = 0, 31 do
+        for x = 0, 31 do
+          local r, g, b, a = blob:getPixel(x, facing * 32 + y)
+          if a > 0 and bx + x >= 0 and bx + x < w then out:setPixel(bx + x, fi * H + by + y, r, g, b, a) end
+        end
+      end
+      for y = 0, h - 1 do
+        for x = 0, w - 1 do
+          local r, g, b, a = data:getPixel(x, fi * h + y)
+          if a > 0 then
+            if a < 1 then
+              -- over the blob, by alpha
+              local r0, g0, b0, a0 = out:getPixel(x, fi * H + y)
+              local ao = a + a0 * (1 - a)
+              r = (r * a + r0 * a0 * (1 - a)) / ao
+              g = (g * a + g0 * a0 * (1 - a)) / ao
+              b = (b * a + b0 * a0 * (1 - a)) / ao
+              a = ao
+            end
+            out:setPixel(x, fi * H + y, r, g, b, a)
+          end
+        end
+      end
+    end
+    return out
+  end
+
   if okOw and type(OwSprites.get) == "function" then
     local originalGet = OwSprites.get
 
@@ -204,6 +248,17 @@ function gen3.init(mod, ctx)
       w = gotW or w
       local record = {}
       for k, v in pairs(vanilla) do record[k] = v end
+      if file == "underwater.png" and extras.diveBlob and has("diveBlob.png") then
+        local withBlob = diveFrames(data, w, h, n)
+        if withBlob then
+          image = love.graphics.newImage(withBlob)
+          image:setFilter("nearest", "nearest")
+          data = withBlob
+          h = h + DIVE_DROP
+          record.height = h
+          record.drawOffY = (vanilla.drawOffY or 0) + DIVE_DROP
+        end
+      end
       record.image, record.imageData, record.width = image, data, w
       record.quads = {}
       for fi = 0, n - 1 do
@@ -504,7 +559,7 @@ function gen3.init(mod, ctx)
     -- than on every draw. -Elvie
     present = {}
     if #slots > 0 then
-      local files = { frontRel, backRel, introRel, "mapIcon.png", "flyBird.png", "surfBlob.png", "bird.png", "bag.png" }
+      local files = { frontRel, backRel, introRel, "mapIcon.png", "flyBird.png", "surfBlob.png", "bird.png", "bag.png", "diveBlob.png" }
       for _, state in ipairs(OW_STATES) do files[#files + 1] = state.file end
       for _, file in ipairs(files) do
         for _, base in ipairs(bases) do
