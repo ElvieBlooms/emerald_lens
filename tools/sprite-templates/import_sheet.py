@@ -300,6 +300,12 @@ def split_boxes(pieces, split):
                                                      round(x0 + (c + 1) * cw), round(y0 + (r + 1) * ch))
     return named
 
+def cut_cells(pieces, cells):
+    """The parts of a strip frame that was cut ("12.1", "12.2"): frames
+    too, kept where they are in their part of the cell. For a strip read
+    as frames twice too wide. -Elvie"""
+    return {n for n in pieces if "." in n and n.rsplit(".", 1)[0] in cells}
+
 def tight(im, box):
     """A box shrunk to the pixels actually drawn inside it."""
     bb = im.crop(box).getchannel("A").getbbox()
@@ -314,15 +320,27 @@ def tight(im, box):
 
 IMAGE_EXT = (".png", ".gif", ".bmp", ".webp", ".jpg", ".jpeg")
 
+def crossing_rows(im, x):
+    """Rows with sprite pixels on both sides of column boundary x."""
+    a = im.getchannel("A").load()
+    return sum(1 for y in range(im.height) if a[x - 1, y] and a[x, y])
+
 def crossings(im, xs):
     """How many of the column boundaries in xs have sprite pixels on both
     sides in 3 or more rows (so a frame edge can't be there)."""
-    a = im.getchannel("A").load()
-    n = 0
-    for x in xs:
-        rows = sum(1 for y in range(im.height) if a[x - 1, y] and a[x, y])
-        n += rows >= 3
-    return n
+    return sum(crossing_rows(im, x) >= 3 for x in xs)
+
+def wide_frames(im, half, whole):
+    """True if a strip's frames are the wider size. Sprites that fill their
+    16-wide frames touch at every edge, so the half-way lines are crossed
+    too, but only a pixel or two, like the frame edges. Frames twice that
+    wide have a sprite's middle on each half-way line. -Elvie"""
+    halves = [x for x in range(half, im.width, half) if x % whole]
+    edges = list(range(whole, im.width, whole))
+    if not edges:
+        return crossings(im, halves) > 0
+    mean = lambda xs: sum(crossing_rows(im, x) for x in xs) / len(xs)
+    return mean(halves) >= mean(edges) + 3
 
 def strip_cells(im):
     """Frame size if the image is a strip of frames: side by side (height up
@@ -332,9 +350,7 @@ def strip_cells(im):
     if h <= 96 and w >= h:
         cands = [c for c in (h, h // 2) if c and w % c == 0]
         if len(cands) == 2:
-            # 16-wide frames if no sprite runs across the half-way lines
-            halves = [x for x in range(cands[1], w, cands[1]) if x % cands[0]]
-            return (cands[0], h) if crossings(im, halves) else (cands[1], h)
+            return (cands[0], h) if wide_frames(im, cands[1], cands[0]) else (cands[1], h)
         return (cands[0], h) if cands else None
     if w <= 96 and h > w and h % w == 0:
         return (w, w)
@@ -710,6 +726,7 @@ def build(src, recipe_path, out_dir):
         for name, num in load_numbered_folder.aliases.items():
             pieces[name] = pieces[num]
             cells.add(name)
+        cells |= cut_cells(pieces, cells)
         piece_image.cells = cells
         print(f"  folder  {os.path.basename(os.path.normpath(src))}: {len(rows)} images, {len(found)} numbered")
     else:

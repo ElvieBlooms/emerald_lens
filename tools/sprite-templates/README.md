@@ -359,8 +359,14 @@ maybe a collage) can be numbered as one sheet. Slice the folder:
 
       python3 import_sheet.py build ./Green green_frlg.json ./out-frlg
 
+- A 32-tall strip can be 16-wide frames (walking) or 32-wide ones (biking).
+  Sprites that fill 16-wide frames touch at every edge, so the guess goes
+  by how much each line is crossed: a sprite's middle on the half-way
+  lines means 32-wide frames, a pixel or two at every line means 16.
 - `"cells": {"odd.png": [32, 32]}` sets a file's frame size if the guess is
   wrong; `"cells": {"collage.png": "pieces"}` cuts it into pieces instead.
+  A strip frame can also be cut (`"split": {"12": 2}`); the parts stay
+  frames, each kept where it is in its half of the cell.
 - A big folder (a few hundred files, like a whole pack from `nds2png.py`)
   gets its preview in pages of whole files, `green_numbers.png`,
   `green_numbers-2.png` and so on; slice lists which files and numbers each

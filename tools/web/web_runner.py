@@ -208,6 +208,7 @@ def builder_data(src, recipe_json, version=None):
                 aliases = I.load_numbered_folder.aliases
             pieces = I.split_boxes([found[str(i)] for i in range(1, len(found) + 1)], recipe.get("split"))
             aliases = dict(aliases)
+            cells = set(cells) | I.cut_cells(pieces, cells)
             pages = I.folder_pages(rows, im.width, im.height)
         else:
             im, _, _ = I.clean(path, recipe.get("scale"), recipe.get("background", "auto"),

@@ -47,7 +47,8 @@ as build will place it: centred, feet on the game's foot row. Pick a frame,
 click the sprite that goes in it, and the next frame is picked. Shift-click
 adds a sprite to the same frame (drawn together as one). For the picked
 frame you can mirror it, set hang and shift, type piece numbers (`12 13`,
-`29.2`, `walk:3`), or cut a piece in two when sprites touch (`split`). A
+`29.2`, `walk:3`), or cut a piece in two when sprites touch (`split`), strip
+frames included. A
 section's "Shrink" box adds it to `shrink`. A frame turns red when its
 sprite won't fit or names a piece that isn't on the sheet, the same cases
 build warns about.

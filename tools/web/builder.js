@@ -506,7 +506,8 @@ export function createBuilder(api) {
     el.shift.value = o.shift || "";
     if (document.activeElement !== el.typed) el.typed.value = names.join(" ");
     [el.flip, el.hang, el.shift, el.clear].forEach((x) => (x.disabled = !names.length));
-    const one = names.length === 1 && resolve(names[0]) && !resolve(names[0]).includes(".") && !data.cells.includes(resolve(names[0]));
+    // strip frames can be cut too, when a strip was read as frames too wide -Elvie
+    const one = names.length === 1 && resolve(names[0]) && !resolve(names[0]).includes(".");
     el.cutRow.hidden = !one;
     el.undo.disabled = !history.length;
   }
