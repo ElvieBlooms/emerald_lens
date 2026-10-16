@@ -1076,6 +1076,13 @@ def feet_rows(family, name, index):
 # whose head doesn't match its standing frame closely, or that wouldn't fit,
 # falls back to its feet. -Elvie
 WALK_FACINGS = ((0, 3, 4), (1, 5, 6), (2, 7, 8))  # standing frame, steps
+# Running does the same against its own standing frame (the game's running
+# steps are a row below it too): RSE runs in walk.png 9-17 like walking,
+# FRLG keeps each facing's three run frames together. -Elvie
+STEP_GROUPS = {
+  "frlg": WALK_FACINGS + ((9, 10, 11), (12, 13, 14), (15, 16, 17)),
+  "rse":  WALK_FACINGS + ((9, 12, 13), (10, 14, 15), (11, 16, 17)),
+}
 
 def head_shift(stand, step, rows=10, reach=4):
     """(match, dx, dy): moving step by dx, dy lays its head over the standing
@@ -1144,7 +1151,9 @@ def feet(family, folder, match=False):
             moves[i] = (0, row - got)
             why[i] = f"feet on row {got}, the game's is {row}"
         if name == "walk.png":
-            for st, a, b in WALK_FACINGS:
+            for st, a, b in STEP_GROUPS[base]:
+                if st >= n or b >= n:
+                    continue
                 if not boxes[st] or a in copy_of or b in copy_of or not boxes[a] or not boxes[b]:
                     continue
                 regs = {i: head_shift(frames[st], frames[i]) for i in (a, b)}

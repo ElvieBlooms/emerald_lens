@@ -178,7 +178,9 @@ The DIVE BLOB block was added after the first release, in space that was
 background on older `rse_extras.png` sheets; on those it's read as blank and
 you're told so. `reference` has no game art for it: the games' diver has its
 Pokemon drawn into the underwater frames, and the mod draws a dive blob
-where the surf blob goes (blob at (-8, -8) from the tile, as above).
+where the surf blob goes (blob at (-8, -8) from the tile, as above). It's
+only drawn behind the `underwater.png` in the same folder; other looks of
+the character don't borrow it.
 
 ### Underwater art from surf art
 

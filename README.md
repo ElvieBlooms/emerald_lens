@@ -101,7 +101,7 @@ Also optional, in the same folders and with the same fallback. They aren't the p
 | `bag.png` | 64x64, 4 frames (64x256), one per pocket | 64x64, 6 frames (64x384), one per pocket |
 | `diveBlob.png` | -- | 32x32, 3 frames (32x96): down, up, left |
 
-The games have no dive blob: their diver's Pokémon is drawn into the `underwater.png` frames. With a `diveBlob.png`, Emerald Lens puts it behind your underwater frames, where the surf blob goes, and it bobs along with the diver, so `underwater.png` can be the player alone (a free-floating diver, or surf-style sitting frames). It's only used with underwater art from a look; the game's own diver already has its Pokémon. The sprite tools can make both from a look's surf art (see their README).
+The games have no dive blob: their diver's Pokémon is drawn into the `underwater.png` frames. With a `diveBlob.png`, Emerald Lens puts it behind your underwater frames, where the surf blob goes, and it bobs along with the diver, so `underwater.png` can be the player alone (a free-floating diver, or surf-style sitting frames). It's only used with the `underwater.png` from its own folder, never borrowed by another look (whose divers may already carry their Pokémon) or put behind the game's own diver. Looks that share diver-alone art each need the `diveBlob.png` too. The sprite tools can make both from a look's surf art (see their README).
 
 The surf blob and bird have no boy or girl version, so they're only used when your character is the player in that save: a girl character's surf blob doesn't show for someone playing as the boy (enby works for either). The bag has one each, so it follows `genderMode` like the sprites.
 
@@ -126,7 +126,7 @@ The surf blob and bird have no boy or girl version, so they're only used when yo
 ## Credits
 * Built on the Crystal Lens framework by Dgray66, used with permission.
 * Gen 3 support: Elvie
-* ASH (ASH, BACK CAP, HATLESS): shared by kalarie on [PokeCommunity](https://www.pokecommunity.com/threads/looking-for-trainer-overworld-sprites-of-jesse-james.404892/post-9821260); original artist not named
+* ASH (ASH, BACK CAP, HATLESS): shared by kalarie on [PokeCommunity](https://www.pokecommunity.com/threads/looking-for-trainer-overworld-sprites-of-jesse-james.404892/post-9821260); original artist not named; HGSS (Gen 4 style) by PKMNTrainerRick
 * BRENDAN: ORAS BRENDAN and SKATEBOARD from Team Aqua's Asset Repo; HGSS (Gen 4 style) by DiegoWT
 * GOLD: R/S/E sprites from Team Aqua's Asset Repo, FR/LG sprites by FourLeafSunny; HGSS (Gen 4 style) by GregarLink10
 * GREEN (BIG PUFF): sprites compiled from virdiangrass and Team Aqua's Asset Repo; additional edits and AcroJiggly by Elvie

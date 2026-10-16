@@ -132,9 +132,9 @@ function gen3.init(mod, ctx)
   -- size (or altW wide, where a wider frame is allowed); a missing or
   -- wrong-size copy moves on to the next folder. Hands back the ImageData
   -- too, since water reflections recolor from it, and the width found. -Elvie
-  local function loadImage(file, expectW, expectH, altW)
+  local function loadImage(file, expectW, expectH, altW, only)
     if not (love and love.image and love.graphics) then return nil end
-    for _, base in ipairs(bases) do
+    for _, base in ipairs(only and { only } or bases) do
       local rel = base .. file
       if mod.assets:info(rel) then
         local ok, data = pcall(love.image.newImageData, mod.assets:path(rel))
@@ -194,11 +194,12 @@ function gen3.init(mod, ctx)
   -- (down, up, left), set behind each frame where the surf blob sits:
   -- centred, its top 8 below the tile's top. That reaches 8 below the
   -- frame, so the frames grow 8 taller and are drawn 8 lower, and the
-  -- blob bobs with the player. Only with underwater art from a look; the
-  -- game's own already has its Pokemon. -Elvie
+  -- blob bobs with the player. Only from the folder the underwater art
+  -- came from: a look whose divers carry their Pokemon has none, and
+  -- mustn't borrow another look's. -Elvie
   local DIVE_DROP = 8
-  local function diveFrames(data, w, h, n)
-    local _, blob = loadImage("diveBlob.png", extras.diveBlob[1], extras.diveBlob[2])
+  local function diveFrames(data, w, h, n, base)
+    local _, blob = loadImage("diveBlob.png", extras.diveBlob[1], extras.diveBlob[2], nil, base)
     if not blob then return nil end
     local H = h + DIVE_DROP
     local out = love.image.newImageData(w, H * n)
@@ -243,13 +244,13 @@ function gen3.init(mod, ctx)
     local function build(vanilla, file)
       local w, h, n = vanilla.width, vanilla.height, vanilla.frameCount
       if not (w and h and n) then return nil end
-      local image, data, _, gotW = loadImage(file, w, h * n, w == 16 and 32 or nil)
+      local image, data, rel, gotW = loadImage(file, w, h * n, w == 16 and 32 or nil)
       if not image then return nil end
       w = gotW or w
       local record = {}
       for k, v in pairs(vanilla) do record[k] = v end
       if file == "underwater.png" and extras.diveBlob and has("diveBlob.png") then
-        local withBlob = diveFrames(data, w, h, n)
+        local withBlob = diveFrames(data, w, h, n, rel:sub(1, #rel - #file))
         if withBlob then
           image = love.graphics.newImage(withBlob)
           image:setFilter("nearest", "nearest")
