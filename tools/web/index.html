@@ -37,14 +37,17 @@
     <summary>Slicing options</summary>
     <div class="grid">
       <label>Scale <input id="o-scale" type="number" min="1" max="8" placeholder="auto"></label>
-      <label>Backdrop colour <input id="o-bg" type="text" placeholder="auto" pattern="auto|#?[0-9a-fA-F]{6}"></label>
+      <label>Backdrop
+        <select id="o-bgmode"><option value="">find it</option><option value="none">none</option><option value="colour">this colour</option></select>
+      </label>
+      <label id="o-bg-box" hidden>Backdrop colour <input id="o-bg" type="text" placeholder="#ff7f27" pattern="#?[0-9a-fA-F]{6}"></label>
       <label>Reach <input id="o-reach" type="number" min="0" max="8" placeholder="1"></label>
       <label>Lossy cleanup
         <select id="o-lossy"><option value="">auto</option><option value="yes">yes</option><option value="no">no</option></select>
       </label>
       <label>Colours <input id="o-colors" type="number" min="2" max="256" placeholder="48"></label>
     </div>
-    <p class="hint">Scale: how many times the sheet is enlarged. Backdrop: the flat colour around the sprites, like #ff7f27. Reach: how far apart pixels can be and still count as one sprite. Lossy cleanup and colours only matter for JPEG or WebP sheets.</p>
+    <p class="hint">Scale: how many times the sheet is enlarged. Backdrop: the flat colour around the sprites; found by itself, or pick none when it is also used in the sprites (only pixels already transparent are cleared), or give the colour, like #ff7f27. Reach: how far apart pixels can be and still count as one sprite. Lossy cleanup and colours only matter for JPEG or WebP sheets.</p>
   </details>
 
   <div class="row"><button id="do-slice" class="btn primary" disabled>Number the sprites</button></div>

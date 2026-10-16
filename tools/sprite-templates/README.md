@@ -240,6 +240,10 @@ standing frame goes up to a row above the game's to make room. If even that
 doesn't fit, the feet decide and the set keeps its own bob (HGSS down and up
 steps, drawn 2 rows taller, rise a row instead of dipping).
 
+Running works the same way against its own standing frame (`walk.png` 9, 10
+and 11 on R/S/E; 9, 12 and 15 on FR/LG): the game's running steps are a row
+below it too.
+
 `feet` checks a packed look folder against these, and `--match` moves each
 frame up or down onto the game's row. Only whole frames move; the art is
 untouched. A frame that's a copy of an earlier one (tricks drawn as the
@@ -334,7 +338,9 @@ resized: sprites are cut out at their real size and set into our frames.
      looks the same as the original, except while hopping on or off the
      water, when the game draws the blob by itself for a moment.
    - Optional: `"scale"` and `"background"` (`"#ff7f27"`) if the guesses are
-     wrong, and `"reach"` (default 1) for how far apart pixels can be and
+     wrong (`"background": "none"` clears no colour at all, only pixels
+     already transparent count, for sheets whose backdrop colour also shows
+     up in the sprites), and `"reach"` (default 1) for how far apart pixels can be and
      still count as one sprite. Keep the same values for `slice` and `build`
      (`--scale`, `--bg`, `--reach`) so the numbers match.
    - Sheets saved as JPEG or WebP (Discord and many image hosts convert

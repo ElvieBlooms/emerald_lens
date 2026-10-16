@@ -9,7 +9,9 @@ Nothing is uploaded: the art stays in the visitor's browser.
 The page walks through four steps:
 
 1. **Number the sprites**: `import_sheet.py slice` on a sheet, a folder,
-   or a .zip.
+   or a .zip. Under Slicing options, Backdrop is found by itself, set to
+   a colour, or set to none (`--bg none`) when the backdrop colour is also
+   used in the sprites.
 2. **Write the recipe and build**: fill the recipe in with the builder (see
    below) or as JSON, starting blank, from `recipes/blank_frlg.json` /
    `blank_rse.json`, or from a recipe file; then `import_sheet.py build`.

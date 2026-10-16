@@ -308,13 +308,21 @@ async function setSource(items) {
   builder.sourceChanged();
 }
 
+// The backdrop option: "" finds it, "none" clears nothing, or a colour. -Elvie
+function backdrop() {
+  const mode = $("o-bgmode").value;
+  if (mode !== "colour") return mode;
+  const c = $("o-bg").value.trim();
+  return /^#?[0-9a-fA-F]{6}$/.test(c) ? (c.startsWith("#") ? c : "#" + c) : "";
+}
+
 function sliceArgs() {
   const a = ["slice", state.src, "numbers.png"];
   const scale = $("o-scale").value.trim();
-  const bg = $("o-bg").value.trim();
+  const bg = backdrop();
   const reach = $("o-reach").value.trim();
   if (scale) a.push("--scale", scale);
-  if (bg && bg !== "auto") a.push("--bg", bg.startsWith("#") ? bg : "#" + bg);
+  if (bg) a.push("--bg", bg);
   if (reach) a.push("--reach", reach);
   if (!state.srcIsFolder) {
     const lossy = $("o-lossy").value;
@@ -375,6 +383,7 @@ function showSlicePage(k) {
 }
 
 $("slice-page").addEventListener("change", (e) => showSlicePage(Number(e.target.value)));
+$("o-bgmode").addEventListener("change", (e) => { $("o-bg-box").hidden = e.target.value !== "colour"; });
 
 async function sliceFolder(argv) {
   const el = $("slice-progress");
@@ -506,10 +515,10 @@ $("do-build").addEventListener("click", (e) =>
 function sliceOptions() {
   const o = {};
   const scale = $("o-scale").value.trim();
-  const bg = $("o-bg").value.trim();
+  const bg = backdrop();
   const reach = $("o-reach").value.trim();
   if (scale) o.scale = Number(scale);
-  if (bg && bg !== "auto") o.background = bg.startsWith("#") ? bg : "#" + bg;
+  if (bg) o.background = bg;
   if (reach) o.reach = Number(reach);
   if (!state.srcIsFolder) {
     const lossy = $("o-lossy").value;

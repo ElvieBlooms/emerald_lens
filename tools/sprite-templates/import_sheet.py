@@ -164,6 +164,17 @@ def snap_colors(im, colors=48):
     mapping = dict(zip(drawn, lut))
     im.putdata([mapping[p[:3]] + (255,) if p[3] else CLEAR for p in pixels(im)])
 
+def clear_backdrop(im, background):
+    """Clears the backdrop colour: "auto" finds it, a hex colour names it,
+    "none" clears nothing (only pixels already transparent count, for
+    sheets whose backdrop colour is also used in the sprites). -Elvie"""
+    if background == "none":
+        return None
+    bg = parse_color(background) if background not in (None, "auto") else find_background(im)
+    if bg:
+        im.putdata([CLEAR if p[3] and p[:3] == bg else p for p in pixels(im)])
+    return bg
+
 def clean(path, scale=None, background=None, lossy="auto", colors=48):
     """Loads a sheet at its real size with the background made transparent.
     Returns (image, scale used, background colour or None)."""
@@ -173,7 +184,10 @@ def clean(path, scale=None, background=None, lossy="auto", colors=48):
     im.putdata([p if p[3] else CLEAR for p in pixels(im)])
     if lossy == "auto":
         lossy = is_lossy(im)
-    if lossy:
+    if lossy and background == "none":
+        snap_colors(im, colors)
+        print(f"  lossy   sheet looks like a JPEG/WebP; colours snapped to {colors}, no backdrop cleared")
+    elif lossy:
         found = near_background(im)
         if background in (None, "auto"):
             background = "%02x%02x%02x" % found
@@ -181,9 +195,7 @@ def clean(path, scale=None, background=None, lossy="auto", colors=48):
         im.putdata([CLEAR if p[3] and p[:3] == bgc else p for p in pixels(im)])
         snap_colors(im, colors)
         print(f"  lossy   sheet looks like a JPEG/WebP; backdrop cleared and colours snapped to {colors}")
-    bg = parse_color(background) if background not in (None, "auto") else find_background(im)
-    if bg:
-        im.putdata([CLEAR if p[3] and p[:3] == bg else p for p in pixels(im)])
+    bg = clear_backdrop(im, background)
     if scale is None:
         scale = find_scale(im)
     if scale > 1:
@@ -631,9 +643,7 @@ def strip_grid(path, per, first, nrows):
 def load_grid(path, cols, rows, scale=None, background="auto"):
     im = path if isinstance(path, Image.Image) else Image.open(path).convert("RGBA")
     im.putdata([p if p[3] else CLEAR for p in pixels(im)])
-    bg = parse_color(background) if background not in (None, "auto") else find_background(im)
-    if bg:
-        im.putdata([CLEAR if p[3] and p[:3] == bg else p for p in pixels(im)])
+    bg = clear_backdrop(im, background)
     s = scale or find_scale(im)
     if s > 1:
         im = im.resize((im.width // s, im.height // s), Image.NEAREST)
