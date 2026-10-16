@@ -124,6 +124,10 @@ The surf blob and bird have no boy or girl version, so they're only used when yo
 ## Credits
 * Built on the Crystal Lens framework by Dgray66, used with permission.
 * Gen 3 support: Elvie
-* KRIS: R/S/E sprites by richardPT, FR/LG sprites by FourLeafSunny; KRIS BLUE edits by eykav
-* KRIS: LOULILIE and RKT LOU (Gen 4 style): HGSS Kris sprites by LouLilie
+* ASH (ASH, BACK CAP, HATLESS): shared by kalarie on [PokeCommunity](https://www.pokecommunity.com/threads/looking-for-trainer-overworld-sprites-of-jesse-james.404892/post-9821260); original artist not named
+* BRENDAN: ORAS BRENDAN and SKATEBOARD from Team Aqua's Asset Repo; HGSS (Gen 4 style) by DiegoWT
+* GOLD: R/S/E sprites from Team Aqua's Asset Repo, FR/LG sprites by FourLeafSunny; HGSS (Gen 4 style) by GregarLink10
 * GREEN (BIG PUFF): sprites compiled from virdiangrass and Team Aqua's Asset Repo; additional edits and AcroJiggly by Elvie
+* KRIS: R/S/E sprites by richardPT, FR/LG sprites by FourLeafSunny; KRIS BLUE edits by eykav
+* KRIS: LOULILIE, PKATHLON and ROCKET (Gen 4 style) by LouLilie
+* MAY: ORAS MAY and SKATEBOARD from Team Aqua's Asset Repo; HGSS (Gen 4 style) by DiegoWT
