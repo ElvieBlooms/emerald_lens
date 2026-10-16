@@ -932,19 +932,21 @@ function checkFeet() {
     const result = W.run("pack_gen3.py", py.toPy(["feet", fam, `look/gen3/${fam}`]));
     const [, out] = result.toJs();
     result.destroy();
-    let high = 0, low = 0;
+    let high = 0, low = 0, side = 0;
     const files = {};
-    for (const m of out.matchAll(/differs (\S+)\.png frame \d+: feet on row (\d+), the game's is (\d+)/g)) {
+    for (const m of out.matchAll(/differs (\S+)\.png frame \d+: (?:feet|head) on row (\d+), the game's is (\d+)/g)) {
       files[m[1]] = (files[m[1]] || 0) + 1;
       if (Number(m[2]) < Number(m[3])) high++;
-      else low++;
+      else if (Number(m[2]) > Number(m[3])) low++;
+      else side++; // in line, but shifted sideways
     }
-    if (high + low) {
+    if (high + low + side) {
       const parts = [];
       if (high) parts.push(`${high} too high`);
       if (low) parts.push(`${low} too low`);
+      if (side) parts.push(`${side} shifted sideways`);
       const which = Object.entries(files).map(([f, n]) => `${f} ${n}`).join(", ");
-      off.push(`${FAMILY_NAMES[fam]}: ${high + low} frame${high + low === 1 ? "" : "s"} off the game's rows (${which}; ${parts.join(", ")})`);
+      off.push(`${FAMILY_NAMES[fam]}: ${high + low + side} frame${high + low + side === 1 ? "" : "s"} off the game's rows (${which}; ${parts.join(", ")})`);
     }
   }
   $("look-feet").hidden = !off.length;

@@ -230,6 +230,16 @@ of their own too. The other sheets follow the game the same way:
 tables, so frame N of the game's art is frame N of our sheet. Where the
 boy's and girl's art differ, either row is accepted.)
 
+In the game's walk the head is what drops: in every step it's exactly one
+row below the standing frame's, in the same column, in all facings of both
+games (FRLG's left steps keep their feet up, but the head still drops). So
+`feet` lines walking steps up by the head: one row below their standing
+frame's, and not shifted sideways. If the steps are drawn taller than the
+standing frame (most HGSS sets) and there's no room below to drop them, the
+standing frame goes up to a row above the game's to make room. If even that
+doesn't fit, the feet decide and the set keeps its own bob (HGSS down and up
+steps, drawn 2 rows taller, rise a row instead of dipping).
+
 `feet` checks a packed look folder against these, and `--match` moves each
 frame up or down onto the game's row. Only whole frames move; the art is
 untouched. A frame that's a copy of an earlier one (tricks drawn as the

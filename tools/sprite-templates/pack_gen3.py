@@ -1069,9 +1069,42 @@ def feet_rows(family, name, index):
     r = rows[index]
     return r if isinstance(r, tuple) else (r,)
 
+# The game's walking steps drop the whole sprite a row: the head is one row
+# lower than in the standing frame, in the same column, in every facing of
+# both games (FRLG's left steps keep their feet up, but the head still drops).
+# So steps are lined up by the head, which is what the eye follows; a step
+# whose head doesn't match its standing frame closely, or that wouldn't fit,
+# falls back to its feet. -Elvie
+WALK_FACINGS = ((0, 3, 4), (1, 5, 6), (2, 7, 8))  # standing frame, steps
+
+def head_shift(stand, step, rows=10, reach=4):
+    """(match, dx, dy): moving step by dx, dy lays its head over the standing
+    frame's (its top rows). match is the share of head pixels that agree."""
+    bb = stand.getchannel("A").getbbox()
+    if not bb or not step.getchannel("A").getbbox():
+        return 0, 0, 0
+    a, b = stand.load(), step.load()
+    W, H = stand.size
+    best = (-1, 0, 0)
+    for dy in range(-reach, reach + 1):
+        for dx in range(-reach, reach + 1):
+            same = seen = 0
+            for y in range(bb[1], min(H, bb[1] + rows)):
+                for x in range(W):
+                    p = a[x, y]
+                    xx, yy = x - dx, y - dy
+                    q = b[xx, yy] if 0 <= xx < W and 0 <= yy < H else CLEAR
+                    if p[3] or q[3]:
+                        seen += 1
+                        same += bool(p[3] and q[3] and p[:3] == q[:3])
+            score = same / max(1, seen)
+            if score > best[0] or (score == best[0] and abs(dx) + abs(dy) < abs(best[1]) + abs(best[2])):
+                best = (score, dx, dy)
+    return best
+
 def feet(family, folder, match=False):
-    """Each frame's lowest row against the game's; with match, frames moved
-    onto the nearest of the game's rows."""
+    """Each frame against where the game's sits (lowest row; walking steps
+    by the head); with match, frames moved there."""
     base = base_of(family)
     changed = found = 0
     too_tall = []
@@ -1084,34 +1117,84 @@ def feet(family, folder, match=False):
         if im.height != h * n or im.width not in (w, 32):
             print(f"  skip    {name} ({im.width}x{im.height} isn't a {base} {name})")
             continue
-        moves, stuck, first = {}, [], {}
-        for i in range(n):
-            frame = im.crop((0, i * h, im.width, (i + 1) * h))
-            # A frame that's a copy of an earlier one stands in for art the
-            # set doesn't have (tricks drawn as the riding frame): it moves
-            # with its original, so it doesn't float or sink on its own. -Elvie
-            key = frame.tobytes()
+        W = im.width
+        frames = [im.crop((0, i * h, W, (i + 1) * h)) for i in range(n)]
+        boxes = [f.getchannel("A").getbbox() for f in frames]
+        fits = lambda i, dx, dy: (boxes[i][0] + dx >= 0 and boxes[i][2] + dx <= W
+                                  and boxes[i][1] + dy >= 0 and boxes[i][3] + dy <= h)
+
+        # A frame that's a copy of an earlier one stands in for art the set
+        # doesn't have (tricks drawn as the riding frame): it moves with its
+        # original, so it doesn't float or sink on its own. -Elvie
+        first, copy_of = {}, {}
+        for i, f in enumerate(frames):
+            key = f.tobytes()
             if key in first:
-                if first[key] in moves:
-                    moves[i] = moves[first[key]]
-                continue
-            first[key] = i
+                copy_of[i] = first[key]
+            else:
+                first[key] = i
+
+        moves, why, stuck = {}, {}, []
+        for i in range(n):
             want = feet_rows(base, name, i)
-            bb = frame.getchannel("A").getbbox()
-            if not want or not bb or bb[3] - 1 in want:
+            if i in copy_of or not want or not boxes[i] or boxes[i][3] - 1 in want:
                 continue
-            got = bb[3] - 1
+            got = boxes[i][3] - 1
             row = min(want, key=lambda r: abs(r - got))
-            moves[i] = row - got
-            tall = bb[1] + row - got < 0
-            if tall:
+            moves[i] = (0, row - got)
+            why[i] = f"feet on row {got}, the game's is {row}"
+        if name == "walk.png":
+            for st, a, b in WALK_FACINGS:
+                if not boxes[st] or a in copy_of or b in copy_of or not boxes[a] or not boxes[b]:
+                    continue
+                regs = {i: head_shift(frames[st], frames[i]) for i in (a, b)}
+                if not all(regs[i][0] >= 0.7 for i in (a, b)):
+                    continue
+                # Steps a row below the standing frame's head, as the game
+                # does. The standing frame goes on the game's row, or up to a
+                # row above it when the steps are drawn taller and need room
+                # below to dip. If even that doesn't fit, the feet decide and
+                # the set keeps its own bob. Sideways only when the heads
+                # match closely. -Elvie
+                feet_dy = moves.get(st, (0, 0))[1]
+                room = min(h - boxes[i][3] - (dy + 1) for i, (_, _, dy) in regs.items())
+                sdy = min(feet_dy, room)
+                plan = None
+                if sdy >= feet_dy - 1 and boxes[st][1] + sdy >= 0:
+                    p = {i: (dx if sc >= 0.9 else 0, dy + 1 + sdy) for i, (sc, dx, dy) in regs.items()}
+                    if all(fits(i, *p[i]) for i in (a, b)):
+                        plan = p
+                if plan:
+                    if sdy != feet_dy:
+                        # a row higher than the game's, to leave the steps room
+                        moves.pop(st, None)
+                        why.pop(st, None)
+                        if sdy:
+                            moves[st] = (0, sdy)
+                            got = boxes[st][3] - 1
+                            why[st] = f"feet on row {got}, the game's is {got + feet_dy}; {got + sdy} leaves the steps room to dip"
+                    for i in (a, b):
+                        moves.pop(i, None)
+                        why.pop(i, None)
+                        dx, dy = plan[i]
+                        if (dx, dy) != (0, 0):
+                            moves[i] = (dx, dy)
+                            top = boxes[i][1]
+                            side = f"; {abs(dx)} px {'left' if dx > 0 else 'right'} of the standing frame's head" if dx else ""
+                            why[i] = f"head on row {top}, the game's is {top + dy}{side}"
+        for i, (dx, dy) in list(moves.items()):
+            if not fits(i, dx, dy):
                 stuck.append(i)
-            print(f"  differs {name} frame {i}: feet on row {got}, the game's is {row}"
-                  + ("; too tall to move up without cutting off its top" if tall else ""))
+                why[i] += "; too tall to move up without cutting off its top" if dy < 0 else "; doesn't fit when moved"
+        for i in sorted(why):
+            print(f"  differs {name} frame {i}: {why[i]}")
+        for i, j in copy_of.items():
+            if j in moves:
+                moves[i] = moves[j]
         if not moves:
-            print(f"  ok      {name}: every frame on the game's rows")
+            print(f"  ok      {name}: every frame where the game's sits")
             continue
-        found += len([i for i in moves if first.get(im.crop((0, i * h, im.width, (i + 1) * h)).tobytes()) == i])
+        found += len(why)
         if stuck and not match:
             too_tall.append(name)
         if match and stuck:
@@ -1124,8 +1207,8 @@ def feet(family, folder, match=False):
             # frame by frame, so nothing spills into a neighbour
             clean = Image.new("RGBA", im.size, CLEAR)
             for i in range(n):
-                cell = Image.new("RGBA", (im.width, h), CLEAR)
-                cell.paste(im.crop((0, i * h, im.width, (i + 1) * h)), (0, moves.get(i, 0)))
+                cell = Image.new("RGBA", (W, h), CLEAR)
+                cell.paste(frames[i], moves.get(i, (0, 0)))
                 clean.paste(cell, (0, i * h))
             clean.save(path)
             changed += len(moves)
