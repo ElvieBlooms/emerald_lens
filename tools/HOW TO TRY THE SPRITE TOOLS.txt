@@ -11,8 +11,11 @@ connection the first time (the page downloads about 13 MB of Python).
 
 1. GET THE FILES
 ----------------
-On https://github.com/ElvieBlooms/emerald_lens press the green "Code"
-button, then "Download ZIP". Unzip it, then open the "tools" folder.
+Download emerald_lens_tools-<version>.zip from the latest release at
+https://github.com/ElvieBlooms/emerald_lens/releases and unzip it. The
+files below are in the folder it makes. (They're also in the "tools"
+folder of the repo, if you download the whole thing with GitHub's green
+"Code" button.)
 
 
 2. START IT
@@ -31,7 +34,7 @@ MAC
   and press Return.
 
 LINUX
-  Open a terminal in the "tools" folder and run:
+  Open a terminal in that folder and run:
       sh start-sprite-tools.sh
 
 A small window opens and your browser shows the tools. If the browser
