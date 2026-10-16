@@ -112,7 +112,8 @@ def layout(family):
             sections[key] = {"family": fam, "facings": {f: [[n, i] for n, i in slots] for f, slots in facings.items()}}
             for n, _ in [s for slots in facings.values() for s in slots]:
                 w, h, count = P.spec(fam, n)
-                frames[n] = [w, h, count, I.foot(fam, n, h)]
+                # the last item: each frame's foot row, where the game's differ -Elvie
+                frames[n] = [w, h, count, I.foot(fam, n, h), [I.foot(fam, n, h, i) for i in range(count)]]
     return sections, frames
 
 def layout_data(family):

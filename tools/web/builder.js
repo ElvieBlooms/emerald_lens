@@ -259,8 +259,29 @@ export function createBuilder(api) {
 
   // The sprite a slot value makes, placed in its frame the way build's
   // place() does. Returns {canvas, over, shrunk, missing}.
-  function placed(value, file, sectionKey) {
-    const [w, h, , bottom] = data.frames[file];
+  // The first frame of this file holding the same value: a sprite used for
+  // several frames sits on that frame's row, as build does. -Elvie
+  function firstUse(file, index, value) {
+    const r = recipe() || {};
+    const want = JSON.stringify(value ?? null);
+    let best = index;
+    for (const [key, sec] of Object.entries(data.sections)) {
+      const vals = (r.sections || {})[key];
+      if (!vals) continue;
+      for (const [facing, slots] of Object.entries(sec.facings)) {
+        const list = Array.isArray(vals) ? (facing === "frames" ? vals : null) : vals[facing];
+        if (!Array.isArray(list)) continue;
+        slots.forEach(([f, i], k) => {
+          if (f === file && i < best && JSON.stringify(list[k] ?? null) === want) best = i;
+        });
+      }
+    }
+    return best;
+  }
+
+  function placed(value, file, sectionKey, index) {
+    const [w, h, , fileBottom, rows] = data.frames[file];
+    const bottom = rows && index !== undefined ? rows[firstUse(file, index, value)] : fileBottom;
     const out = document.createElement("canvas");
     out.width = w;
     out.height = h;
@@ -410,7 +431,7 @@ export function createBuilder(api) {
       if (!made.has(id)) {
         const slot = (sec.facings[facing] || [])[i];
         const v = slot ? (values[facing] || [])[i] ?? null : null;
-        const p = slot && piecesOf(v).length ? placed(v, slot[0], key) : null;
+        const p = slot && piecesOf(v).length ? placed(v, slot[0], key, slot[1]) : null;
         made.set(id, p && !p.missing ? p.canvas : null);
       }
       return made.get(id);
@@ -438,7 +459,7 @@ export function createBuilder(api) {
     b.className = "b-slot";
     const isActive = active && active.key === key && active.facing === facing && active.index === index;
     if (isActive) b.classList.add("active");
-    const p = placed(value, file, key);
+    const p = placed(value, file, key, frame);
     const [w, h] = data.frames[file];
     const scale = w <= 16 && h <= 16 ? 3 : w <= 32 && h <= 32 ? 2 : 1;
     p.canvas.style.width = w * scale + "px";

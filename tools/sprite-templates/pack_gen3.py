@@ -61,6 +61,14 @@ dive       Underwater art for sets that have none (most Gen 4 sets), in a
              python3 pack_gen3.py dive ../../assets/sprites/<folder>/gen3/rse
              python3 pack_gen3.py dive ../../assets/sprites/<folder>/gen3/rse --blob
 
+feet       Check a packed look folder's frames against where the game's own
+           sit: the walking bob (standing frames a row up, steps a row
+           down), bikes on the bottom row, back pics reaching the bottom
+           edge, and so on. Lists frames that float or sink; --match moves
+           each one up or down onto the game's row:
+             python3 pack_gen3.py feet rse ../../assets/sprites/<folder>/gen3/rse
+             python3 pack_gen3.py feet rse ../../assets/sprites/<folder>/gen3/rse --match
+
 Extras (optional): the surf blob, the Fly bird and the bag have their own
 smaller sheet, frlg_extras.png / rse_extras.png, with separate templates in
 frlg_extras/ and rse_extras/. Use frlg_extras or rse_extras in place of frlg
@@ -1022,6 +1030,113 @@ def merge_options(args):
             i += 1
     return parse_picks(picks), report, clash_dir, rest
 
+# ------------------------------------------------------------------- feet
+# Where the game's own frames sit: the lowest row of each frame, from pret's
+# pokeemerald / pokefirered pics through their pic tables, so frame N here
+# is frame N of our sheet. Walking bobs (standing frames a row up, steps a
+# row down); bikes sit on the bottom row; back pics reach the bottom edge;
+# front pics stop a row above it. (a, b): the boy's and girl's differ, and
+# either is fine. Fishing and underwater aren't listed: the rod and the
+# diver's mount make the lowest row the art's own business. -Elvie
+GAME_FEET = {
+  "frlg": {
+    "walk.png": [30, 30, 30, 31, 31, 31, 31, 30, 30, 28, 30, 30, 29, 31, 31, 29, (29, 30), 29, (30, 31), (30, 31)],
+    "bike.png": [31, 31, 31, 31, 31, 31, 31, 31, 31],
+    "surf.png": [29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29],
+    "fieldMove.png": [30, 30, 30, 30, 30, 30, 30, 30, 30],
+    "vsSeekerBike.png": [31, 31, 31, 31, 31, 31],
+    "back.png": [63, 63, 63, 63, 63],
+    "front.png": [62],
+  },
+  "rse": {
+    "walk.png": [30, 30, 30, 31, 31, 31, 31, 31, 31, 29, 29, 30, 30, 30, 31, 31, 31, 31],
+    "bike.png": [31, 31, 31, 31, 31, 31, 31, 31, 31],
+    "acroBike.png": [31, 31, 31, 31, 31, 31, 31, 31, 31, 30, 28, 30, 29, 30, 29, 30, 29, 31, 31, 31, 31, 28, 28, 29, 29, 31, 31],
+    "surf.png": [30, 30, 31, 30, 30, 30, 30, 31, 31, 29, 29, 30],
+    "fieldMove.png": [30, 30, 30, 30, 30],
+    "watering.png": [30, 30, 30, 31, 31, 30, 30, 30, 30],
+    "back.png": [63, 63, 63, 63],
+    "front.png": [62],
+    "decorating.png": [30],
+  },
+}
+
+def feet_rows(family, name, index):
+    """The rows the game's frame sits on, as a tuple (empty if not listed)."""
+    rows = GAME_FEET.get(base_of(family), {}).get(name)
+    if not rows or index >= len(rows):
+        return ()
+    r = rows[index]
+    return r if isinstance(r, tuple) else (r,)
+
+def feet(family, folder, match=False):
+    """Each frame's lowest row against the game's; with match, frames moved
+    onto the nearest of the game's rows."""
+    base = base_of(family)
+    changed = found = 0
+    too_tall = []
+    for name in GAME_FEET.get(base, {}):
+        path = os.path.join(folder, name)
+        if not os.path.isfile(path):
+            continue
+        w, h, n = spec(base, name)
+        im = Image.open(path).convert("RGBA")
+        if im.height != h * n or im.width not in (w, 32):
+            print(f"  skip    {name} ({im.width}x{im.height} isn't a {base} {name})")
+            continue
+        moves, stuck, first = {}, [], {}
+        for i in range(n):
+            frame = im.crop((0, i * h, im.width, (i + 1) * h))
+            # A frame that's a copy of an earlier one stands in for art the
+            # set doesn't have (tricks drawn as the riding frame): it moves
+            # with its original, so it doesn't float or sink on its own. -Elvie
+            key = frame.tobytes()
+            if key in first:
+                if first[key] in moves:
+                    moves[i] = moves[first[key]]
+                continue
+            first[key] = i
+            want = feet_rows(base, name, i)
+            bb = frame.getchannel("A").getbbox()
+            if not want or not bb or bb[3] - 1 in want:
+                continue
+            got = bb[3] - 1
+            row = min(want, key=lambda r: abs(r - got))
+            moves[i] = row - got
+            tall = bb[1] + row - got < 0
+            if tall:
+                stuck.append(i)
+            print(f"  differs {name} frame {i}: feet on row {got}, the game's is {row}"
+                  + ("; too tall to move up without cutting off its top" if tall else ""))
+        if not moves:
+            print(f"  ok      {name}: every frame on the game's rows")
+            continue
+        found += len([i for i in moves if first.get(im.crop((0, i * h, im.width, (i + 1) * h)).tobytes()) == i])
+        if stuck and not match:
+            too_tall.append(name)
+        if match and stuck:
+            # moving the rest would leave a trick or a pose half lifted, so
+            # the whole sheet stays as it is -Elvie
+            print(f"  kept    {name} as it is: frame{'s' if len(stuck) > 1 else ''} "
+                  f"{', '.join(map(str, stuck))} can't move without losing pixels")
+            continue
+        if match:
+            # frame by frame, so nothing spills into a neighbour
+            clean = Image.new("RGBA", im.size, CLEAR)
+            for i in range(n):
+                cell = Image.new("RGBA", (im.width, h), CLEAR)
+                cell.paste(im.crop((0, i * h, im.width, (i + 1) * h)), (0, moves.get(i, 0)))
+                clean.paste(cell, (0, i * h))
+            clean.save(path)
+            changed += len(moves)
+            print(f"  moved   {name}: {len(moves)} frame{'s' if len(moves) != 1 else ''}")
+    if match:
+        print(f"  matched {changed} frame{'s' if changed != 1 else ''}")
+    elif found:
+        note = f" (except {', '.join(too_tall)}: a frame too tall to move up)" if too_tall else ""
+        print(f"  off     {found} frame{'s' if found != 1 else ''}; --match moves them{note}")
+    return True
+
 # ------------------------------------------------------------------- dive
 # Underwater art for sets with none. The game's diver rides a dark
 # silhouette of a Pokemon; this recolors the surf blob to match, keeping its
@@ -1129,6 +1244,8 @@ if __name__ == "__main__":
         sys.exit(0)
     if len(a) == 5 and a[0] == "transfer" and a[1] in SPECS and a[3] in SPECS:
         sys.exit(0 if transfer(a[1], a[2], a[3], a[4]) else 1)
+    if len(a) in (3, 4) and a[0] == "feet" and a[1] in SPECS and a[3:] in ([], ["--match"]):
+        sys.exit(0 if feet(a[1], a[2], a[3:] == ["--match"]) else 1)
     if len(a) >= 2 and a[0] == "dive" and set(a[2:]) <= {"--blob", "--underwater", "--force"}:
         both = not ({"--blob", "--underwater"} & set(a[2:]))
         sys.exit(0 if dive(a[1], both or "--blob" in a, both or "--underwater" in a, "--force" in a) else 1)

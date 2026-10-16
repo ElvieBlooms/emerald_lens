@@ -198,6 +198,54 @@ sprites. `dive` makes a start from a packed R/S/E look folder's surf art:
 
 A recipe can fill the `dive blob` section too, like `surf blob`.
 
+## Where frames sit (feet)
+
+The game's walking frames bob: in a standing frame the feet are a row above
+the bottom, and in the steps the whole sprite drops a row (FRLG keeps its
+left-facing steps up). R/S/E's running frames (`walk.png` 9-17) have rows of
+their own. Art drawn with every frame on the bottom row walks without the
+bob, and next to sets that have it, it looks a pixel off. Frame by frame,
+the game's lowest rows are:
+
+| walk.png | Stand (down, up, left) | Steps down | Steps up | Steps left |
+|---|---|---|---|---|
+| FRLG | 30, 30, 30 | 31, 31 | 31, 31 | 30, 30 |
+| RSE walking | 30, 30, 30 | 31, 31 | 31, 31 | 31, 31 |
+| RSE running (9-17) | 29, 29, 30 | 30, 30 | 31, 31 | 31, 31 |
+
+FRLG's running frames (`walk.png` 9-17) and walk extras (18-19) have rows
+of their own too. The other sheets follow the game the same way:
+
+- Bikes (`bike.png`, `vsSeekerBike.png`, the Acro Bike's riding frames) sit
+  on the bottom row; the Acro Bike's wheelie and hop frames lift to rows
+  28-30, as in the game.
+- Surfing: FRLG's sit on row 29; RSE's frames vary between 29 and 31.
+- `fieldMove.png`, `decorating.png` and most of `watering.png`: row 30.
+- `back.png` reaches the bottom edge (row 63) in every frame; `front.png`
+  stops a row above it (62).
+- Fishing and underwater aren't checked: the rod and the diver's mount make
+  the lowest row the art's own business.
+
+(All measured from pret's pokeemerald and pokefirered through their pic
+tables, so frame N of the game's art is frame N of our sheet. Where the
+boy's and girl's art differ, either row is accepted.)
+
+`feet` checks a packed look folder against these, and `--match` moves each
+frame up or down onto the game's row. Only whole frames move; the art is
+untouched. A frame that's a copy of an earlier one (tricks drawn as the
+riding frame, say) stands in for art the set doesn't have, so it moves with
+its original rather than to the game's row for that trick. A sheet with a
+frame too tall to move up without losing its top row is left as it is
+(moving the rest would leave a trick half lifted):
+
+    python3 pack_gen3.py feet rse ../../assets/sprites/<folder>/gen3/rse
+    python3 pack_gen3.py feet rse ../../assets/sprites/<folder>/gen3/rse --match
+
+`import_sheet.py build` puts sprites on these rows too, except that a sprite
+used for several frames of a sheet goes on its first frame's row.
+Strip frames and Essentials grids keep the set's own placement; run `feet
+--match` on the packed folder if you want those on the game's rows.
+
 ## Surf placement (reference only)
 
 `frlg_surf_placement.png` and `rse_surf_placement.png` show how the game lines
@@ -259,7 +307,8 @@ resized: sprites are cut out at their real size and set into our frames.
      sprite that came out in two bits), `{"piece": 12, "flip": true}`, or
      `null` to leave a frame blank.
    - A fishing rod (or anything else) reaching below the feet would lift the
-     sprite, since the lowest pixel goes on the foot row. `{"piece": 40,
+     sprite, since the lowest pixel goes on the foot row (the game's row
+     for that frame; see Where frames sit). `{"piece": 40,
      "hang": 5}` says 5 pixels hang below the feet: the feet stay put and
      whatever doesn't fit the frame is cut off.
    - `"shift": -3` moves a sprite 3 pixels left of centre (positive is

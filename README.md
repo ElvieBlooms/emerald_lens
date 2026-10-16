@@ -87,6 +87,8 @@ Each sheet is one vertical strip of frames, in the game's own order:
 
 Gen 3 sprites are always full color.
 
+In `walk.png`, draw the standing frames with the feet one row above the bottom and the steps a row lower, as the game does, or the walk won't bob like everyone else's (`pack_gen3.py feet` checks and fixes this, and where every other sheet's frames sit; see the tools README).
+
 The 16-wide sheets (`walk.png`, `decorating.png`, and FRLG's `surf.png` and `fieldMove.png`) can also be drawn 32 wide, for characters bigger than the game's own, such as Gen 4 sprites. The game draws them centred on the tile with the feet on its bottom edge, so they just stand a little wider. Any other size is still skipped.
 
 ### Extras

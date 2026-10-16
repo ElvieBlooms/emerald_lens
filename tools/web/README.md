@@ -28,6 +28,12 @@ The page walks through four steps:
 
 Each step logs the command it ran, so it can be repeated on the command line.
 
+Step 4 checks where the look's frames sit against the game's own
+(`pack_gen3.py feet`: the walking bob, bikes on the ground, back pics
+reaching the bottom...): if any sit too high or too low, it says how many
+and in which sheets, and offers to move them onto the game's rows
+(`feet --match`).
+
 Step 4 also has the dive helpers (`pack_gen3.py dive`) for a look with R/S/E
 art but no diving art: a dive blob from the surf blob, and diving frames
 from the surf sitting frames.

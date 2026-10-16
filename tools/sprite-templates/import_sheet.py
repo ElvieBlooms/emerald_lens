@@ -276,8 +276,13 @@ FOOT = {
   "rse":  {"underwater.png": 29, "front.png": 63, "mapIcon.png": 15, "bag.png": 60},
 }
 
-def foot(family, name, h):
+def foot(family, name, h, index=None):
+    """The row a sprite's bottom edge goes on: per frame where the game's
+    frames differ (pack_gen3.GAME_FEET), else per file."""
     base = P.base_of(family).replace("_extras", "")
+    rows = P.feet_rows(base, name, index) if index is not None else ()
+    if rows:
+        return rows[0] + 1
     return FOOT[base].get(name, h)
 
 def sections(family):
@@ -751,6 +756,7 @@ def build(src, recipe_path, out_dir):
         strip.paste(frame, (0, index * h))
         filled[name] += 1
 
+    jobs = []
     for key, facings in recipe.get("sections", {}).items():
         key = key.lower()
         if isinstance(facings, list):
@@ -792,13 +798,23 @@ def build(src, recipe_path, out_dir):
             if len(refs) > len(slots):
                 warn.append(f"{key} {facing}: {len(refs)} sprites given, only {len(slots)} frames; the rest are ignored")
             for (name, idx), ref in zip(slots, refs):
-                spr = piece_image(im, pieces, ref)
-                if spr:
-                    w, h, _ = P.spec(fam, name)
-                    bottom = foot(fam, name, h)
-                    if key in shrink_keys:
-                        spr = shrink(spr, w, bottom, warn, f"{key} {facing}")
-                    put(fam, name, idx, place(spr, w, h, bottom, warn, f"{key} {facing}"))
+                jobs.append((key, facing, fam, name, idx, ref))
+
+    # A sprite used for more than one frame of a sheet (tricks drawn as the
+    # riding frame, say) goes on the row of its first frame in each, so a
+    # stand-in doesn't float or sink where the game's own frame lifts. -Elvie
+    firsts = {}
+    for key, facing, fam, name, idx, ref in jobs:
+        k = (fam, name, json.dumps(ref, sort_keys=True))
+        firsts[k] = min(firsts.get(k, idx), idx)
+    for key, facing, fam, name, idx, ref in jobs:
+        spr = piece_image(im, pieces, ref)
+        if spr:
+            w, h, _ = P.spec(fam, name)
+            bottom = foot(fam, name, h, firsts[(fam, name, json.dumps(ref, sort_keys=True))])
+            if key in shrink_keys:
+                spr = shrink(spr, w, bottom, warn, f"{key} {facing}")
+            put(fam, name, idx, place(spr, w, h, bottom, warn, f"{key} {facing}"))
 
     return write_out(family, strips, filled, warn, out_dir)
 

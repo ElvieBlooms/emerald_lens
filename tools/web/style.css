@@ -352,3 +352,7 @@ details.combine > p { max-width: 40rem; }
 .clash-pick.on { border-color: var(--guide); box-shadow: 0 0 0 2px var(--guide); color: var(--ink); }
 .row .check-line { margin: 0; align-items: center; }
 .row .check-line input { margin-top: 0; }
+
+/* a heads-up about the look, like walking frames off the game's rows -Elvie */
+.notice { border-left: 3px solid var(--warn, var(--guide)); background: var(--panel); padding: 10px 14px; margin: 14px 0; border-radius: 4px; }
+.notice p { margin: 0 0 8px; }

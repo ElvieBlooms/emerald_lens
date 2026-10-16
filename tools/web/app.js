@@ -868,6 +868,7 @@ function showLook() {
     p.textContent = "Nothing packed yet. Pack a sheet in step 3 and it shows up here.";
     box.replaceChildren(p);
     refreshLookPreview({});
+    $("look-feet").hidden = true;
     refresh();
     return;
   }
@@ -916,8 +917,50 @@ function showLook() {
     })
   );
   refreshLookPreview(groups);
+  checkFeet();
   refresh();
 }
+
+// Feet: pack_gen3.py feet on each family's packed files. Frames that sit
+// higher or lower than the game's own (the walking bob, bikes on the
+// ground, back pics reaching the bottom...) float or sink in game, so the
+// look says so and offers to move them. -Elvie
+function checkFeet() {
+  const off = [];
+  for (const fam of ["frlg", "rse"]) {
+    if (!exists(`look/gen3/${fam}`)) continue;
+    const result = W.run("pack_gen3.py", py.toPy(["feet", fam, `look/gen3/${fam}`]));
+    const [, out] = result.toJs();
+    result.destroy();
+    let high = 0, low = 0;
+    const files = {};
+    for (const m of out.matchAll(/differs (\S+)\.png frame \d+: feet on row (\d+), the game's is (\d+)/g)) {
+      files[m[1]] = (files[m[1]] || 0) + 1;
+      if (Number(m[2]) < Number(m[3])) high++;
+      else low++;
+    }
+    if (high + low) {
+      const parts = [];
+      if (high) parts.push(`${high} too high`);
+      if (low) parts.push(`${low} too low`);
+      const which = Object.entries(files).map(([f, n]) => `${f} ${n}`).join(", ");
+      off.push(`${FAMILY_NAMES[fam]}: ${high + low} frame${high + low === 1 ? "" : "s"} off the game's rows (${which}; ${parts.join(", ")})`);
+    }
+  }
+  $("look-feet").hidden = !off.length;
+  $("feet-what").textContent = off.length
+    ? `${off.join(". ")}. In game they'd float, sink or lose the walking bob next to other looks. Fishing and underwater aren't checked.`
+    : "";
+}
+
+$("feet-match").addEventListener("click", (e) =>
+  busy(e.currentTarget, async () => {
+    for (const fam of ["frlg", "rse"]) {
+      if (exists(`look/gen3/${fam}`)) run("pack_gen3.py", ["feet", fam, `look/gen3/${fam}`, "--match"], $("feet-log"));
+    }
+    showLook();
+  })
+);
 
 // The dive helpers: pack_gen3.py dive on the look's R/S/E folder. -Elvie
 function runDive(flag, e) {
