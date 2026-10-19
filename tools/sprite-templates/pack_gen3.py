@@ -56,10 +56,18 @@ dive       Underwater art for sets that have none (most Gen 4 sets), in a
            packed R/S/E look folder. --blob makes diveBlob.png from the
            folder's surfBlob.png, recolored dark like the game's own diver;
            --underwater fills underwater.png with the surf.png sitting
-           frames. Both by default; files already there are kept unless
-           --force:
+           frames, washed navy (--no-shade keeps their colours). Both by
+           default; files already there are kept unless --force:
              python3 pack_gen3.py dive ../../assets/sprites/<folder>/gen3/rse
              python3 pack_gen3.py dive ../../assets/sprites/<folder>/gen3/rse --blob
+
+blobs      Ready-made surf and dive blobs from a blob set (blobs/<set>/)
+           into a packed look's gen3 folder: the FR/LG surfBlob.png into
+           frlg/, the R/S/E surfBlob.png and diveBlob.png into rse/, for
+           whichever of the two the look has. --surf or --dive for just
+           those; files already there are kept unless --force:
+             python3 pack_gen3.py blobs ../../assets/sprites/<folder>/gen3 blobs/set1
+             python3 pack_gen3.py blobs ../../assets/sprites/<folder>/gen3 blobs/set2 --dive
 
 flybird    A Fly sheet (flyBird.png) for a packed FR/LG look folder from a
            bird kit: the kit's back layer, the look's surf sitting frame
@@ -1246,6 +1254,20 @@ def feet(family, folder, match=False):
 # shading in four dark blues. The surf sitting frames stand in for the
 # diver: underwater frames are drawn in the same place as surf ones. -Elvie
 DIVE_RAMP = [(8, 16, 40), (24, 40, 80), (40, 64, 112), (64, 96, 144)]
+# Diving frames get a navy wash so the diver reads as underwater: navy laid
+# over every drawn pixel at 60%, as Elvie did by hand for HGSS Ash. -Elvie
+DIVE_SHADE, DIVE_SHADE_ALPHA = (0, 25, 113), 0.6
+
+def dive_shade(im):
+    """A sprite with DIVE_SHADE laid over its drawn pixels, alpha kept."""
+    im = im.convert("RGBA")
+    px, k = im.load(), DIVE_SHADE_ALPHA
+    for y in range(im.height):
+        for x in range(im.width):
+            r, g, b, a = px[x, y]
+            if a:
+                px[x, y] = tuple(round(c * (1 - k) + s * k) for c, s in zip((r, g, b), DIVE_SHADE)) + (a,)
+    return im
 
 def dive_tint(im):
     """A sprite recolored into DIVE_RAMP by brightness, alpha kept."""
@@ -1276,6 +1298,35 @@ def dive_tint(im):
 FLY_TILT = 10.23  # degrees clockwise, as Elvie tilts her riders by hand
 FLY_FRAMES = [{"surf": 0, "mirror": True, "x": 29, "y": 23},
               {"surf": 1, "mirror": True, "x": 32, "y": 29}]
+
+# Blob sets (blobs/<set>/): frlg/surfBlob.png, rse/surfBlob.png and
+# rse/diveBlob.png, drawn to match, for looks with no blob of their own.
+# Copied as they are; a missing file in the set is just skipped. -Elvie
+BLOB_FILES = (("frlg", "surfBlob.png", "surf"), ("rse", "surfBlob.png", "surf"), ("rse", "diveBlob.png", "dive"))
+
+def blobs(gen3, kit, kinds=("surf", "dive"), force=False):
+    """A blob set's surf/dive blobs into a look's gen3 folder."""
+    made = 0
+    for fam, name, kind in BLOB_FILES:
+        src, dst_dir = os.path.join(kit, fam, name), os.path.join(gen3, fam)
+        if kind not in kinds or not os.path.isfile(src):
+            continue
+        if not os.path.isdir(dst_dir):
+            print(f"  skip    {fam}/{name} (the look has no {fam} folder)")
+            continue
+        dst = os.path.join(dst_dir, name)
+        if os.path.exists(dst) and not force:
+            print(f"  skip    {fam}/{name} (already there; --force to replace it)")
+            continue
+        w, h, n = spec(fam + "_extras", name)
+        im = Image.open(src).convert("RGBA")
+        if im.size != (w, h * n):
+            print(f"  skip    {fam}/{name} (the set's is {im.width}x{im.height}, expected {w}x{h * n})")
+            continue
+        im.save(dst)
+        print(f"  made    {fam}/{name}")
+        made += 1
+    return made > 0
 
 def flybird(folder, kit, nudges=((0, 0), (0, 0)), out=None, force=False, bird=True, tilts=(None, None)):
     """flyBird.png (and the kit's bird.png) for a packed FR/LG look folder."""
@@ -1341,7 +1392,7 @@ def flybird(folder, kit, nudges=((0, 0), (0, 0)), out=None, force=False, bird=Tr
     print(f"  made    {os.path.basename(out)}")
     return True
 
-def dive(folder, blob=True, underwater=True, force=False):
+def dive(folder, blob=True, underwater=True, force=False, shade=True):
     """diveBlob.png and/or underwater.png in a packed R/S/E look folder."""
     if not os.path.isdir(folder):
         print(f"  ERROR   {folder} is not a folder")
@@ -1376,6 +1427,8 @@ def dive(folder, blob=True, underwater=True, force=False):
             for fi in range(n):
                 facing = fi if fi < 3 else (fi - 3) // 2
                 strip.paste(im.crop((0, facing * sh, sw, (facing + 1) * sh)), (0, fi * h))
+            if shade:
+                strip = dive_shade(strip)
         if not strip.getbbox():
             print(f"  skip    {name} ({src_name} is blank)")
             continue
@@ -1423,6 +1476,9 @@ if __name__ == "__main__":
         sys.exit(0 if transfer(a[1], a[2], a[3], a[4]) else 1)
     if len(a) in (3, 4) and a[0] == "feet" and a[1] in SPECS and a[3:] in ([], ["--match"]):
         sys.exit(0 if feet(a[1], a[2], a[3:] == ["--match"]) else 1)
+    if len(a) >= 3 and a[0] == "blobs" and set(a[3:]) <= {"--surf", "--dive", "--force"}:
+        kinds = [k for k in ("surf", "dive") if "--" + k in a] or ["surf", "dive"]
+        sys.exit(0 if blobs(a[1], a[2], kinds, "--force" in a) else 1)
     if len(a) >= 3 and a[0] == "flybird":
         opts, nudge, out, force, bird, k = a[3:], [(0, 0), (0, 0)], None, False, True, 0
         tilts = [None, None]
@@ -1446,9 +1502,10 @@ if __name__ == "__main__":
             else:
                 sys.exit(f"  ERROR   unknown option {opts[k]}")
         sys.exit(0 if flybird(a[1], a[2], nudge, out, force, bird, tilts) else 1)
-    if len(a) >= 2 and a[0] == "dive" and set(a[2:]) <= {"--blob", "--underwater", "--force"}:
+    if len(a) >= 2 and a[0] == "dive" and set(a[2:]) <= {"--blob", "--underwater", "--force", "--no-shade"}:
         both = not ({"--blob", "--underwater"} & set(a[2:]))
-        sys.exit(0 if dive(a[1], both or "--blob" in a, both or "--underwater" in a, "--force" in a) else 1)
+        sys.exit(0 if dive(a[1], both or "--blob" in a, both or "--underwater" in a, "--force" in a,
+                           "--no-shade" not in a) else 1)
     if len(a) == 3 and a[0] == "blank" and a[1] in SPECS:
         blank_sheet(a[1]).save(a[2])
         print(f"  wrote   {a[2]}")

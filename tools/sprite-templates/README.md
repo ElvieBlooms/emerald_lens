@@ -182,6 +182,23 @@ where the surf blob goes (blob at (-8, -8) from the tile, as above). It's
 only drawn behind the `underwater.png` in the same folder; other looks of
 the character don't borrow it.
 
+### Ready-made surf and dive blobs
+
+`blobs/` has four sets of plain mounts for looks with no blob of their own
+(Round, Ray, Finned and Flippers, drawn by Elvie). Each set has the FR/LG
+`surfBlob.png` (six frames: the bob swaps between two per facing), the
+R/S/E `surfBlob.png` and a matching `diveBlob.png`. `blobs` copies a set
+into a packed look's `gen3` folder, for whichever families it has:
+
+    python3 pack_gen3.py blobs ../../assets/sprites/<folder>/gen3 blobs/set1
+    python3 pack_gen3.py blobs ../../assets/sprites/<folder>/gen3 blobs/set2 --dive
+
+- `--surf` or `--dive` copies just those; files already there are kept
+  unless you add `--force`.
+- The dive blob only shows behind `underwater.png` from the same folder
+  (see Dive blob above), so a look with no diving art of its own also needs
+  `dive --underwater`.
+
 ### Fly bird from a ready-made bird
 
 `flybird` makes a FR/LG look's `flyBird.png` from a bird kit and the look's
@@ -223,7 +240,9 @@ sprites. `dive` makes a start from a packed R/S/E look folder's surf art:
   dark blues by brightness, like the games' diver.
 - `--underwater` fills `underwater.png` with the `surf.png` sitting frame
   for each facing (the game draws underwater frames in the same place as
-  surf ones).
+  surf ones), with a navy wash so the diver looks underwater: navy
+  (#001971) laid over the sprite at 60%. `--no-shade` keeps the surf
+  colours.
 - With neither, it does both. A file that's already there is kept unless
   you add `--force`.
 

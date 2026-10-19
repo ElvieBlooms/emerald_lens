@@ -978,11 +978,69 @@ function runDive(flag, e) {
   busy(e.currentTarget, async () => {
     const argv = ["dive", "look/gen3/rse", flag];
     if ($("dive-force").checked) argv.push("--force");
+    if (flag === "--underwater" && !$("dive-shade").checked) argv.push("--no-shade");
     run("pack_gen3.py", argv, $("dive-log"));
     showLook();
   });
 }
 $("dive-blob").addEventListener("click", (e) => runDive("--blob", e));
+
+// --------------------------------------------------- 4a. blob sets
+// Ready-made surf and dive blobs in sprite-templates/blobs/; pack_gen3.py
+// blobs copies them into the look, the page just shows them. -Elvie
+
+const BLOB_KITS = [
+  { id: "set1", name: "Round" }, { id: "set2", name: "Ray" },
+  { id: "set3", name: "Finned" }, { id: "set4", name: "Flippers" },
+];
+const BLOB_FILES = ["frlg/surfBlob.png", "rse/surfBlob.png", "rse/diveBlob.png"];
+const blobLoaded = new Set();
+
+async function blobKit() {
+  const id = $("blob-kit").value;
+  if (!blobLoaded.has(id)) {
+    for (const f of BLOB_FILES) {
+      const r = await fetch(TOOLS + `blobs/${id}/${f}`, { cache: "no-cache" });
+      if (!r.ok) throw new Error(`blobs/${id}/${f} answered ${r.status}`);
+      writeFile(`blobs/${id}/${f}`, new Uint8Array(await r.arrayBuffer()));
+    }
+    blobLoaded.add(id);
+  }
+  return `blobs/${id}`;
+}
+
+async function blobPreview() {
+  const kit = await blobKit();
+  const c = $("blob-c"), g = c.getContext("2d"), z = 3;
+  g.imageSmoothingEnabled = false;
+  g.clearRect(0, 0, c.width, c.height);
+  // [file, frames, row, first column]
+  const rows = [["frlg/surfBlob.png", 6, 0, 0], ["rse/surfBlob.png", 3, 1, 0], ["rse/diveBlob.png", 3, 1, 3]];
+  for (const [f, n, row, col] of rows) {
+    const img = new Image();
+    img.src = imageURL(`${kit}/${f}`, "blob");
+    await img.decode();
+    for (let i = 0; i < n; i++) g.drawImage(img, 0, i * 32, 32, 32, (col + i) * 32 * z, row * 32 * z, 32 * z, 32 * z);
+  }
+  freeURLs("blob");
+}
+
+for (const k of BLOB_KITS) $("blob-kit").add(new Option(k.name, k.id));
+const blobShow = () => blobPreview().catch((err) => log($("blob-log"), String(err) + "\n"));
+$("blob-kit").addEventListener("change", blobShow);
+$("blob-save").addEventListener("click", (e) => busy(e.currentTarget, async () => {
+  const kit = await blobKit();
+  const argv = ["blobs", "look/gen3", kit];
+  if ($("blob-surf").checked && !$("blob-dive").checked) argv.push("--surf");
+  if ($("blob-dive").checked && !$("blob-surf").checked) argv.push("--dive");
+  if (!$("blob-surf").checked && !$("blob-dive").checked) {
+    log($("blob-log"), "Tick surf blobs, the dive blob, or both.\n");
+    return;
+  }
+  if ($("blob-force").checked) argv.push("--force");
+  run("pack_gen3.py", argv, $("blob-log"));
+  showLook();
+}));
 
 // --------------------------------------------------- 4a. fly bird kits
 // Ready-made birds in sprite-templates/flybirds/. The rider is the look's
@@ -1309,6 +1367,9 @@ function refresh() {
   $("look-dive").hidden = !rse;
   $("dive-blob").disabled = !rse || !exists("look/gen3/rse/surfBlob.png");
   $("dive-under").disabled = !rse || !exists("look/gen3/rse/surf.png");
+  const blobLook = ready && (exists("look/gen3/frlg") || exists("look/gen3/rse"));
+  if (blobLook && $("look-blobs").hidden) blobShow();
+  $("look-blobs").hidden = !blobLook;
   const flySurf = ready && exists("look/gen3/frlg/surf.png");
   $("look-fly").hidden = !flySurf;
   $("fly-save").disabled = !flySurf;

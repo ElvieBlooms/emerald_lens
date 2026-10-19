@@ -38,7 +38,14 @@ and in which sheets, and offers to move them onto the game's rows
 
 Step 4 also has the dive helpers (`pack_gen3.py dive`) for a look with R/S/E
 art but no diving art: a dive blob from the surf blob, and diving frames
-from the surf sitting frames.
+from the surf sitting frames, washed navy unless "Navy wash on the diving
+frames" is unticked.
+
+Every look also gets "No surf blob?" (`pack_gen3.py blobs`): pick one of
+the ready-made blob sets in `sprite-templates/blobs/`, see all its frames
+on water, and add its FR/LG surf blob, R/S/E surf blob and dive blob (or
+just the surf or dive ones) to the look. New sets only need their folder
+and a line in `BLOB_KITS` in `app.js`.
 
 A look with FR/LG surf art also gets "No Fly bird?" (`pack_gen3.py
 flybird`): pick a ready-made bird from `sprite-templates/flybirds/`, and

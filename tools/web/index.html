@@ -242,9 +242,24 @@
     <div class="row">
       <button type="button" class="btn" id="dive-blob">Dive blob from the surf blob</button>
       <button type="button" class="btn" id="dive-under">Diving frames from surf</button>
+      <label class="check-line"><input type="checkbox" id="dive-shade" checked> Navy wash on the diving frames</label>
       <label class="check-line"><input type="checkbox" id="dive-force"> Replace what's there</label>
     </div>
     <pre class="log" id="dive-log" hidden></pre>
+  </div>
+  <div id="look-blobs" hidden>
+    <h3 class="sub">No surf blob?</h3>
+    <p class="hint">Ready-made mounts, drawn to match: the FR/LG surf blob, the R/S/E surf blob and a dive blob that goes behind the look's diving frames. Each goes into the family folders the look has.</p>
+    <div class="row"><label>Blob set <select id="blob-kit"></select></label></div>
+    <canvas id="blob-c" class="blob-sheet" width="576" height="192"></canvas>
+    <p class="hint">Top: FR/LG surf blob (down, up, left, two frames each for the bob). Bottom: R/S/E surf blob, then the dive blob.</p>
+    <div class="row">
+      <button type="button" class="btn primary" id="blob-save">Add these blobs</button>
+      <label class="check-line"><input type="checkbox" id="blob-surf" checked> Surf blobs</label>
+      <label class="check-line"><input type="checkbox" id="blob-dive" checked> Dive blob</label>
+      <label class="check-line"><input type="checkbox" id="blob-force"> Replace what's there</label>
+    </div>
+    <pre class="log" id="blob-log" hidden></pre>
   </div>
   <div id="look-fly" hidden>
     <h3 class="sub">No Fly bird?</h3>

@@ -353,6 +353,9 @@ details.combine > p { max-width: 40rem; }
 .row .check-line { margin: 0; align-items: center; }
 .row .check-line input { margin-top: 0; }
 
+/* blob sets: every frame of a set on water -Elvie */
+.blob-sheet { image-rendering: pixelated; background: var(--water, #3068a8); border: 1px solid var(--line); border-radius: 4px; display: block; max-width: 100%; }
+
 /* fly bird builder: both frames side by side, nudges under each -Elvie */
 .fly-frames { display: flex; flex-wrap: wrap; gap: 16px; }
 .fly-frames figure { margin: 0; }
