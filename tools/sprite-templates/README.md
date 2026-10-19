@@ -194,7 +194,9 @@ sprites. `dive` makes a start from a packed R/S/E look folder's surf art:
   dark blues by brightness, like the games' diver.
 - `--underwater` fills `underwater.png` with the `surf.png` sitting frame
   for each facing (the game draws underwater frames in the same place as
-  surf ones).
+  surf ones), with a navy wash so the diver looks underwater: navy
+  (#001971) laid over the sprite at 60%. `--no-shade` keeps the surf
+  colours.
 - With neither, it does both. A file that's already there is kept unless
   you add `--force`.
 

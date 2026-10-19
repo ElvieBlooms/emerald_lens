@@ -38,7 +38,8 @@ and in which sheets, and offers to move them onto the game's rows
 
 Step 4 also has the dive helpers (`pack_gen3.py dive`) for a look with R/S/E
 art but no diving art: a dive blob from the surf blob, and diving frames
-from the surf sitting frames.
+from the surf sitting frames, washed navy unless "Navy wash on the diving
+frames" is unticked.
 
 A folder is read a file at a time, with a progress bar, since Python holds
 the page while it works and a folder of a few hundred files takes a while

@@ -978,6 +978,7 @@ function runDive(flag, e) {
   busy(e.currentTarget, async () => {
     const argv = ["dive", "look/gen3/rse", flag];
     if ($("dive-force").checked) argv.push("--force");
+    if (flag === "--underwater" && !$("dive-shade").checked) argv.push("--no-shade");
     run("pack_gen3.py", argv, $("dive-log"));
     showLook();
   });

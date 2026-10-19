@@ -56,8 +56,8 @@ dive       Underwater art for sets that have none (most Gen 4 sets), in a
            packed R/S/E look folder. --blob makes diveBlob.png from the
            folder's surfBlob.png, recolored dark like the game's own diver;
            --underwater fills underwater.png with the surf.png sitting
-           frames. Both by default; files already there are kept unless
-           --force:
+           frames, washed navy (--no-shade keeps their colours). Both by
+           default; files already there are kept unless --force:
              python3 pack_gen3.py dive ../../assets/sprites/<folder>/gen3/rse
              python3 pack_gen3.py dive ../../assets/sprites/<folder>/gen3/rse --blob
 
@@ -1235,6 +1235,20 @@ def feet(family, folder, match=False):
 # shading in four dark blues. The surf sitting frames stand in for the
 # diver: underwater frames are drawn in the same place as surf ones. -Elvie
 DIVE_RAMP = [(8, 16, 40), (24, 40, 80), (40, 64, 112), (64, 96, 144)]
+# Diving frames get a navy wash so the diver reads as underwater: navy laid
+# over every drawn pixel at 60%, as Elvie did by hand for HGSS Ash. -Elvie
+DIVE_SHADE, DIVE_SHADE_ALPHA = (0, 25, 113), 0.6
+
+def dive_shade(im):
+    """A sprite with DIVE_SHADE laid over its drawn pixels, alpha kept."""
+    im = im.convert("RGBA")
+    px, k = im.load(), DIVE_SHADE_ALPHA
+    for y in range(im.height):
+        for x in range(im.width):
+            r, g, b, a = px[x, y]
+            if a:
+                px[x, y] = tuple(round(c * (1 - k) + s * k) for c, s in zip((r, g, b), DIVE_SHADE)) + (a,)
+    return im
 
 def dive_tint(im):
     """A sprite recolored into DIVE_RAMP by brightness, alpha kept."""
@@ -1256,7 +1270,7 @@ def dive_tint(im):
                 po[x, y] = DIVE_RAMP[min(len(DIVE_RAMP) - 1, int(t * len(DIVE_RAMP)))] + (a,)
     return out
 
-def dive(folder, blob=True, underwater=True, force=False):
+def dive(folder, blob=True, underwater=True, force=False, shade=True):
     """diveBlob.png and/or underwater.png in a packed R/S/E look folder."""
     if not os.path.isdir(folder):
         print(f"  ERROR   {folder} is not a folder")
@@ -1291,6 +1305,8 @@ def dive(folder, blob=True, underwater=True, force=False):
             for fi in range(n):
                 facing = fi if fi < 3 else (fi - 3) // 2
                 strip.paste(im.crop((0, facing * sh, sw, (facing + 1) * sh)), (0, fi * h))
+            if shade:
+                strip = dive_shade(strip)
         if not strip.getbbox():
             print(f"  skip    {name} ({src_name} is blank)")
             continue
@@ -1338,9 +1354,10 @@ if __name__ == "__main__":
         sys.exit(0 if transfer(a[1], a[2], a[3], a[4]) else 1)
     if len(a) in (3, 4) and a[0] == "feet" and a[1] in SPECS and a[3:] in ([], ["--match"]):
         sys.exit(0 if feet(a[1], a[2], a[3:] == ["--match"]) else 1)
-    if len(a) >= 2 and a[0] == "dive" and set(a[2:]) <= {"--blob", "--underwater", "--force"}:
+    if len(a) >= 2 and a[0] == "dive" and set(a[2:]) <= {"--blob", "--underwater", "--force", "--no-shade"}:
         both = not ({"--blob", "--underwater"} & set(a[2:]))
-        sys.exit(0 if dive(a[1], both or "--blob" in a, both or "--underwater" in a, "--force" in a) else 1)
+        sys.exit(0 if dive(a[1], both or "--blob" in a, both or "--underwater" in a, "--force" in a,
+                           "--no-shade" not in a) else 1)
     if len(a) == 3 and a[0] == "blank" and a[1] in SPECS:
         blank_sheet(a[1]).save(a[2])
         print(f"  wrote   {a[2]}")
