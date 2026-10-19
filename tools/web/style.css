@@ -360,6 +360,8 @@ details.combine > p { max-width: 40rem; }
 .fly-frames figcaption { font-size: 0.9rem; color: var(--muted); margin: 6px 0; }
 .fly-nudge { display: flex; gap: 6px; align-items: center; }
 .fly-nudge .btn { padding: 4px 10px; }
+.fly-tilt { display: flex; gap: 6px; align-items: center; margin-top: 8px; font-size: 0.9rem; color: var(--muted); }
+.fly-tilt input { width: 5.5em; }
 .fly-nudge output { font-variant-numeric: tabular-nums; color: var(--muted); margin-left: 4px; }
 
 /* a heads-up about the look, like walking frames off the game's rows -Elvie */

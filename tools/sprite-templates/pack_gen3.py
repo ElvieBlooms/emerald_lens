@@ -67,7 +67,8 @@ flybird    A Fly sheet (flyBird.png) for a packed FR/LG look folder from a
            the rider. A kit's bird.png (the bird alone, flying past) is
            written too, unless --no-bird. --off and --in nudge the rider
            for the fly-off and fly-in frames (x,y in pixels, + is right
-           and down):
+           and down); --off-tilt and --in-tilt set a frame's tilt in
+           degrees clockwise, for birds that hold their rider differently:
              python3 pack_gen3.py flybird ../../assets/sprites/<folder>/gen3/frlg flybirds/pidgeot
              python3 pack_gen3.py flybird ../../assets/sprites/<folder>/gen3/frlg flybirds/pidgeot --off 1,-2 --in 0,1
 
@@ -1269,13 +1270,14 @@ def dive_tint(im):
 # Fly bird kits (flybirds/<name>/): back.png and front.png, two 64x64
 # frames each (fly-off, fly-in), and kit.json with the tilt and, per frame,
 # which surf frame rides (0 down, 1 up, 2 left), whether it's mirrored and
-# where the tilted rider's centre goes. Users nudge from there. A kit can
+# where the tilted rider's centre goes; a frame's own "tilt" beats the
+# kit's. Users nudge from there. A kit can
 # also have bird.png, the FR/LG extra (the bird alone, 64x64). -Elvie
 FLY_TILT = 10.23  # degrees clockwise, as Elvie tilts her riders by hand
 FLY_FRAMES = [{"surf": 0, "mirror": True, "x": 29, "y": 23},
               {"surf": 1, "mirror": True, "x": 32, "y": 29}]
 
-def flybird(folder, kit, nudges=((0, 0), (0, 0)), out=None, force=False, bird=True):
+def flybird(folder, kit, nudges=((0, 0), (0, 0)), out=None, force=False, bird=True, tilts=(None, None)):
     """flyBird.png (and the kit's bird.png) for a packed FR/LG look folder."""
     alone = os.path.join(kit, "bird.png")
     if bird and os.path.isfile(alone):
@@ -1317,12 +1319,13 @@ def flybird(folder, kit, nudges=((0, 0), (0, 0)), out=None, force=False, bird=Tr
         print(f"  ERROR   surf.png is {surf.width}x{surf.height}, expected 16x384 or 32x384")
         return False
     sheet = Image.new("RGBA", (64, 128), CLEAR)
-    for i, (f, (dx, dy)) in enumerate(zip(frames, nudges)):
+    for i, (f, (dx, dy), turn) in enumerate(zip(frames, nudges, tilts)):
+        turn = f.get("tilt", tilt) if turn is None else turn
         rider = surf.crop((0, f["surf"] * 32, surf.width, f["surf"] * 32 + 32))
         if f.get("mirror"):
             rider = rider.transpose(Image.FLIP_LEFT_RIGHT)
         # nearest neighbour keeps the palette; PIL turns anticlockwise
-        rider = rider.rotate(-tilt, resample=Image.NEAREST, expand=True)
+        rider = rider.rotate(-turn, resample=Image.NEAREST, expand=True)
         x = f["x"] + dx - rider.width // 2
         y = f["y"] + dy - rider.height // 2
         frame = layers["back.png"].crop((0, i * 64, 64, i * 64 + 64))
@@ -1331,7 +1334,8 @@ def flybird(folder, kit, nudges=((0, 0), (0, 0)), out=None, force=False, bird=Tr
         frame.alpha_composite(layer)
         frame.alpha_composite(layers["front.png"].crop((0, i * 64, 64, i * 64 + 64)))
         sheet.paste(frame, (0, i * 64))
-        print(f"  rider   {('fly-off', 'fly-in')[i]}: surf frame {f['surf']}, centre at {f['x'] + dx},{f['y'] + dy}")
+        print(f"  rider   {('fly-off', 'fly-in')[i]}: surf frame {f['surf']}, centre at {f['x'] + dx},{f['y'] + dy}, "
+              f"tilted {turn:g} degrees")
     os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
     sheet.save(out)
     print(f"  made    {os.path.basename(out)}")
@@ -1421,10 +1425,14 @@ if __name__ == "__main__":
         sys.exit(0 if feet(a[1], a[2], a[3:] == ["--match"]) else 1)
     if len(a) >= 3 and a[0] == "flybird":
         opts, nudge, out, force, bird, k = a[3:], [(0, 0), (0, 0)], None, False, True, 0
+        tilts = [None, None]
         while k < len(opts):
             if opts[k] in ("--off", "--in") and k + 1 < len(opts):
                 x, y = (int(v) for v in opts[k + 1].split(","))
                 nudge[opts[k] == "--in"] = (x, y)
+                k += 2
+            elif opts[k] in ("--off-tilt", "--in-tilt") and k + 1 < len(opts):
+                tilts[opts[k] == "--in-tilt"] = float(opts[k + 1])
                 k += 2
             elif opts[k] == "--out" and k + 1 < len(opts):
                 out = opts[k + 1]
@@ -1437,7 +1445,7 @@ if __name__ == "__main__":
                 k += 1
             else:
                 sys.exit(f"  ERROR   unknown option {opts[k]}")
-        sys.exit(0 if flybird(a[1], a[2], nudge, out, force, bird) else 1)
+        sys.exit(0 if flybird(a[1], a[2], nudge, out, force, bird, tilts) else 1)
     if len(a) >= 2 and a[0] == "dive" and set(a[2:]) <= {"--blob", "--underwater", "--force"}:
         both = not ({"--blob", "--underwater"} & set(a[2:]))
         sys.exit(0 if dive(a[1], both or "--blob" in a, both or "--underwater" in a, "--force" in a) else 1)

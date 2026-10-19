@@ -990,7 +990,7 @@ $("dive-blob").addEventListener("click", (e) => runDive("--blob", e));
 // keeps the nudges and shows the result. -Elvie
 
 const FLY_KITS = [{ id: "pidgeot", name: "Pidgeot" }, { id: "fearow", name: "Fearow" }];
-const fly = { nudge: [[0, 0], [0, 0]], loaded: new Set(), shown: "" };
+const fly = { nudge: [[0, 0], [0, 0]], tilt: [null, null], loaded: new Set(), shown: "", kit: "" };
 
 async function flyKit() {
   const id = $("fly-kit").value;
@@ -1003,12 +1003,21 @@ async function flyKit() {
     }
     fly.loaded.add(id);
   }
+  if (fly.kit !== id) {
+    // a new bird starts from its own placement and tilt -Elvie
+    fly.kit = id;
+    const conf = JSON.parse(new TextDecoder().decode(FS.readFile(work(`flybirds/${id}/kit.json`))));
+    const frames = conf.frames || [];
+    fly.nudge = [[0, 0], [0, 0]];
+    fly.tilt = [0, 1].map((i) => (frames[i] && frames[i].tilt) ?? conf.tilt ?? 10.23);
+  }
   return `flybirds/${id}`;
 }
 
 function flyArgs(kit, out) {
   const [a, b] = fly.nudge;
-  return ["flybird", "look/gen3/frlg", kit, "--off", `${a[0]},${a[1]}`, "--in", `${b[0]},${b[1]}`, "--out", out, "--force"];
+  return ["flybird", "look/gen3/frlg", kit, "--off", `${a[0]},${a[1]}`, "--in", `${b[0]},${b[1]}`,
+    "--off-tilt", String(fly.tilt[0]), "--in-tilt", String(fly.tilt[1]), "--out", out, "--force"];
 }
 
 async function flyPreview() {
@@ -1030,6 +1039,7 @@ async function flyPreview() {
     g.clearRect(0, 0, c.width, c.height);
     g.drawImage(img, 0, i * 64, 64, 64, 0, 0, c.width, c.height);
     $(`fly-pos-${i}`).textContent = fly.nudge[i].join(", ");
+    $(`fly-tilt-${i}`).value = fly.tilt[i];
   }
   const alone = exists(`${kit}/bird.png`);
   $("fly-alone").hidden = !alone;
@@ -1049,6 +1059,13 @@ async function flyPreview() {
 for (const k of FLY_KITS) $("fly-kit").add(new Option(k.name, k.id));
 const flyShow = () => flyPreview().catch((err) => log($("fly-log"), String(err)));
 $("fly-kit").addEventListener("change", flyShow);
+for (const i of [0, 1]) {
+  $(`fly-tilt-${i}`).addEventListener("change", (e) => {
+    const v = Number(e.target.value);
+    if (Number.isFinite(v)) fly.tilt[i] = v;
+    flyShow();
+  });
+}
 document.querySelectorAll(".fly-nudge").forEach((box) => {
   box.addEventListener("click", (e) => {
     const b = e.target.closest("button");

@@ -44,7 +44,8 @@ A look with FR/LG surf art also gets "No Fly bird?" (`pack_gen3.py
 flybird`): pick a ready-made bird from `sprite-templates/flybirds/`, and
 the look's surf rider is tilted onto it between the bird's back and front
 layers. Both frames (taking off, landing) show as you go; the arrow
-buttons nudge the rider a pixel at a time, and "Save the Fly bird" writes
+buttons nudge the rider a pixel at a time, the Tilt boxes turn it (degrees
+clockwise, starting from the bird's own), and "Save the Fly bird" writes
 `flyBird.png` with those nudges (the log shows them as `--off` / `--in`),
 plus the kit's matching `bird.png` (the bird alone, flying past) unless
 "Also the bird on its own" is unticked.

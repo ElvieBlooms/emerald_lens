@@ -197,6 +197,9 @@ keeps its colours.
 - `--off x,y` and `--in x,y` nudge the rider in the fly-off and fly-in
   frames (+ is right and down). Riders are drawn at different sizes, so
   most looks need a pixel or two.
+- `--off-tilt` and `--in-tilt` set a frame's tilt in degrees clockwise,
+  for a bird that holds its rider at another angle. A kit can set it too:
+  `"tilt"` on the kit, or on a single frame.
 - `--out` writes somewhere else; an existing `flyBird.png` is kept unless
   you add `--force`.
 - A kit is a folder in `flybirds/`: `back.png` and `front.png` (64x128,

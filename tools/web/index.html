@@ -248,7 +248,7 @@
   </div>
   <div id="look-fly" hidden>
     <h3 class="sub">No Fly bird?</h3>
-    <p class="hint">Sets the look's FR/LG surf rider on a ready-made bird, tilted the way the shipped looks are. Nudge the rider until it sits right in both frames, then save it as the look's flyBird.png.</p>
+    <p class="hint">Sets the look's FR/LG surf rider on a ready-made bird, tilted the way the shipped looks are. Nudge the rider (and turn it, if the bird holds its rider differently) until it sits right in both frames, then save it as the look's flyBird.png.</p>
     <div class="row"><label>Bird <select id="fly-kit"></select></label></div>
     <div class="fly-frames">
       <figure>
@@ -261,6 +261,7 @@
             <button type="button" class="btn" data-dx="1" data-dy="0" aria-label="Right">&rarr;</button>
             <output id="fly-pos-0">0, 0</output>
           </div>
+        <label class="fly-tilt">Tilt <input type="number" id="fly-tilt-0" step="0.5" min="-90" max="90"> degrees</label>
       </figure>
       <figure>
         <canvas id="fly-c-1" width="192" height="192"></canvas>
@@ -272,6 +273,7 @@
             <button type="button" class="btn" data-dx="1" data-dy="0" aria-label="Right">&rarr;</button>
             <output id="fly-pos-1">0, 0</output>
           </div>
+        <label class="fly-tilt">Tilt <input type="number" id="fly-tilt-1" step="0.5" min="-90" max="90"> degrees</label>
       </figure>
       <figure id="fly-alone" hidden>
         <canvas id="fly-c-2" width="192" height="192"></canvas>
