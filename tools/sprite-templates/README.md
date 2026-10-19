@@ -182,6 +182,32 @@ where the surf blob goes (blob at (-8, -8) from the tile, as above). It's
 only drawn behind the `underwater.png` in the same folder; other looks of
 the character don't borrow it.
 
+### Fly bird from a ready-made bird
+
+`flybird` makes a FR/LG look's `flyBird.png` from a bird kit and the look's
+own `surf.png`: the kit's back layer (whatever sits behind the rider, like
+the far wing), the surf sitting frame tilted 10.23 degrees clockwise on top
+of it, then the kit's front layer (the bird itself and its near wing) over
+the rider. The rider is turned pixel for pixel (nearest neighbour), so it
+keeps its colours.
+
+    python3 pack_gen3.py flybird ../../assets/sprites/<folder>/gen3/frlg flybirds/pidgeot
+    python3 pack_gen3.py flybird ../../assets/sprites/<folder>/gen3/frlg flybirds/pidgeot --off 1,-2 --in 0,1
+
+- `--off x,y` and `--in x,y` nudge the rider in the fly-off and fly-in
+  frames (+ is right and down). Riders are drawn at different sizes, so
+  most looks need a pixel or two.
+- `--out` writes somewhere else; an existing `flyBird.png` is kept unless
+  you add `--force`.
+- A kit is a folder in `flybirds/`: `back.png` and `front.png` (64x128,
+  fly-off on top, fly-in below) and `kit.json` with the tilt and, for each
+  frame, the surf frame that rides (0 down, 1 up, 2 left), whether it's
+  mirrored, and where the tilted rider's centre goes (`x`, `y`).
+- A kit can also have `bird.png` (64x64): the bird alone, the FR/LG extra
+  the game shows flying past. `flybird` writes it into the look as well, so
+  the bird matches; `--no-bird` leaves it out.
+- `flybirds/pidgeot` and `flybirds/fearow` are drawn by Elvie.
+
 ### Underwater art from surf art
 
 Most sets drawn for other games (Gen 4 ones especially) have no diving
@@ -194,9 +220,7 @@ sprites. `dive` makes a start from a packed R/S/E look folder's surf art:
   dark blues by brightness, like the games' diver.
 - `--underwater` fills `underwater.png` with the `surf.png` sitting frame
   for each facing (the game draws underwater frames in the same place as
-  surf ones), with a navy wash so the diver looks underwater: navy
-  (#001971) laid over the sprite at 60%. `--no-shade` keeps the surf
-  colours.
+  surf ones).
 - With neither, it does both. A file that's already there is kept unless
   you add `--force`.
 

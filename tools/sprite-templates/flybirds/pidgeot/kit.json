@@ -1,0 +1,9 @@
+{
+  "name": "Pidgeot",
+  "credit": "Elvie",
+  "tilt": 10.23,
+  "frames": [
+    {"surf": 0, "mirror": true, "x": 29, "y": 23},
+    {"surf": 1, "mirror": true, "x": 32, "y": 29}
+  ]
+}

@@ -242,10 +242,48 @@
     <div class="row">
       <button type="button" class="btn" id="dive-blob">Dive blob from the surf blob</button>
       <button type="button" class="btn" id="dive-under">Diving frames from surf</button>
-      <label class="check-line"><input type="checkbox" id="dive-shade" checked> Navy wash on the diving frames</label>
       <label class="check-line"><input type="checkbox" id="dive-force"> Replace what's there</label>
     </div>
     <pre class="log" id="dive-log" hidden></pre>
+  </div>
+  <div id="look-fly" hidden>
+    <h3 class="sub">No Fly bird?</h3>
+    <p class="hint">Sets the look's FR/LG surf rider on a ready-made bird, tilted the way the shipped looks are. Nudge the rider until it sits right in both frames, then save it as the look's flyBird.png.</p>
+    <div class="row"><label>Bird <select id="fly-kit"></select></label></div>
+    <div class="fly-frames">
+      <figure>
+        <canvas id="fly-c-0" width="192" height="192"></canvas>
+        <figcaption>Taking off</figcaption>
+        <div class="fly-nudge" data-frame="0">
+            <button type="button" class="btn" data-dx="-1" data-dy="0" aria-label="Left">&larr;</button>
+            <button type="button" class="btn" data-dx="0" data-dy="-1" aria-label="Up">&uarr;</button>
+            <button type="button" class="btn" data-dx="0" data-dy="1" aria-label="Down">&darr;</button>
+            <button type="button" class="btn" data-dx="1" data-dy="0" aria-label="Right">&rarr;</button>
+            <output id="fly-pos-0">0, 0</output>
+          </div>
+      </figure>
+      <figure>
+        <canvas id="fly-c-1" width="192" height="192"></canvas>
+        <figcaption>Landing</figcaption>
+        <div class="fly-nudge" data-frame="1">
+            <button type="button" class="btn" data-dx="-1" data-dy="0" aria-label="Left">&larr;</button>
+            <button type="button" class="btn" data-dx="0" data-dy="-1" aria-label="Up">&uarr;</button>
+            <button type="button" class="btn" data-dx="0" data-dy="1" aria-label="Down">&darr;</button>
+            <button type="button" class="btn" data-dx="1" data-dy="0" aria-label="Right">&rarr;</button>
+            <output id="fly-pos-1">0, 0</output>
+          </div>
+      </figure>
+      <figure id="fly-alone" hidden>
+        <canvas id="fly-c-2" width="192" height="192"></canvas>
+        <figcaption>On its own (the extras' bird)</figcaption>
+      </figure>
+    </div>
+    <div class="row">
+      <button type="button" class="btn primary" id="fly-save">Save the Fly bird</button>
+      <label class="check-line"><input type="checkbox" id="fly-bird" checked> Also the bird on its own (bird.png)</label>
+      <label class="check-line"><input type="checkbox" id="fly-force"> Replace what's there</label>
+    </div>
+    <pre class="log" id="fly-log" hidden></pre>
   </div>
   <div id="look-play" hidden>
     <h3 class="sub">Watch it move</h3>

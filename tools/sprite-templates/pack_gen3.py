@@ -56,10 +56,20 @@ dive       Underwater art for sets that have none (most Gen 4 sets), in a
            packed R/S/E look folder. --blob makes diveBlob.png from the
            folder's surfBlob.png, recolored dark like the game's own diver;
            --underwater fills underwater.png with the surf.png sitting
-           frames, washed navy (--no-shade keeps their colours). Both by
-           default; files already there are kept unless --force:
+           frames. Both by default; files already there are kept unless
+           --force:
              python3 pack_gen3.py dive ../../assets/sprites/<folder>/gen3/rse
              python3 pack_gen3.py dive ../../assets/sprites/<folder>/gen3/rse --blob
+
+flybird    A Fly sheet (flyBird.png) for a packed FR/LG look folder from a
+           bird kit: the kit's back layer, the look's surf sitting frame
+           tilted onto it, then the kit's front layer (the bird) over
+           the rider. A kit's bird.png (the bird alone, flying past) is
+           written too, unless --no-bird. --off and --in nudge the rider
+           for the fly-off and fly-in frames (x,y in pixels, + is right
+           and down):
+             python3 pack_gen3.py flybird ../../assets/sprites/<folder>/gen3/frlg flybirds/pidgeot
+             python3 pack_gen3.py flybird ../../assets/sprites/<folder>/gen3/frlg flybirds/pidgeot --off 1,-2 --in 0,1
 
 feet       Check a packed look folder's frames against where the game's own
            sit: the walking bob (standing frames a row up, steps a row
@@ -1235,20 +1245,6 @@ def feet(family, folder, match=False):
 # shading in four dark blues. The surf sitting frames stand in for the
 # diver: underwater frames are drawn in the same place as surf ones. -Elvie
 DIVE_RAMP = [(8, 16, 40), (24, 40, 80), (40, 64, 112), (64, 96, 144)]
-# Diving frames get a navy wash so the diver reads as underwater: navy laid
-# over every drawn pixel at 60%, as Elvie did by hand for HGSS Ash. -Elvie
-DIVE_SHADE, DIVE_SHADE_ALPHA = (0, 25, 113), 0.6
-
-def dive_shade(im):
-    """A sprite with DIVE_SHADE laid over its drawn pixels, alpha kept."""
-    im = im.convert("RGBA")
-    px, k = im.load(), DIVE_SHADE_ALPHA
-    for y in range(im.height):
-        for x in range(im.width):
-            r, g, b, a = px[x, y]
-            if a:
-                px[x, y] = tuple(round(c * (1 - k) + s * k) for c, s in zip((r, g, b), DIVE_SHADE)) + (a,)
-    return im
 
 def dive_tint(im):
     """A sprite recolored into DIVE_RAMP by brightness, alpha kept."""
@@ -1270,7 +1266,78 @@ def dive_tint(im):
                 po[x, y] = DIVE_RAMP[min(len(DIVE_RAMP) - 1, int(t * len(DIVE_RAMP)))] + (a,)
     return out
 
-def dive(folder, blob=True, underwater=True, force=False, shade=True):
+# Fly bird kits (flybirds/<name>/): back.png and front.png, two 64x64
+# frames each (fly-off, fly-in), and kit.json with the tilt and, per frame,
+# which surf frame rides (0 down, 1 up, 2 left), whether it's mirrored and
+# where the tilted rider's centre goes. Users nudge from there. A kit can
+# also have bird.png, the FR/LG extra (the bird alone, 64x64). -Elvie
+FLY_TILT = 10.23  # degrees clockwise, as Elvie tilts her riders by hand
+FLY_FRAMES = [{"surf": 0, "mirror": True, "x": 29, "y": 23},
+              {"surf": 1, "mirror": True, "x": 32, "y": 29}]
+
+def flybird(folder, kit, nudges=((0, 0), (0, 0)), out=None, force=False, bird=True):
+    """flyBird.png (and the kit's bird.png) for a packed FR/LG look folder."""
+    alone = os.path.join(kit, "bird.png")
+    if bird and os.path.isfile(alone):
+        target = os.path.join(folder, "bird.png")
+        im = Image.open(alone).convert("RGBA")
+        if im.size != (64, 64):
+            print(f"  skip    bird.png (the kit's is {im.width}x{im.height}, expected 64x64)")
+        elif os.path.exists(target) and not force:
+            print("  skip    bird.png (already there; --force to replace it)")
+        else:
+            im.save(target)
+            print("  made    bird.png (the bird alone)")
+    out = out or os.path.join(folder, "flyBird.png")
+    if os.path.exists(out) and not force:
+        print(f"  skip    {os.path.basename(out)} (already there; --force to replace it)")
+        return False
+    layers = {}
+    for name in ("back.png", "front.png"):
+        path = os.path.join(kit, name)
+        if not os.path.isfile(path):
+            print(f"  ERROR   the kit has no {name}")
+            return False
+        layers[name] = Image.open(path).convert("RGBA")
+        if layers[name].size != (64, 128):
+            print(f"  ERROR   the kit's {name} is {layers[name].width}x{layers[name].height}, expected 64x128")
+            return False
+    conf = {}
+    if os.path.isfile(os.path.join(kit, "kit.json")):
+        with open(os.path.join(kit, "kit.json")) as f:
+            conf = json.load(f)
+    tilt = conf.get("tilt", FLY_TILT)
+    frames = conf.get("frames", FLY_FRAMES)
+    src = os.path.join(folder, "surf.png")
+    if not os.path.isfile(src):
+        print("  ERROR   no surf.png in this folder for the rider")
+        return False
+    surf = Image.open(src).convert("RGBA")
+    if surf.height != 32 * 12 or surf.width not in (16, 32):
+        print(f"  ERROR   surf.png is {surf.width}x{surf.height}, expected 16x384 or 32x384")
+        return False
+    sheet = Image.new("RGBA", (64, 128), CLEAR)
+    for i, (f, (dx, dy)) in enumerate(zip(frames, nudges)):
+        rider = surf.crop((0, f["surf"] * 32, surf.width, f["surf"] * 32 + 32))
+        if f.get("mirror"):
+            rider = rider.transpose(Image.FLIP_LEFT_RIGHT)
+        # nearest neighbour keeps the palette; PIL turns anticlockwise
+        rider = rider.rotate(-tilt, resample=Image.NEAREST, expand=True)
+        x = f["x"] + dx - rider.width // 2
+        y = f["y"] + dy - rider.height // 2
+        frame = layers["back.png"].crop((0, i * 64, 64, i * 64 + 64))
+        layer = Image.new("RGBA", (64, 64), CLEAR)
+        layer.paste(rider, (x, y), rider)
+        frame.alpha_composite(layer)
+        frame.alpha_composite(layers["front.png"].crop((0, i * 64, 64, i * 64 + 64)))
+        sheet.paste(frame, (0, i * 64))
+        print(f"  rider   {('fly-off', 'fly-in')[i]}: surf frame {f['surf']}, centre at {f['x'] + dx},{f['y'] + dy}")
+    os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
+    sheet.save(out)
+    print(f"  made    {os.path.basename(out)}")
+    return True
+
+def dive(folder, blob=True, underwater=True, force=False):
     """diveBlob.png and/or underwater.png in a packed R/S/E look folder."""
     if not os.path.isdir(folder):
         print(f"  ERROR   {folder} is not a folder")
@@ -1305,8 +1372,6 @@ def dive(folder, blob=True, underwater=True, force=False, shade=True):
             for fi in range(n):
                 facing = fi if fi < 3 else (fi - 3) // 2
                 strip.paste(im.crop((0, facing * sh, sw, (facing + 1) * sh)), (0, fi * h))
-            if shade:
-                strip = dive_shade(strip)
         if not strip.getbbox():
             print(f"  skip    {name} ({src_name} is blank)")
             continue
@@ -1354,10 +1419,28 @@ if __name__ == "__main__":
         sys.exit(0 if transfer(a[1], a[2], a[3], a[4]) else 1)
     if len(a) in (3, 4) and a[0] == "feet" and a[1] in SPECS and a[3:] in ([], ["--match"]):
         sys.exit(0 if feet(a[1], a[2], a[3:] == ["--match"]) else 1)
-    if len(a) >= 2 and a[0] == "dive" and set(a[2:]) <= {"--blob", "--underwater", "--force", "--no-shade"}:
+    if len(a) >= 3 and a[0] == "flybird":
+        opts, nudge, out, force, bird, k = a[3:], [(0, 0), (0, 0)], None, False, True, 0
+        while k < len(opts):
+            if opts[k] in ("--off", "--in") and k + 1 < len(opts):
+                x, y = (int(v) for v in opts[k + 1].split(","))
+                nudge[opts[k] == "--in"] = (x, y)
+                k += 2
+            elif opts[k] == "--out" and k + 1 < len(opts):
+                out = opts[k + 1]
+                k += 2
+            elif opts[k] == "--force":
+                force = True
+                k += 1
+            elif opts[k] == "--no-bird":
+                bird = False
+                k += 1
+            else:
+                sys.exit(f"  ERROR   unknown option {opts[k]}")
+        sys.exit(0 if flybird(a[1], a[2], nudge, out, force, bird) else 1)
+    if len(a) >= 2 and a[0] == "dive" and set(a[2:]) <= {"--blob", "--underwater", "--force"}:
         both = not ({"--blob", "--underwater"} & set(a[2:]))
-        sys.exit(0 if dive(a[1], both or "--blob" in a, both or "--underwater" in a, "--force" in a,
-                           "--no-shade" not in a) else 1)
+        sys.exit(0 if dive(a[1], both or "--blob" in a, both or "--underwater" in a, "--force" in a) else 1)
     if len(a) == 3 and a[0] == "blank" and a[1] in SPECS:
         blank_sheet(a[1]).save(a[2])
         print(f"  wrote   {a[2]}")

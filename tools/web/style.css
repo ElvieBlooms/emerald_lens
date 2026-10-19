@@ -353,6 +353,15 @@ details.combine > p { max-width: 40rem; }
 .row .check-line { margin: 0; align-items: center; }
 .row .check-line input { margin-top: 0; }
 
+/* fly bird builder: both frames side by side, nudges under each -Elvie */
+.fly-frames { display: flex; flex-wrap: wrap; gap: 16px; }
+.fly-frames figure { margin: 0; }
+.fly-frames canvas { image-rendering: pixelated; background: var(--check-b); border: 1px solid var(--line); border-radius: 4px; display: block; }
+.fly-frames figcaption { font-size: 0.9rem; color: var(--muted); margin: 6px 0; }
+.fly-nudge { display: flex; gap: 6px; align-items: center; }
+.fly-nudge .btn { padding: 4px 10px; }
+.fly-nudge output { font-variant-numeric: tabular-nums; color: var(--muted); margin-left: 4px; }
+
 /* a heads-up about the look, like walking frames off the game's rows -Elvie */
 .notice { border-left: 3px solid var(--warn, var(--guide)); background: var(--panel); padding: 10px 14px; margin: 14px 0; border-radius: 4px; }
 .notice p { margin: 0 0 8px; }

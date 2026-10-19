@@ -38,8 +38,17 @@ and in which sheets, and offers to move them onto the game's rows
 
 Step 4 also has the dive helpers (`pack_gen3.py dive`) for a look with R/S/E
 art but no diving art: a dive blob from the surf blob, and diving frames
-from the surf sitting frames, washed navy unless "Navy wash on the diving
-frames" is unticked.
+from the surf sitting frames.
+
+A look with FR/LG surf art also gets "No Fly bird?" (`pack_gen3.py
+flybird`): pick a ready-made bird from `sprite-templates/flybirds/`, and
+the look's surf rider is tilted onto it between the bird's back and front
+layers. Both frames (taking off, landing) show as you go; the arrow
+buttons nudge the rider a pixel at a time, and "Save the Fly bird" writes
+`flyBird.png` with those nudges (the log shows them as `--off` / `--in`),
+plus the kit's matching `bird.png` (the bird alone, flying past) unless
+"Also the bird on its own" is unticked.
+New birds only need their folder and a line in `FLY_KITS` in `app.js`.
 
 A folder is read a file at a time, with a progress bar, since Python holds
 the page while it works and a folder of a few hundred files takes a while

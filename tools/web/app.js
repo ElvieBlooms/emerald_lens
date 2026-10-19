@@ -978,12 +978,99 @@ function runDive(flag, e) {
   busy(e.currentTarget, async () => {
     const argv = ["dive", "look/gen3/rse", flag];
     if ($("dive-force").checked) argv.push("--force");
-    if (flag === "--underwater" && !$("dive-shade").checked) argv.push("--no-shade");
     run("pack_gen3.py", argv, $("dive-log"));
     showLook();
   });
 }
 $("dive-blob").addEventListener("click", (e) => runDive("--blob", e));
+
+// --------------------------------------------------- 4a. fly bird kits
+// Ready-made birds in sprite-templates/flybirds/. The rider is the look's
+// FR/LG surf frame; pack_gen3.py flybird does the layering, the page only
+// keeps the nudges and shows the result. -Elvie
+
+const FLY_KITS = [{ id: "pidgeot", name: "Pidgeot" }, { id: "fearow", name: "Fearow" }];
+const fly = { nudge: [[0, 0], [0, 0]], loaded: new Set(), shown: "" };
+
+async function flyKit() {
+  const id = $("fly-kit").value;
+  if (!fly.loaded.has(id)) {
+    for (const f of ["back.png", "front.png", "kit.json", "bird.png"]) {
+      const r = await fetch(TOOLS + `flybirds/${id}/${f}`, { cache: "no-cache" });
+      if (!r.ok && f === "bird.png") continue; // the lone bird is optional -Elvie
+      if (!r.ok) throw new Error(`flybirds/${id}/${f} answered ${r.status}`);
+      writeFile(`flybirds/${id}/${f}`, new Uint8Array(await r.arrayBuffer()));
+    }
+    fly.loaded.add(id);
+  }
+  return `flybirds/${id}`;
+}
+
+function flyArgs(kit, out) {
+  const [a, b] = fly.nudge;
+  return ["flybird", "look/gen3/frlg", kit, "--off", `${a[0]},${a[1]}`, "--in", `${b[0]},${b[1]}`, "--out", out, "--force"];
+}
+
+async function flyPreview() {
+  if (!exists("look/gen3/frlg/surf.png")) return;
+  const kit = await flyKit();
+  const res = W.run("pack_gen3.py", py.toPy([...flyArgs(kit, "fly/preview.png"), "--no-bird"]));
+  const [code, out] = res.toJs();
+  res.destroy();
+  if (code !== 0) {
+    log($("fly-log"), out);
+    return;
+  }
+  const img = new Image();
+  img.src = imageURL("fly/preview.png", "fly");
+  await img.decode();
+  for (const i of [0, 1]) {
+    const c = $(`fly-c-${i}`), g = c.getContext("2d");
+    g.imageSmoothingEnabled = false;
+    g.clearRect(0, 0, c.width, c.height);
+    g.drawImage(img, 0, i * 64, 64, 64, 0, 0, c.width, c.height);
+    $(`fly-pos-${i}`).textContent = fly.nudge[i].join(", ");
+  }
+  const alone = exists(`${kit}/bird.png`);
+  $("fly-alone").hidden = !alone;
+  $("fly-bird").disabled = !alone;
+  if (alone) {
+    const b = new Image();
+    b.src = imageURL(`${kit}/bird.png`, "fly");
+    await b.decode();
+    const c = $("fly-c-2"), g = c.getContext("2d");
+    g.imageSmoothingEnabled = false;
+    g.clearRect(0, 0, c.width, c.height);
+    g.drawImage(b, 0, 0, c.width, c.height);
+  }
+  freeURLs("fly");
+}
+
+for (const k of FLY_KITS) $("fly-kit").add(new Option(k.name, k.id));
+const flyShow = () => flyPreview().catch((err) => log($("fly-log"), String(err)));
+$("fly-kit").addEventListener("change", flyShow);
+document.querySelectorAll(".fly-nudge").forEach((box) => {
+  box.addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    const n = fly.nudge[Number(box.dataset.frame)];
+    n[0] += Number(b.dataset.dx);
+    n[1] += Number(b.dataset.dy);
+    flyShow();
+  });
+});
+$("fly-save").addEventListener("click", (e) => busy(e.currentTarget, async () => {
+  const kit = await flyKit();
+  const out = "look/gen3/frlg/flyBird.png";
+  if (exists(out) && !$("fly-force").checked) {
+    log($("fly-log"), "The look already has a flyBird.png; tick \"Replace what's there\" to swap it.\n");
+    return;
+  }
+  const argv = flyArgs(kit, out);
+  if (!$("fly-bird").checked || $("fly-bird").disabled) argv.push("--no-bird");
+  run("pack_gen3.py", argv, $("fly-log"));
+  showLook();
+}));
 $("dive-under").addEventListener("click", (e) => runDive("--underwater", e));
 
 // --------------------------------------------------- 4b. look preview
@@ -1205,6 +1292,15 @@ function refresh() {
   $("look-dive").hidden = !rse;
   $("dive-blob").disabled = !rse || !exists("look/gen3/rse/surfBlob.png");
   $("dive-under").disabled = !rse || !exists("look/gen3/rse/surf.png");
+  const flySurf = ready && exists("look/gen3/frlg/surf.png");
+  $("look-fly").hidden = !flySurf;
+  $("fly-save").disabled = !flySurf;
+  // redraw the bird when the look's rider changes -Elvie
+  const key = flySurf ? String(FS.stat(work("look/gen3/frlg/surf.png")).mtime) : "";
+  if (key !== fly.shown) {
+    fly.shown = key;
+    if (flySurf) flyShow();
+  }
   $("do-clear").disabled = !packed;
 }
 
