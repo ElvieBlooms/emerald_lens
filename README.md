@@ -12,7 +12,7 @@ Emerald Lens is the Gen 3 companion to [Crystal Lens](https://github.com/dburton
 * Optional extras: the surf blob, the Fly bird and the Bag, plus a dive blob for Ruby/Sapphire/Emerald, which the games don't have.
 * Pick a character for FireRed/LeafGreen and for Ruby/Sapphire/Emerald separately, so a character only needs art for one of them.
 * Per-character gender: replace the boy, the girl, or both.
-* Gendered text follows your characters: girl or they/them wording where the game assumes a gender, for the player and the rival (being added a few lines at a time, see **Text** below).
+* Gendered text follows your characters: girl or they/them wording where the game assumes a gender, for the player and the rival (see **Text** below).
 * Falls back sheet by sheet: the selected look, then the same character's other looks of the same generation, then its looks of the other generation, then the game's own sprite. Draw as much or as little as you like.
 * Sprite tools to draw from the game's own sprites and pack your art (`tools/sprite-templates`).
 
@@ -69,9 +69,9 @@ A boy or girl character only replaces that player, so the menu ends with a remin
 With **TEXT** on (the default), lines that assume the player's or the rival's gender are reworded to match your characters:
 
 * **The player:** the games already have both a boy and a girl version of most lines and use the one for the gender you picked, the same gender your character's art replaces. A girl or boy character keeps that. An enby character gets they/them wording whichever gender you picked. Lines the game says to everyone that assume a gender are reworded for the gender you picked too. With CHARACTER off, the player's lines stay the game's own.
-* **The rival:** lines about the rival follow the RIVAL LOOK's `genderMode`. In FireRed/LeafGreen, Oak's intro introduces a girl rival as his granddaughter and an enby rival as his grandchild. With RIVAL off, the rival's lines stay the game's own.
+* **The rival:** lines about the rival follow the RIVAL LOOK's `genderMode`. In FireRed/LeafGreen, Oak's intro introduces a girl rival as his granddaughter and an enby rival as his grandchild, Daisy calls them her sister or sibling, and Lance says she or they. With RIVAL off, the rival's lines stay the game's own.
 
-So far that's Oak's intro in FireRed/LeafGreen; the rest of the lines are being added. Changes apply straight away (a message already on screen keeps its text). Each line is found by its own text, so it works the same in every version of a game, and a line another mod has changed, such as a translation, stays theirs.
+FireRed/LeafGreen is covered: Oak's intro, Daisy and Lance on the rival; Mom, the Safari Zone warden, Bill, the S.S. Anne, Silph's president and a few others on the player (they/them wording for enby characters, where the game has a boy and a girl version); and bikers' "…, man" dropped for girls and enby. Ruby/Sapphire/Emerald needs much less, since the games already talk about May and Brendan as "my kid" and "our child": Brendan meeting an enby player who picked the girl, and the Dewford Hall man's "chap". In every game, an enby character also gets "Which would you like to be?" instead of "Are you a boy? Or are you a girl?" before the BOY/GIRL choice. Changes apply straight away (a message already on screen keeps its text). Each line is found by its own text, so it works the same in every version of a game, and a line another mod has changed, such as a translation, stays theirs.
 
 Every folder of a character is still used as a fallback, in this order: the selected look, the character's other looks of the same `generation`, then its looks of the other generation (menu order within each), then the game's own sprite.
 
@@ -141,7 +141,6 @@ The surf blob and bird have no boy or girl version, so they're only used when yo
 
 ## Not covered yet
 * New-game name choices.
-* Most of the gendered text: so far only Oak's intro in FireRed/LeafGreen is reworded.
 * The Ruby/Sapphire/Emerald rival is still called MAY or BRENDAN whoever the RIVAL character is.
 * In link battles, an opponent who picked a replaced gender also shows your character, since front pics are replaced by picture number.
 

@@ -113,6 +113,7 @@ do
   lines.TestA = TextIR.fromAscii("Thanks, son! This is his.\\pGood lad.")
   lines.TestB = { { t = "ext", cmd = 1, args = { 2 } }, { t = "text", s = "Hey, chap!" }, { t = "eos" } }
   lines.TestC = TextIR.fromAscii("Nothing to swap here.")
+  lines.TestD = TextIR.fromAscii("It's a drag, man. Manly.")
   local A, B = "Thanks, son! This is his.\\pGood lad.", "Hey, chap!"
   package.loaded["mods.emerald_lens.wording_frlg"] = {
     { label = "TestA", hash = lineHash(A), who = "player",
@@ -120,6 +121,8 @@ do
       enby = { { "son", "kid" }, { "his", "theirs" }, { "lad", "kid" } } },
     { label = "TestB", hash = wording.hash("Hey, chap!"), who = "player", enby = "Hey, you!" },
     { label = "TestC", hash = lineHash("Nothing to swap here."), who = "player", girl = { { "absent", "x" } } },
+    { label = "TestD", hash = lineHash("It's a drag, man. Manly."), who = "player",
+      girl = { { ", man", "" } } },
     { label = "Missing", hash = "00000000", who = "player", girl = "x" },
     { label = "OtherGame", hash = "00000001", who = "player", games = { "emerald" }, girl = "x" },
   }
@@ -132,6 +135,8 @@ do
   h.configure({ player = "girl" }) -- before a save: the look's genderMode
   local a = TextIR.toPlain(lines.TestA, {})
   check(a == "Thanks, lass! This is hers.\n\nGood lass.", "girl swaps, whole words only (This stays): " .. a)
+  local d = TextIR.toPlain(lines.TestD, {})
+  check(d == "It's a drag. Manly.", "a swap starting with a comma follows a word: " .. d)
 
   session.gender = 0 -- a boy save: the look's girl doesn't apply
   h.refresh()
@@ -161,6 +166,47 @@ do
   check(warns:find('TestC has no "absent"', 1, true), "a swap that finds nothing is logged")
   check(wording.canonical(lines.TestC) == "Nothing to swap here.", "and its line is left alone")
 end
+
+-- R/S/E, when RSE_TEXT (Emerald's) and/or RS_TEXT (Ruby's) caches are
+-- given: every entry for that game is found and applies, none from the
+-- other is logged
+-- --------------------------------------------------
+for _, case in ipairs({ { env = "RSE_TEXT", game = "emerald" }, { env = "RS_TEXT", game = "ruby" } }) do
+  local path = os.getenv(case.env)
+  if path then
+    version = case.game
+    local t = loadData(path)
+    Space.bundle = { text = t }
+    local entries = dofile("wording_rse.lua")
+    package.loaded["mods.emerald_lens.wording_rse"] = entries
+    local before = {}
+    for k, v in pairs(t) do before[k] = v end
+    local mod = fakeMod({ gender = 1 })
+    local h = wording.init(mod, "rse")
+    h.configure({ player = "enby" })
+    check(#mod.logs == 0, case.game .. ": no warnings: " .. table.concat(mod.logs, "; "))
+    local changed = 0
+    for k, v in pairs(t) do if before[k] ~= v then changed = changed + 1 end end
+    local want = 0
+    for _, e in ipairs(entries) do
+      local mine = e.games == nil
+      for _, g in ipairs(e.games or {}) do mine = mine or g == case.game end
+      if mine and e.enby then want = want + 1 end
+    end
+    check(changed >= want, ("%s: %d lines changed for %d entries"):format(case.game, changed, want))
+    h.configure({ player = "girl" })
+    local chap = 0
+    for k, v in pairs(t) do
+      if before[k] ~= v and TextIR.toPlain(v, {}):find("I dare say, friend", 1, true) then chap = chap + 1 end
+    end
+    check(chap >= 1, case.game .. ": a girl save gets the Dewford line")
+    h.configure(nil)
+    local same = true
+    for k, v in pairs(t) do if before[k] ~= v then same = false end end
+    check(same, case.game .. ": everything restored")
+  end
+end
+version = "firered"
 
 -- Hash
 -- --------------------------------------------------

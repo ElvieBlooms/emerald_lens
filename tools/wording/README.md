@@ -76,6 +76,9 @@ Run everything from the repo root.
 - `ENGINE=<unpacked .love> FRLG_TEXT=<firered cache>/scripts/text.lua luajit tools/wording/test_wording.lua`
   runs the headless tests: swaps, live switching, restoring, other mods'
   lines left alone, the picked gender, and the TEXT option.
+  Add `RSE_TEXT=<emerald cache>/scripts/text.lua` and/or
+  `RS_TEXT=<ruby cache>/scripts/text.lua` to also check that every
+  `wording_rse.lua` entry is found and applies in those games.
 
 If a line isn't found in game, the log says
 `text: <label> isn't in this game's text`; if a swap's words aren't in the

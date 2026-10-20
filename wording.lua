@@ -72,12 +72,17 @@ local function isLetter(c)
   return c ~= "" and c:find("^%a") ~= nil
 end
 
+-- Whole words: a swap that starts (or ends) with a letter can't start
+-- (or end) inside a word, so "his" leaves "this" alone, while ", man" can
+-- follow any word. -Elvie
 local function replaceWords(s, from, to)
   local found, start = false, 1
+  local wordStart, wordEnd = isLetter(from:sub(1, 1)), isLetter(from:sub(-1))
   while true do
     local a, b = s:find(from, start, true)
     if not a then break end
-    if not isLetter(s:sub(a - 1, a - 1)) and not isLetter(s:sub(b + 1, b + 1)) then
+    if not (wordStart and isLetter(s:sub(a - 1, a - 1)))
+        and not (wordEnd and isLetter(s:sub(b + 1, b + 1))) then
       s = s:sub(1, a - 1) .. to .. s:sub(b + 1)
       found = true
       start = a + #to
@@ -228,7 +233,11 @@ function wording.init(mod, family)
     current = ctx
     if not ready() then return end
     restore()
-    if not ctx then return end
+    if not ctx then
+      mod.log:info("text: the game's own lines")
+      return
+    end
+    local count = 0
     for _, entry in ipairs(mine) do
       local value = entry[modeFor(entry.who or "player", ctx) or ""]
       for _, key in ipairs(value and index[entry.hash] or {}) do
@@ -238,6 +247,7 @@ function wording.init(mod, family)
           if line then
             lines[key] = line
             applied[key] = line
+            count = count + 1
           else
             warnOnce(entry.label .. ":" .. tostring(missing),
               "text: %s has no \"%s\", left as it is", entry.label, tostring(missing))
@@ -245,6 +255,9 @@ function wording.init(mod, family)
         end
       end
     end
+    -- One line each time, so the log shows what the text follows. -Elvie
+    mod.log:info("text: player %s, rival %s, %d lines reworded",
+      tostring(modeFor("player", ctx) or "off"), tostring(ctx.rival or "off"), count)
   end
 
   -- A save being loaded or started can change the picked gender; its
