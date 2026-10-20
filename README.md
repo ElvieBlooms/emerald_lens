@@ -58,7 +58,7 @@ The options menu has a section for each family, **FR/LG** and **R/S/E**, each wi
 Under GENDER, **RIVAL** picks a character for your rival, with **RIVAL LOOK** when it has more than one look. It can be any character, the same one as the player too, and it falls back sheet by sheet like the player does. **OFF** (the default) keeps the game's own rival.
 
 * **Ruby/Sapphire/Emerald:** the rival is whoever you didn't pick (May when you play Brendan, and the other way round), so the rival character takes that gender: walking, Mach and Acro Bike, surfing and field moves (from `walk.png`, `bike.png`, `acroBike.png`, `surf.png`, `fieldMove.png`), and the battle pic (`front.png`). The look's `genderMode` doesn't matter here. Before there's a save the rival isn't shown.
-* **FireRed/LeafGreen:** the rival character stands in for Blue: walking (the first 9 frames of `walk.png`; Blue doesn't run, bike or surf), Oak's intro (`intro.png`) and his three battle pics. Each pic has its own optional file, `rivalEarly.png`, `rivalLate.png` and `rivalChampion.png` (64x64), and falls back to the look's `front.png` when it's missing.
+* **FireRed/LeafGreen:** the rival character stands in for Blue: walking (the first 9 frames of `walk.png`; Blue doesn't run, bike or surf), the naming screen (the same frames; the game only shows 16 pixels across there, so a 32-wide sheet shows its middle 16), Oak's intro (`intro.png`) and his three battle pics. Each pic has its own optional file, `rivalEarly.png`, `rivalLate.png` and `rivalChampion.png` (64x64), and falls back to the look's `front.png` when it's missing.
 
 Your own character's art only replaces the gender you picked once there's a save, so with RIVAL off the Hoenn rival is always the game's own, battle pic included.
 

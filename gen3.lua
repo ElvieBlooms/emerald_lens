@@ -579,7 +579,7 @@ function gen3.init(mod, ctx)
   -- FRLG's Oak speech uses its own full-body pic, so intro.png goes into
   -- a copy of the scene's assets (Boot's own table stays untouched). -Elvie
   -- ---------------------------------------------
-  local introImage, rivalIntro -- nil = not loaded yet, false = load failed -Elvie
+  local introImage, rivalIntro, rivalNaming -- nil = not loaded yet, false = load failed -Elvie
   local kitSwaps = {}
   local introRel = "intro.png"
   if layout == "frlg" then
@@ -604,6 +604,38 @@ function gen3.init(mod, ctx)
           assets = copy
         end
         return originalNew(assets, ...)
+      end
+    end
+
+    -- The rival naming screen walks Blue from its own copy of his frames
+    -- (naming/rival.png), not his overworld sprite. Same frame order as
+    -- walk.png, but the engine only reads the left 16 columns, so wide
+    -- sheets get their middle 16 cut out. -Elvie
+    local okChrome, NamingChrome = pcall(require, "src.ui.game3.naming_chrome")
+    if okChrome and type(NamingChrome.get) == "function" then
+      local originalGet = NamingChrome.get
+      local lastRival
+      NamingChrome.get = function(key, ...)
+        local image = originalGet(key, ...)
+        if key ~= "rival" then return image end
+        if rivalHas("walk.png") and rivalNaming == nil then
+          local wide, data, _, w = loadImage("walk.png", 16, FRLG_WALK_FRAMES * 32, 32, nil, rivalBases)
+          if wide and w == 32 then
+            local narrow = love.image.newImageData(16, FRLG_WALK_FRAMES * 32)
+            narrow:paste(data, 0, 0, 8, 0, 16, FRLG_WALK_FRAMES * 32)
+            wide = love.graphics.newImage(narrow)
+            wide:setFilter("nearest", "nearest")
+          end
+          rivalNaming = wide or false
+        end
+        if rivalNaming then image = rivalNaming end
+        -- The screen keeps one quad sized to the first image it saw. -Elvie
+        if image ~= lastRival then
+          local Naming = package.loaded["src.ui.game3.naming"]
+          if type(Naming) == "table" then Naming._rivalQuad = nil end
+          lastRival = image
+        end
+        return image
       end
     end
   elseif layout == "rse" then
@@ -742,7 +774,7 @@ function gen3.init(mod, ctx)
     picReplaced = setmetatable({}, { __mode = "k" })
     rivalPicReplaced = setmetatable({}, { __mode = "k" })
     rivalOw, rivalOwFor = nil, nil
-    introImage, rivalIntro = nil, nil
+    introImage, rivalIntro, rivalNaming = nil, nil, nil
     cacheSwaps = buildCacheSwaps()
     kitSwaps = buildKitSwaps()
     if configured then dropEngineCaches() end
