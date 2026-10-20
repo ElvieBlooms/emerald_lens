@@ -228,7 +228,7 @@ function lens.init(mod)
 
   -- Layout
   -- A heading per family with CHARACTER, LOOK and GENDER under it, then
-  -- RIVAL and RIVAL LOOK, then a reminder at the bottom. Mod options only have rows the cursor can land
+  -- RIVAL, RIVAL LOOK and TEXT, then a reminder at the bottom. Mod options only have rows the cursor can land
   -- on, so the headings, GENDER and the reminder are choice rows with one
   -- choice: selectable, but they do nothing. -Elvie
   -- --------------------------------------------------
@@ -292,6 +292,10 @@ function lens.init(mod)
             })
           end
         end
+        -- Gendered text (wording.lua): ON rewords lines to the player's and
+        -- the rival's looks, OFF keeps the game's own text. -Elvie
+        table.insert(rows, { key = "text" .. family.suffix, type = "choice", label = "  TEXT",
+          choices = { { "ON", "on" }, { "OFF", "off" } }, default = "on" })
       end
     end
     for i, line in ipairs(WARNING) do
@@ -375,8 +379,24 @@ function lens.init(mod)
     if not character and not rival then return nil end
     return ctx
   end
+
+  -- What the text follows: the player's look (nil for CHARACTER OFF) and
+  -- the rival's (nil for RIVAL OFF). nil when TEXT is OFF. -Elvie
+  local textHandle
+  local function textChoice()
+    if mod.options:get("text" .. running.suffix) == "off" then return nil end
+    local character, rival = currentCharacter(running), currentRival(running)
+    if not character and not rival then return nil end
+    return {
+      player = character and genderModeOf(selectedLook(running, character)) or nil,
+      rival = rival and genderModeOf(selectedLook(running, rival, true)) or nil,
+    }
+  end
+
   if running and defaults[running.id] then
     handle = require("mods.emerald_lens.gen3").init(mod, resolve())
+    textHandle = require("mods.emerald_lens.wording").init(mod, running.id)
+    if textHandle then textHandle.configure(textChoice()) end
   end
 
   if mod.events and type(mod.events.on) == "function" then
@@ -393,7 +413,17 @@ function lens.init(mod)
           or key == "rival" .. running.suffix or key:sub(1, #rivalPrefix) == rivalPrefix) then
         handle.configure(resolve())
       end
+      if textHandle and (key == "character" .. running.suffix or key:sub(1, #lookPrefix) == lookPrefix
+          or key == "rival" .. running.suffix or key:sub(1, #rivalPrefix) == rivalPrefix
+          or key == "text" .. running.suffix) then
+        textHandle.configure(textChoice())
+      end
     end)
+    -- The player's wording follows the gender picked in the save. -Elvie
+    if textHandle then
+      mod.events:on("save.loaded", textHandle.refresh)
+      mod.events:on("save.created", textHandle.refresh)
+    end
   end
 end
 

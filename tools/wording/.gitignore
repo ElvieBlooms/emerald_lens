@@ -1,0 +1,2 @@
+# pret dumps hold the games' own text; keep them out of the repo -Elvie
+*.out.lua
