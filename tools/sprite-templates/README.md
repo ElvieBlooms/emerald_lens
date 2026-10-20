@@ -146,6 +146,12 @@ someone else's, add their name under `"credit"` so it travels with the folder.
 | mapIcon.png | 16x16 | 16x16 | MAP ICON (Town Map / Fly map marker; also the PokeNav and Pokedex area maps on RSE) |
 | flyBird.png | 64x64 x 2 | -- | FLY (OFF / IN): the player on the bird as Fly takes off, then lands. Draw the bird too; the reference shows where it sits |
 
+A look used as the FR/LG rival (Blue) can also have `rivalEarly.png`,
+`rivalLate.png` and `rivalChampion.png` (64x64 each) for his three battle
+pics; each falls back to `front.png`. They aren't on the templates: draw
+them like `front.png` and put them in the look's `gen3/frlg/` folder. The
+R/S/E rival uses the look's ordinary sheets (see the mod README).
+
 The FRLG sheet grew a FLY block at the bottom. A sheet made before it still packs:
 the missing block is read as blank and you're told so.
 

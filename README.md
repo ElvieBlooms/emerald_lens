@@ -54,6 +54,14 @@ assets/sprites/<folder>/
 
 The options menu has a section for each family, **FR/LG** and **R/S/E**, each with a **CHARACTER** choice, a **LOOK** choice when that character has more than one look, and a **GENDER** line showing who the selected look replaces: **GIRL**, **BOY** or **ENBY** (both). A look only shows up for a family it has a folder for, so a character drawn for just FireRed/LeafGreen is only offered there, and you can use different characters for each. Pick **OFF** to keep a family's own player.
 
+### The rival
+Under GENDER, **RIVAL** picks a character for your rival, with **RIVAL LOOK** when it has more than one look. It can be any character, the same one as the player too, and it falls back sheet by sheet like the player does. **OFF** (the default) keeps the game's own rival.
+
+* **Ruby/Sapphire/Emerald:** the rival is whoever you didn't pick (May when you play Brendan, and the other way round), so the rival character takes that gender: walking, Mach and Acro Bike, surfing and field moves (from `walk.png`, `bike.png`, `acroBike.png`, `surf.png`, `fieldMove.png`), and the battle pic (`front.png`). The look's `genderMode` doesn't matter here. Before there's a save the rival isn't shown.
+* **FireRed/LeafGreen:** the rival character stands in for Blue: walking (the first 9 frames of `walk.png`; Blue doesn't run, bike or surf), Oak's intro (`intro.png`) and his three battle pics. Each pic has its own optional file, `rivalEarly.png`, `rivalLate.png` and `rivalChampion.png` (64x64), and falls back to the look's `front.png` when it's missing.
+
+Your own character's art only replaces the gender you picked once there's a save, so with RIVAL off the Hoenn rival is always the game's own, battle pic included.
+
 A boy or girl character only replaces that player, so the menu ends with a reminder: **GENDER MUST MATCH SAVE TO SHOW**. Enby characters replace either player. (The section names, GENDER and the reminder can be selected but don't do anything; the game's mod options don't have rows the cursor skips.)
 
 Every folder of a character is still used as a fallback, in this order: the selected look, the character's other looks of the same `generation`, then its looks of the other generation (menu order within each), then the game's own sprite.
@@ -84,6 +92,7 @@ Each sheet is one vertical strip of frames, in the game's own order:
 | `intro.png` | 64x96 (Oak intro) | -- |
 | `mapIcon.png` | 16x16 (Town Map and Fly map) | 16x16 (region map, Fly, PokeNav and Pokedex area maps) |
 | `flyBird.png` | 64x64, 2 frames (64x128): riding the bird as Fly takes off, then as it lands | -- (Hoenn draws the bird and player separately) |
+| `rivalEarly.png`, `rivalLate.png`, `rivalChampion.png` | 64x64 each, only when the look is the rival (see The rival); each falls back to `front.png` | -- |
 
 Gen 3 sprites are always full color.
 

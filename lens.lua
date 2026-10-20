@@ -209,10 +209,17 @@ function lens.init(mod)
     return "look" .. family.suffix .. "_" .. sanitizeKey(character)
   end
 
-  -- The look a character would use in this family right now. -Elvie
-  local function selectedLook(family, character)
+  -- The rival's rows have keys of their own, so the rival can be any
+  -- character, the player's too, in any look. -Elvie
+  local function rivalLookKey(family, character)
+    return "rivalLook" .. family.suffix .. "_" .. sanitizeKey(character)
+  end
+
+  -- The look a character would use in this family right now (as the
+  -- rival, with rival = true). -Elvie
+  local function selectedLook(family, character, rival)
     local looks = lookFolders[family.id][character]
-    local wanted = mod.options:get(lookKey(family, character))
+    local wanted = mod.options:get((rival and rivalLookKey or lookKey)(family, character))
     for _, entry in ipairs(looks) do
       if entry.key == wanted then return wanted end
     end
@@ -220,8 +227,8 @@ function lens.init(mod)
   end
 
   -- Layout
-  -- A heading per family with CHARACTER, LOOK and GENDER under it, then a
-  -- reminder at the bottom. Mod options only have rows the cursor can land
+  -- A heading per family with CHARACTER, LOOK and GENDER under it, then
+  -- RIVAL and RIVAL LOOK, then a reminder at the bottom. Mod options only have rows the cursor can land
   -- on, so the headings, GENDER and the reminder are choice rows with one
   -- choice: selectable, but they do nothing. -Elvie
   -- --------------------------------------------------
@@ -267,6 +274,24 @@ function lens.init(mod)
         end
         genderRows[family.id] = inertRow("gender" .. family.suffix, "  GENDER")
         table.insert(rows, genderRows[family.id])
+        -- R/S/E: the gender the player didn't pick; FR/LG: Blue. OFF keeps
+        -- the game's own rival. -Elvie
+        local rivalKey = "rival" .. family.suffix
+        local rivals = pairsOf(choices)
+        table.insert(rivals, 1, { "OFF", OFF })
+        table.insert(rows, { key = rivalKey, type = "choice", label = "  RIVAL",
+          choices = rivals, default = OFF })
+        for _, choice in ipairs(choices) do
+          local looks = lookFolders[family.id][choice.key]
+          if #looks > 1 then
+            table.insert(rows, {
+              key = rivalLookKey(family, choice.key), type = "choice",
+              label = "  RIVAL LOOK", choices = pairsOf(looks),
+              default = lookDefaults[family.id .. ":" .. choice.key],
+              visible_if = { key = rivalKey, equals = choice.key },
+            })
+          end
+        end
       end
     end
     for i, line in ipairs(WARNING) do
@@ -313,14 +338,9 @@ function lens.init(mod)
     return g == 4 and 4 or 3
   end
 
-  local handle
-  local function resolve()
-    local character = currentCharacter(running)
-    if not character then return nil end
-    local selected = selectedLook(running, character)
-
-    -- Fallback: the selected look, then the character's looks of the same
-    -- generation, then its other looks, each in menu order. -Elvie
+  -- Fallback: the selected look, then the character's looks of the same
+  -- generation, then its other looks, each in menu order. -Elvie
+  local function chainFor(character, selected)
     local folderKeys = { selected }
     local gen = generationOf(selected)
     for pass = 1, 2 do
@@ -329,7 +349,31 @@ function lens.init(mod)
         if entry.key ~= selected and same == (pass == 1) then table.insert(folderKeys, entry.key) end
       end
     end
-    return { folderKeys = folderKeys, genderMode = genderModeOf(selected), spritesDir = SPRITES_DIR }
+    return folderKeys
+  end
+
+  -- The rival's character (nil for OFF), the same way. -Elvie
+  local function currentRival(family)
+    local character = mod.options:get("rival" .. family.suffix)
+    if character == OFF or not lookFolders[family.id][character] then return nil end
+    return character
+  end
+
+  local handle
+  local function resolve()
+    local ctx = { folderKeys = {}, genderMode = DEFAULT_GENDER_MODE, spritesDir = SPRITES_DIR }
+    local character = currentCharacter(running)
+    if character then
+      local selected = selectedLook(running, character)
+      ctx.folderKeys = chainFor(character, selected)
+      ctx.genderMode = genderModeOf(selected)
+    end
+    local rival = currentRival(running)
+    if rival then
+      ctx.rival = { folderKeys = chainFor(rival, selectedLook(running, rival, true)) }
+    end
+    if not character and not rival then return nil end
+    return ctx
   end
   if running and defaults[running.id] then
     handle = require("mods.emerald_lens.gen3").init(mod, resolve())
@@ -340,11 +384,13 @@ function lens.init(mod)
     -- no restart, and GENDER follows. Only the running family's rows
     -- change the sprites. -Elvie
     local lookPrefix = running and ("look" .. running.suffix .. "_")
+    local rivalPrefix = running and ("rivalLook" .. running.suffix .. "_")
     mod.events:on("mod.options_changed", function(change)
       if type(change) ~= "table" or change.mod ~= mod.id or type(change.key) ~= "string" then return end
       local key = change.key
       if key:sub(1, 9) == "character" or key:sub(1, 4) == "look" then updateGender() end
-      if handle and (key == "character" .. running.suffix or key:sub(1, #lookPrefix) == lookPrefix) then
+      if handle and (key == "character" .. running.suffix or key:sub(1, #lookPrefix) == lookPrefix
+          or key == "rival" .. running.suffix or key:sub(1, #rivalPrefix) == rivalPrefix) then
         handle.configure(resolve())
       end
     end)

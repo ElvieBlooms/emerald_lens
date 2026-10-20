@@ -5,9 +5,13 @@
 -- folders, then the game's own sprite. genderMode picks the slot: boy
 -- replaces Red/Brendan, girl replaces Leaf/May, and enby replaces both,
 -- so the player looks the same whichever gender they pick (Gen 3's text
--- stays the game's own either way). Hoenn rivals share the player's front
--- pic and a few overworld sheets, so for those enby only takes the gender
--- actually picked, leaving the rival as themselves. -Elvie
+-- stays the game's own either way). The Hoenn rival battles with the other
+-- gender's front pic, so once there's a save the player's art only takes
+-- the gender actually picked, leaving the rival as themselves. -Elvie
+--
+-- The rival can be a character too, with a chain of its own: in R/S/E it
+-- takes the gender the player didn't pick (the rival's own overworld ids
+-- and that gender's front pic), in FR/LG it stands in for Blue. -Elvie
 --
 -- The wrappers go in once and read the current choice each time, so
 -- picking another character in the options takes effect straight away:
@@ -41,6 +45,24 @@ local FRONT_PIC = {
   ruby      = { male = 0,   female = 1 },
   sapphire  = { male = 0,   female = 1 },
   emerald   = { male = 71,  female = 72 },
+}
+
+-- The rival
+-- R/S/E: OBJ_EVENT_GFX_RIVAL_BRENDAN_* 100-104 and RIVAL_MAY_* 105-109 in
+-- all three games, used when the cache's avatar table has no rival rows.
+-- FR/LG: OBJ_EVENT_GFX_BLUE, whose 9 frames are the first 9 of walk.png,
+-- and his trainer pics, each with its own file that falls back to
+-- front.png. -Elvie
+local RIVAL_STATES = {
+  { file = "walk.png",      avatar = "NORMAL",     male = 100, female = 105 },
+  { file = "bike.png",      avatar = "MACH_BIKE",  male = 101, female = 106 },
+  { file = "acroBike.png",  avatar = "ACRO_BIKE",  male = 102, female = 107 },
+  { file = "surf.png",      avatar = "SURFING",    male = 103, female = 108 },
+  { file = "fieldMove.png", avatar = "FIELD_MOVE", male = 104, female = 109 },
+}
+local BLUE_GID, FRLG_WALK_FRAMES = 72, 20
+local BLUE_PICS = { -- TRAINER_PIC_RIVAL_EARLY, RIVAL_LATE, CHAMPION_RIVAL
+  [106] = "rivalEarly.png", [124] = "rivalLate.png", [125] = "rivalChampion.png",
 }
 
 -- Back pic index: 0 is the boy and 1 the girl in every Gen 3 game. -Elvie
@@ -89,6 +111,9 @@ function gen3.init(mod, ctx)
   local bases = {}
   local present = {} -- [file] = true if any folder in the chain has it
   local frontIdOf, isBackIndex = {}, {}
+  -- The rival's chain, the same way; empty when the rival is OFF. -Elvie
+  local rivalBases, rivalPresent = {}, {}
+  local rivalPicFile, rivalPicImage -- below, with the trainer pics
 
   -- The gender the player picked, read the same way the engine's battle
   -- code does. nil before there's a save (the intro). -Elvie
@@ -102,13 +127,25 @@ function gen3.init(mod, ctx)
     return (g == 1 or g == "female" or g == "F") and "female" or "male"
   end
 
-  -- For art the rival can share: an enby character takes only the gender
-  -- the player picked. Before there's a save, it takes both. -Elvie
+  -- For art the rival can share: once there's a save, only the gender the
+  -- player picked, so the other gender (the Hoenn rival) stays theirs.
+  -- Before there's a save, every slot of the look. -Elvie
   local function sharedSlots()
-    if #slots < 2 then return slots end
     local picked = pickedSlot()
     if picked == nil then return slots end
-    return picked == "female" and ONLY_FEMALE or ONLY_MALE
+    for _, slot in ipairs(slots) do
+      if slot == picked then return picked == "female" and ONLY_FEMALE or ONLY_MALE end
+    end
+    return NONE
+  end
+
+  -- R/S/E: the rival is the gender the player didn't pick (none before a
+  -- save). FR/LG's Blue doesn't depend on it. -Elvie
+  local function rivalSlot()
+    if #rivalBases == 0 then return nil end
+    local picked = pickedSlot()
+    if picked == nil then return nil end
+    return picked == "female" and "male" or "female"
   end
 
   -- For extras with no boy or girl version (surf blob, Fly bird): only
@@ -127,14 +164,17 @@ function gen3.init(mod, ctx)
   local function has(file)
     return present[file] == true
   end
+  local function rivalHas(file)
+    return rivalPresent[file] == true
+  end
 
   -- Loads on first use, from the first folder whose copy is the vanilla
   -- size (or altW wide, where a wider frame is allowed); a missing or
   -- wrong-size copy moves on to the next folder. Hands back the ImageData
   -- too, since water reflections recolor from it, and the width found. -Elvie
-  local function loadImage(file, expectW, expectH, altW, only)
+  local function loadImage(file, expectW, expectH, altW, only, chain)
     if not (love and love.image and love.graphics) then return nil end
-    for _, base in ipairs(only and { only } or bases) do
+    for _, base in ipairs(only and { only } or chain or bases) do
       local rel = base .. file
       if mod.assets:info(rel) then
         local ok, data = pcall(love.image.newImageData, mod.assets:path(rel))
@@ -189,6 +229,33 @@ function gen3.init(mod, ctx)
     end
   end
 
+  -- The rival's graphics ids, for the rival's slot right now: rebuilt when
+  -- that changes (a new save with the other gender). -Elvie
+  local rivalOw, rivalOwFor
+  local function rivalOwFiles()
+    local slot = rivalSlot()
+    if rivalOw and rivalOwFor == (slot or "") then return rivalOw end
+    rivalOw, rivalOwFor = {}, slot or ""
+    if #rivalBases == 0 then return rivalOw end
+    if layout == "frlg" then
+      if rivalHas("walk.png") then rivalOw[BLUE_GID] = { file = "walk.png", frames = FRLG_WALK_FRAMES } end
+      return rivalOw
+    end
+    if not slot then return rivalOw end
+    local avatars = type(OwSprites.avatars) == "function" and OwSprites.avatars()
+    local rows = type(avatars) == "table" and type(avatars.rival) == "table" and avatars.rival or {}
+    for _, state in ipairs(RIVAL_STATES) do
+      if rivalHas(state.file) then
+        local gid
+        for _, row in ipairs(rows) do
+          if row.state == state.avatar then gid = tonumber(row[slot]) end
+        end
+        rivalOw[gid or state[slot]] = { file = state.file }
+      end
+    end
+    return rivalOw
+  end
+
   -- Underwater the game draws no mount: the Pokemon is drawn into the
   -- underwater frames themselves. A look can give it one as diveBlob.png
   -- (down, up, left), set behind each frame where the surf blob sits:
@@ -241,10 +308,13 @@ function gen3.init(mod, ctx)
     -- drawn bigger than the game's own (Gen 4 sprites, say). The engine
     -- draws any frame centred on the tile with the feet on its bottom edge,
     -- so only the width changes. -Elvie
-    local function build(vanilla, file)
+    -- chain and sheetFrames are for the rival: Blue's 9 frames are the
+    -- first 9 of a 20-frame walk.png. -Elvie
+    local function build(vanilla, file, chain, sheetFrames)
       local w, h, n = vanilla.width, vanilla.height, vanilla.frameCount
       if not (w and h and n) then return nil end
-      local image, data, rel, gotW = loadImage(file, w, h * n, w == 16 and 32 or nil)
+      local rows = math.max(n, sheetFrames or n)
+      local image, data, rel, gotW = loadImage(file, w, h * rows, w == 16 and 32 or nil, nil, chain)
       if not image then return nil end
       w = gotW or w
       local record = {}
@@ -263,25 +333,29 @@ function gen3.init(mod, ctx)
       record.image, record.imageData, record.width = image, data, w
       record.quads = {}
       for fi = 0, n - 1 do
-        record.quads[fi] = love.graphics.newQuad(0, fi * h, w, h, w, h * n)
+        record.quads[fi] = love.graphics.newQuad(0, fi * h, w, h, w, h * rows)
       end
       return record
     end
 
     OwSprites.get = function(graphicsId)
       local vanilla = originalGet(graphicsId)
-      if not vanilla or #slots == 0 then return vanilla end
-      if not owFile then resolveOwFiles() end
-      local file
-      for _, slot in ipairs(sharedSlots()) do
-        file = file or (owFile[slot] and owFile[slot][tonumber(graphicsId)])
-      end
-      if not file then return vanilla end
+      if not vanilla or (#slots == 0 and #rivalBases == 0) then return vanilla end
       local record = owReplaced[vanilla]
-      if record == nil then
+      if record ~= nil then return record or vanilla end
+      local rival = rivalOwFiles()[tonumber(graphicsId)]
+      if rival then
+        record = build(vanilla, rival.file, rivalBases, rival.frames) or false
+      else
+        if not owFile then resolveOwFiles() end
+        local file
+        for _, slot in ipairs(sharedSlots()) do
+          file = file or (owFile[slot] and owFile[slot][tonumber(graphicsId)])
+        end
+        if not file then return vanilla end
         record = build(vanilla, file) or false
-        owReplaced[vanilla] = record
       end
+      owReplaced[vanilla] = record
       return record or vanilla
     end
   end
@@ -290,22 +364,53 @@ function gen3.init(mod, ctx)
   -- The front pic also covers the Hall of Fame and battle mugshot. -Elvie
   -- ---------------------------------------------
   local frontRel, backRel = "front.png", "back.png"
-  local picReplaced
+  local picReplaced, rivalPicReplaced
+
+  -- The rival's front pic: R/S/E, the rival's gender's id once there's a
+  -- save; FR/LG, Blue's three pics. Returns the file names to try, the
+  -- pic's own first. -Elvie
+  rivalPicFile = function(id)
+    if not id or #rivalBases == 0 then return nil end
+    if layout == "frlg" then
+      local own = BLUE_PICS[id]
+      if own and (rivalHas(own) or rivalHas(frontRel)) then return { own, frontRel } end
+      return nil
+    end
+    local slot = rivalSlot()
+    local ids = FRONT_PIC[version]
+    if slot and ids and ids[slot] == id and rivalHas(frontRel) then return { frontRel } end
+    return nil
+  end
+
+  -- Per folder, so a look's own front.png comes before another look's
+  -- rivalLate.png. -Elvie
+  rivalPicImage = function(names, w, h)
+    for _, base in ipairs(rivalBases) do
+      for _, name in ipairs(names) do
+        local image, data = loadImage(name, w, h, nil, base)
+        if image then return image, data end
+      end
+    end
+    return nil
+  end
   local okPic, TrainerPic = pcall(require, "src.core.game3.trainer_pic")
   if okPic and type(TrainerPic.back) == "function" then
     -- The battle UI builds its back pic quads from the vanilla size, so
     -- a replacement has to match it exactly. -Elvie
-    local function swap(vanilla, rel)
-      local record = picReplaced[vanilla]
+    local function swap(vanilla, rel, load, cache)
+      cache = cache or picReplaced
+      local record = cache[vanilla]
       if record == nil then
-        local image = loadImage(rel, vanilla.w or 64, vanilla.h or 64)
+        local image
+        if load then image = load(vanilla.w or 64, vanilla.h or 64)
+        else image = loadImage(rel, vanilla.w or 64, vanilla.h or 64) end
         if image then
           record = {}
           for k, v in pairs(vanilla) do record[k] = v end
           record.image = image
         end
         record = record or false
-        picReplaced[vanilla] = record
+        cache[vanilla] = record
       end
       return record or vanilla
     end
@@ -323,7 +428,13 @@ function gen3.init(mod, ctx)
       local originalFront = TrainerPic.front
       TrainerPic.front = function(picId)
         local vanilla = originalFront(picId)
-        if not (vanilla and has(frontRel)) then return vanilla end
+        if not vanilla then return vanilla end
+        local id = tonumber(picId)
+        local rivalPic = rivalPicFile(id)
+        if rivalPic then
+          return swap(vanilla, nil, function(w, h) return (rivalPicImage(rivalPic, w, h)) end, rivalPicReplaced)
+        end
+        if not has(frontRel) then return vanilla end
         local mine = false
         for _, slot in ipairs(sharedSlots()) do
           mine = mine or frontIdOf[slot] == tonumber(picId)
@@ -352,6 +463,25 @@ function gen3.init(mod, ctx)
 
   local function buildCacheSwaps()
     local list = {}
+    -- The rival's front pics first, so they win over the player's for the
+    -- same id (R/S/E). Wanted only while rivalPicFile says so. -Elvie
+    if #rivalBases > 0 then
+      local ids = {}
+      if layout == "frlg" then
+        for id in pairs(BLUE_PICS) do ids[#ids + 1] = id end
+      elseif FRONT_PIC[version] then
+        ids = { FRONT_PIC[version].male, FRONT_PIC[version].female }
+      end
+      for _, id in ipairs(ids) do
+        list[#list + 1] = { suffix = "trainers/front/" .. id .. ".rgba", rivalId = id,
+          load = function()
+            local names = rivalPicFile(id)
+            if not names then return nil end
+            local _, data = rivalPicImage(names, 64, 64)
+            return data and data:getString()
+          end }
+      end
+    end
     if has(frontRel) then
       -- TrainerPic.front loads through this same cache read, so the rival's
       -- battle pic would come through here too: front pics follow the same
@@ -429,11 +559,12 @@ function gen3.init(mod, ctx)
             end
             local mine = isPlayer()
             if swap.player and not mine then wanted = false end
+            if swap.rivalId then wanted = rivalPicFile(swap.rivalId) ~= nil end
             if wanted then
               -- Kept per isPlayer answer, since the Fly sheet differs by it.
               -- false = failed. -Elvie
               swap.bytes = swap.bytes or {}
-              local key = mine and "mine" or "other"
+              local key = swap.rivalId and "rival" or mine and "mine" or "other"
               if swap.bytes[key] == nil then swap.bytes[key] = swap.load(originalReadAt, rel, mine) or false end
               if swap.bytes[key] then return swap.bytes[key] end
             end
@@ -448,7 +579,7 @@ function gen3.init(mod, ctx)
   -- FRLG's Oak speech uses its own full-body pic, so intro.png goes into
   -- a copy of the scene's assets (Boot's own table stays untouched). -Elvie
   -- ---------------------------------------------
-  local introImage -- nil = not loaded yet, false = load failed -Elvie
+  local introImage, rivalIntro -- nil = not loaded yet, false = load failed -Elvie
   local kitSwaps = {}
   local introRel = "intro.png"
   if layout == "frlg" then
@@ -457,12 +588,19 @@ function gen3.init(mod, ctx)
       local originalNew = NewGameScene.new
       NewGameScene.new = function(assets, ...)
         if has(introRel) and introImage == nil then introImage = loadImage(introRel, 64, 96) or false end
-        if has(introRel) and introImage and type(assets) == "table" then
+        -- Oak shows the rival too, in the same 64x96 portrait format. -Elvie
+        if rivalHas(introRel) and rivalIntro == nil then
+          rivalIntro = loadImage(introRel, 64, 96, nil, nil, rivalBases) or false
+        end
+        if type(assets) == "table" and ((has(introRel) and introImage) or rivalIntro) then
           local copy = {}
           for k, v in pairs(assets) do copy[k] = v end
-          for _, slot in ipairs(slots) do
-            copy[slot == "female" and "girlSprite" or "boySprite"] = introImage
+          if has(introRel) and introImage then
+            for _, slot in ipairs(slots) do
+              copy[slot == "female" and "girlSprite" or "boySprite"] = introImage
+            end
           end
+          if rivalIntro then copy.rivalSprite = rivalIntro end
           assets = copy
         end
         return originalNew(assets, ...)
@@ -520,6 +658,9 @@ function gen3.init(mod, ctx)
     if type(pic) == "table" and type(pic._front) == "table" and ids then
       pic._front[ids.male], pic._front[ids.female] = nil, nil
     end
+    if type(pic) == "table" and type(pic._front) == "table" and layout == "frlg" then
+      for id in pairs(BLUE_PICS) do pic._front[id] = nil end
+    end
     local fx = L["src.core.game3.field_effects"]
     if type(fx) == "table" and type(fx._sheets) == "table" then
       fx._sheets.surf_blob, fx._sheets.bird, fx._sheets.fly_bird = nil, nil, nil
@@ -540,6 +681,8 @@ function gen3.init(mod, ctx)
   -- chain and slots, nothing built yet. -Elvie
   -- ---------------------------------------------
   local configured = false
+  local RIVAL_FILES = { "walk.png", "bike.png", "acroBike.png", "surf.png", "fieldMove.png",
+    "front.png", "intro.png", "rivalEarly.png", "rivalLate.png", "rivalChampion.png" }
   local function configure(newCtx)
     slots = newCtx and SLOTS_FOR_GENDER_MODE[newCtx.genderMode] or NONE
     local folderKeys = newCtx and (newCtx.folderKeys or { newCtx.folderKey }) or {}
@@ -569,6 +712,25 @@ function gen3.init(mod, ctx)
       end
     end
 
+    -- The rival's chain: ctx.rival = { folderKeys } from lens.lua, or nil
+    -- for OFF. -Elvie
+    rivalBases, rivalPresent = {}, {}
+    local rival = newCtx and newCtx.rival
+    if rival then
+      local seenRival = {}
+      for _, key in ipairs(rival.folderKeys or {}) do
+        if key and not seenRival[key] then
+          seenRival[key] = true
+          rivalBases[#rivalBases + 1] = (rival.spritesDir or newCtx.spritesDir) .. "/" .. key .. "/gen3/" .. layout .. "/"
+        end
+      end
+      for _, file in ipairs(RIVAL_FILES) do
+        for _, base in ipairs(rivalBases) do
+          if mod.assets:info(base .. file) then rivalPresent[file] = true end
+        end
+      end
+    end
+
     frontIdOf, isBackIndex = {}, {}
     for _, slot in ipairs(slots) do
       frontIdOf[slot] = FRONT_PIC[version] and FRONT_PIC[version][slot]
@@ -578,7 +740,9 @@ function gen3.init(mod, ctx)
     owFile = nil
     owReplaced = setmetatable({}, { __mode = "k" })
     picReplaced = setmetatable({}, { __mode = "k" })
-    introImage = nil
+    rivalPicReplaced = setmetatable({}, { __mode = "k" })
+    rivalOw, rivalOwFor = nil, nil
+    introImage, rivalIntro = nil, nil
     cacheSwaps = buildCacheSwaps()
     kitSwaps = buildKitSwaps()
     if configured then dropEngineCaches() end
