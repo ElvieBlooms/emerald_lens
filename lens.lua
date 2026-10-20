@@ -383,13 +383,33 @@ function lens.init(mod)
   -- What the text follows: the player's look (nil for CHARACTER OFF) and
   -- the rival's (nil for RIVAL OFF). nil when TEXT is OFF. -Elvie
   local textHandle
+
+  -- The rival's name in R/S/E: the look's first nameChoices entry (Crystal
+  -- Lens's key for its name choices), else the character. Names are 7
+  -- letters at most in Gen 3. -Elvie
+  local NAME_LENGTH = 7
+  local function rivalNameOf(key, character)
+    local names = (metaFor[key] or {}).nameChoices
+    local name = type(names) == "table" and type(names[1]) == "string" and names[1] ~= ""
+      and names[1] or character
+    local cut, n = {}, 0
+    for ch in name:gmatch("[%z\1-\127\194-\244][\128-\191]*") do
+      n = n + 1
+      if n > NAME_LENGTH then break end
+      cut[n] = ch
+    end
+    return table.concat(cut)
+  end
+
   local function textChoice()
     if mod.options:get("text" .. running.suffix) == "off" then return nil end
     local character, rival = currentCharacter(running), currentRival(running)
     if not character and not rival then return nil end
+    local rivalLook = rival and selectedLook(running, rival, true)
     return {
       player = character and genderModeOf(selectedLook(running, character)) or nil,
-      rival = rival and genderModeOf(selectedLook(running, rival, true)) or nil,
+      rival = rivalLook and genderModeOf(rivalLook) or nil,
+      rivalName = rivalLook and rivalNameOf(rivalLook, rival) or nil,
     }
   end
 

@@ -171,6 +171,12 @@ end
 -- given: every entry for that game is found and applies, none from the
 -- other is logged
 -- --------------------------------------------------
+local TRAINERS = { [1] = { name = "MAY", className = "POKéMON TRAINER" },
+  [2] = { name = "BRENDAN", className = "POKéMON TRAINER" }, [3] = { name = "ROXANNE" } }
+local TrainersStub = { get = function(id) return TRAINERS[id] end }
+package.loaded["src.core.game3.scripting.trainers"] = TrainersStub
+local plainGet = TrainersStub.get
+
 for _, case in ipairs({ { env = "RSE_TEXT", game = "emerald" }, { env = "RS_TEXT", game = "ruby" } }) do
   local path = os.getenv(case.env)
   if path then
@@ -191,7 +197,7 @@ for _, case in ipairs({ { env = "RSE_TEXT", game = "emerald" }, { env = "RS_TEXT
     for _, e in ipairs(entries) do
       local mine = e.games == nil
       for _, g in ipairs(e.games or {}) do mine = mine or g == case.game end
-      if mine and e.enby then want = want + 1 end
+      if mine and e.enby and (e.who or "player") == "player" then want = want + 1 end
     end
     check(changed >= want, ("%s: %d lines changed for %d entries"):format(case.game, changed, want))
     h.configure({ player = "girl" })
@@ -200,6 +206,46 @@ for _, case in ipairs({ { env = "RSE_TEXT", game = "emerald" }, { env = "RS_TEXT
       if before[k] ~= v and TextIR.toPlain(v, {}):find("I dare say, friend", 1, true) then chap = chap + 1 end
     end
     check(chap >= 1, case.game .. ": a girl save gets the Dewford line")
+    -- the rival's name, with the enby wording on the same line -Elvie
+    TrainersStub.get = plainGet
+    local h2mod = fakeMod({ gender = 1 })
+    local h2 = wording.init(h2mod, "rse")
+    h2.configure({ player = "enby", rival = "girl", rivalName = "KRIS" })
+    local all, brendanMeet = {}, nil
+    for k, v in pairs(t) do
+      local p = wording.canonical(v)
+      all[#all + 1] = p
+      if p:find("You're not what I expected", 1, true) then brendanMeet = p end
+    end
+    local joined = table.concat(all, "\n")
+    check(not joined:find("%f[%w]MAY%f[%W]") and not joined:find("%f[%w]BRENDAN%f[%W]"),
+      case.game .. ": no MAY or BRENDAN left")
+    check(joined:find("KRIS:", 1, true) ~= nil, case.game .. ": speaker tags renamed")
+    check(brendanMeet and brendanMeet:find("My name's KRIS", 1, true),
+      case.game .. ": the reworded line is renamed too")
+    local ph = TextIR.placeholdersFor({ placeholders = { byGender = { RIVAL = { male = "MAY", female = "BRENDAN" } } } })
+    check(ph.byGender.RIVAL.male == "KRIS" and ph.byGender.RIVAL.female == "KRIS", case.game .. ": {RIVAL} placeholder")
+    check(TextIR.toPlain(TextIR.fromAscii("Hi, {RIVAL}!"), { dialect = "rse", playerGender = 0,
+      placeholders = { byGender = { RIVAL = { male = "MAY", female = "BRENDAN" } } } }) == "Hi, KRIS!",
+      case.game .. ": {RIVAL} expands to the name")
+    check(TrainersStub.get(1).name == "KRIS" and TrainersStub.get(2).name == "KRIS", case.game .. ": battle names")
+    local sonKey = case.game == "ruby" and "gOtherText_Son" or "gText_Son"
+    local daughterKey = case.game == "ruby" and "gOtherText_Daughter" or "gText_Daughter"
+    check(wording.canonical(t[sonKey]) == "daughter" and wording.canonical(t[daughterKey]) == "daughter",
+      case.game .. ": the rival's mom says daughter for a girl rival")
+    h2.configure({ player = "enby", rival = "enby", rivalName = "KRIS" })
+    check(wording.canonical(t[sonKey]) == "kid" and wording.canonical(t[daughterKey]) == "kid",
+      case.game .. ": and kid for an enby rival")
+    h2.configure({ player = "enby", rival = "boy", rivalName = "KRIS" })
+    check(wording.canonical(t[sonKey]) == "son" and wording.canonical(t[daughterKey]) == "son",
+      case.game .. ": and son for a boy rival")
+    h2.configure({ player = "enby", rival = "girl", rivalName = "KRIS" })
+    check(TrainersStub.get(3).name == "ROXANNE" and TRAINERS[1].name == "MAY", case.game .. ": others and the pack untouched")
+    h2.configure({ player = "enby", rival = "girl", rivalName = "GOLD" })
+    check(TrainersStub.get(1).name == "GOLD", case.game .. ": a new name shows straight away")
+    h2.configure({ player = "enby" })
+    check(TrainersStub.get(1).name == "MAY", case.game .. ": RIVAL OFF gives MAY back")
+    h2.configure(nil)
     h.configure(nil)
     local same = true
     for k, v in pairs(t) do if before[k] ~= v then same = false end end
@@ -219,7 +265,8 @@ check(wording.hash("foobar") == "bf9cf968", "FNV-1a of 'foobar'")
 do
   local folders = {
     kris = { label = "KRIS", character = "KRIS", genderMode = "girl" },
-    nb = { label = "SAGE", character = "SAGE", genderMode = "enby" },
+    nb = { label = "SAGE", character = "SAGE", genderMode = "enby",
+      names = '["ROWANBERRY", "X"]' },
   }
   local options, rows, handlers = {}, nil, {}
   local got = {}
@@ -232,7 +279,8 @@ do
     end,
   }
   local json = function(t)
-    return ('{"label":"%s","character":"%s","genderMode":"%s"}'):format(t.label, t.character, t.genderMode)
+    return ('{"label":"%s","character":"%s","genderMode":"%s"%s}'):format(t.label, t.character, t.genderMode,
+      t.names and (',"nameChoices":' .. t.names) or "")
   end
   local mod = {
     id = "emerald_lens",
@@ -262,6 +310,11 @@ do
   options.characterFrlg, options.rivalFrlg = "KRIS", "SAGE"
   handlers["mod.options_changed"]({ mod = "emerald_lens", key = "rivalFrlg" })
   check(got.ctx and got.ctx.player == "girl" and got.ctx.rival == "enby", "player and rival genderModes passed")
+  check(got.ctx.rivalName == "ROWANBE", "rival name from nameChoices, 7 letters: " .. tostring(got.ctx.rivalName))
+  options.rivalFrlg = "KRIS"
+  handlers["mod.options_changed"]({ mod = "emerald_lens", key = "rivalFrlg" })
+  check(got.ctx.rivalName == "KRIS", "no nameChoices: the character's name")
+  options.rivalFrlg = "SAGE"
 
   options.textFrlg = "off"
   handlers["mod.options_changed"]({ mod = "emerald_lens", key = "textFrlg" })

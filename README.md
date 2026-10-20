@@ -37,11 +37,12 @@ Each look is a folder at `assets/sprites/FOLDER_NAME_HERE` (no spaces in the fol
   
   Left out, it's `"girl"`, the same as Crystal Lens. The game still asks boy or girl at the start, so pick the one that matches your character (any choice works for enby).
 * `generation` (optional) is `3` for art in the games' own style or `4` for bigger DS-style art (HGSS/DPPt sprites, usually on the 32-wide sheets). It only decides fallback order: a missing sheet is taken from the character's looks of the same generation first, then from its other looks, so a Gen 4 look borrows from other Gen 4 looks before Gen 3 ones. Left out, it's `3`.
+* `nameChoices` (optional) is Crystal Lens's list of name choices. Emerald Lens uses the first one as the rival's name in Ruby/Sapphire/Emerald (see **The rival**); left out, the rival takes the character's name. Gen 3 names are 7 letters at most, so a longer one is cut.
 * `credit` (optional) names the artists, as a list of lines. The game doesn't show it; it keeps the credit with the art wherever the folder is copied. Please fill it in when you share a look made from someone else's sprites.
 
 Keep `meta.json` valid JSON: a trailing comma after the last item (`"...",]`) makes it unreadable, and the look falls back to its folder name and `"girl"`.
 
-Crystal Lens's other keys (`overworldColors`, `nameChoices`) are ignored here, so a folder copied from Crystal Lens works as-is once it has a `gen3` folder.
+Crystal Lens's `overworldColors` is ignored here, so a folder copied from Crystal Lens works as-is once it has a `gen3` folder.
 
 Gen 3 art goes in a `gen3` subfolder, one per game family, since their sheets are different sizes:
 
@@ -58,7 +59,7 @@ The options menu has a section for each family, **FR/LG** and **R/S/E**, each wi
 ### The rival
 Under GENDER, **RIVAL** picks a character for your rival, with **RIVAL LOOK** when it has more than one look. It can be any character, the same one as the player too, and it falls back sheet by sheet like the player does. **OFF** (the default) keeps the game's own rival.
 
-* **Ruby/Sapphire/Emerald:** the rival is whoever you didn't pick (May when you play Brendan, and the other way round), so the rival character takes that gender: walking, Mach and Acro Bike, surfing and field moves (from `walk.png`, `bike.png`, `acroBike.png`, `surf.png`, `fieldMove.png`), and the battle pic (`front.png`). The look's `genderMode` doesn't matter here. Before there's a save the rival isn't shown.
+* **Ruby/Sapphire/Emerald:** the rival is whoever you didn't pick (May when you play Brendan, and the other way round), so the rival character takes that gender: walking, Mach and Acro Bike, surfing and field moves (from `walk.png`, `bike.png`, `acroBike.png`, `surf.png`, `fieldMove.png`), and the battle pic (`front.png`). The look's `genderMode` doesn't matter for the art (the text follows it). With **TEXT** on, the rival is also called by the look's name instead of MAY or BRENDAN: in what they say, in `{RIVAL}`, on the POKéNAV and in battle. The name is the look's first `nameChoices` entry, or else the character's name. Before there's a save the rival isn't shown.
 * **FireRed/LeafGreen:** the rival character stands in for Blue: walking (the first 9 frames of `walk.png`; Blue doesn't run, bike or surf), Oak's intro (`intro.png`) and his three battle pics. Each pic has its own optional file, `rivalEarly.png`, `rivalLate.png` and `rivalChampion.png` (64x64), and falls back to the look's `front.png` when it's missing.
 
 Your own character's art only replaces the gender you picked once there's a save, so with RIVAL off the Hoenn rival is always the game's own, battle pic included.
@@ -71,7 +72,7 @@ With **TEXT** on (the default), lines that assume the player's or the rival's ge
 * **The player:** the games already have both a boy and a girl version of most lines and use the one for the gender you picked, the same gender your character's art replaces. A girl or boy character keeps that. An enby character gets they/them wording whichever gender you picked. Lines the game says to everyone that assume a gender are reworded for the gender you picked too. With CHARACTER off, the player's lines stay the game's own.
 * **The rival:** lines about the rival follow the RIVAL LOOK's `genderMode`. In FireRed/LeafGreen, Oak's intro introduces a girl rival as his granddaughter and an enby rival as his grandchild, Daisy calls them her sister or sibling, and Lance says she or they. With RIVAL off, the rival's lines stay the game's own.
 
-FireRed/LeafGreen is covered: Oak's intro, Daisy and Lance on the rival; Mom, the Safari Zone warden, Bill, the S.S. Anne, Silph's president and a few others on the player (they/them wording for enby characters, where the game has a boy and a girl version); and bikers' "…, man" dropped for girls and enby. Ruby/Sapphire/Emerald needs much less, since the games already talk about May and Brendan as "my kid" and "our child": Brendan meeting an enby player who picked the girl, and the Dewford Hall man's "chap". In every game, an enby character also gets "Which would you like to be?" instead of "Are you a boy? Or are you a girl?" before the BOY/GIRL choice. Changes apply straight away (a message already on screen keeps its text). Each line is found by its own text, so it works the same in every version of a game, and a line another mod has changed, such as a translation, stays theirs.
+FireRed/LeafGreen is covered: Oak's intro, Daisy and Lance on the rival; Mom, the Safari Zone warden, Bill, the S.S. Anne, Silph's president and a few others on the player (they/them wording for enby characters, where the game has a boy and a girl version); and bikers' "…, man" dropped for girls and enby. Ruby/Sapphire/Emerald needs much less, since the games already talk about May and Brendan as "my kid" and "our child": Brendan meeting an enby player who picked the girl, the Dewford Hall man's "chap", and the rival's mom, who says son, daughter or kid to match the RIVAL LOOK. In every game, an enby character also gets "Which would you like to be?" instead of "Are you a boy? Or are you a girl?" before the BOY/GIRL choice. Changes apply straight away (a message already on screen keeps its text). Each line is found by its own text, so it works the same in every version of a game, and a line another mod has changed, such as a translation, stays theirs.
 
 Every folder of a character is still used as a fallback, in this order: the selected look, the character's other looks of the same `generation`, then its looks of the other generation (menu order within each), then the game's own sprite.
 
@@ -141,7 +142,6 @@ The surf blob and bird have no boy or girl version, so they're only used when yo
 
 ## Not covered yet
 * New-game name choices.
-* The Ruby/Sapphire/Emerald rival is still called MAY or BRENDAN whoever the RIVAL character is.
 * In link battles, an opponent who picked a replaced gender also shows your character, since front pics are replaced by picture number.
 
 ## Credits

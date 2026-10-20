@@ -3,8 +3,11 @@
 -- from Emerald's and get entries of their own, with games so the other
 -- game doesn't log them as missing. -Elvie
 --
--- The rival's lines need nothing: the games already call May and Brendan
--- "my kid" and "our child" when they could be either. -Elvie
+-- The rival's lines mostly need nothing: the games already call May and
+-- Brendan "my kid" and "our child" when they could be either. The one
+-- exception is their mom's "We have a son/daughter about the same age as
+-- you": that word is its own line (gText_Son / gText_Daughter, gOtherText_
+-- in R/S), picked by a special, so the word itself is swapped. -Elvie
 -- --------------------------------------------------
 
 -- Brendan meeting a girl player. An enby player who picked the girl gets
@@ -27,6 +30,10 @@ return {
     games = { "emerald" }, girl = NOT_CHAP, enby = NOT_CHAP },
   { label = "DewfordTown_Hall_Text_WorkOnYourSinging", hash = "683330dd", who = "player",
     games = { "ruby", "sapphire" }, girl = NOT_CHAP, enby = NOT_CHAP },
+
+  -- The rival's mom's word for the rival -Elvie
+  { label = "gText_Son", hash = "e0363a7b", who = "rival", girl = "daughter", enby = "kid" },
+  { label = "gText_Daughter", hash = "0ba81191", who = "rival", boy = "son", enby = "kid" },
 
   -- Birch's intro, before the BOY/GIRL menu. Same line in all three
   -- (gText_Birch_BoyOrGirl in Emerald). -Elvie
