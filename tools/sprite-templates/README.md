@@ -128,6 +128,10 @@ Need a fresh blank sheet? `python3 pack_gen3.py blank rse rse_sheet.png`
 The look folder also needs a `meta.json` (label, character, genderMode, and
 `"generation": 4` for DS-style art; see the mod README). If the art is
 someone else's, add their name under `"credit"` so it travels with the folder.
+The in-game **LENS** screen shows `credit` under the look (and in full on its
+CREDITS page),
+along with its `front.png` and a walking preview from `walk.png`, so it's a
+quick way to check a new look in game.
 
 ## Frame sizes
 

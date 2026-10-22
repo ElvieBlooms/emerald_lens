@@ -419,6 +419,232 @@ function lens.init(mod)
     if textHandle then textHandle.configure(textChoice()) end
   end
 
+  -- The LENS screen (lens_screen.lua)
+  -- The running family's rows, read fresh each time it draws, and set the
+  -- way the mod settings screen sets them (ManagerState:setOption), so
+  -- everything below reacts the same. -Elvie
+  -- --------------------------------------------------
+  local function liveGame(game)
+    if type(game) == "table" then return game end
+    local ok, g = pcall(function() return mod.game end)
+    return ok and type(g) == "table" and g or nil
+  end
+
+  local function setOption(game, key, value)
+    local Runtime = package.loaded["src.mods.Runtime"]
+    if Runtime and Runtime.safeMode then return end
+    game = liveGame(game)
+    if not game then return end
+    if type(game.options) == "table" then
+      game.options.modOptions = game.options.modOptions or {}
+      game.options.modOptions[mod.id] = game.options.modOptions[mod.id] or {}
+      game.options.modOptions[mod.id][key] = value
+    end
+    local loader = game.mods
+    if type(loader) == "table" then
+      loader.modOptions = loader.modOptions or {}
+      loader.modOptions[mod.id] = loader.modOptions[mod.id] or {}
+      loader.modOptions[mod.id][key] = value
+    end
+    if type(game.writeOptions) == "function" then pcall(game.writeOptions, game) end
+    if type(loader) == "table" and loader.events then
+      loader.events:emit("mod.options_changed", { mod = mod.id, key = key, value = value })
+    end
+  end
+
+  local function labelOf(list, value)
+    for _, choice in ipairs(list) do
+      if choice[2] == value then return choice[1] end
+    end
+    return ""
+  end
+
+  local function screenRows()
+    local f, rows = running, {}
+    local function add(row)
+      row.valueLabel = row.valueLabel or labelOf(row.choices, row.value)
+      rows[#rows + 1] = row
+    end
+    local characters = pairsOf(choicesFor[f.id])
+    table.insert(characters, { "OFF", OFF })
+    local character = currentCharacter(f)
+    add({ key = "character" .. f.suffix, label = "CHARACTER", who = "player",
+      choices = characters, value = character or OFF })
+    if character then
+      add({ key = lookKey(f, character), label = "LOOK", who = "player",
+        choices = pairsOf(lookFolders[f.id][character]), value = selectedLook(f, character) })
+    end
+    local rivals = pairsOf(choicesFor[f.id])
+    table.insert(rivals, 1, { "OFF", OFF })
+    local rival = currentRival(f)
+    add({ key = "rival" .. f.suffix, label = "RIVAL", who = "rival", choices = rivals, value = rival or OFF })
+    if rival then
+      add({ key = rivalLookKey(f, rival), label = "RIVAL LOOK", who = "rival",
+        choices = pairsOf(lookFolders[f.id][rival]), value = selectedLook(f, rival, true) })
+    end
+    add({ key = "text" .. f.suffix, label = "TEXT", who = "text",
+      choices = { { "ON", "on" }, { "OFF", "off" } },
+      value = mod.options:get("text" .. f.suffix) == "off" and "off" or "on" })
+    -- A opens the full credits page (credits below). -Elvie
+    add({ key = "credits", label = "CREDITS", who = "player", page = true, valueLabel = "SEE ALL" })
+    return rows
+  end
+
+  -- Who each genderMode stands in for, and what the rival's text says. -Elvie
+  local PLAYERS = {
+    frlg = { boy = "RED", girl = "LEAF", enby = "RED/LEAF" },
+    rse = { boy = "BRENDAN", girl = "MAY", enby = "BRENDAN/MAY" },
+  }
+  local MODE_WORD = { boy = "Boy", girl = "Girl", enby = "Enby" }
+  local GRAND = { boy = "grandson", girl = "granddaughter", enby = "grandchild" }
+
+  local function saveGender(game)
+    game = liveGame(game)
+    local session = game and game.session
+    local g = type(session) == "table" and session.gender or nil
+    if g == nil then return nil end
+    return (g == 1 or g == "female" or g == "F") and "girl" or "boy"
+  end
+
+  local function creditLines(key, lines)
+    local credit = (metaFor[key] or {}).credit
+    if type(credit) == "string" then credit = { credit } end
+    if type(credit) ~= "table" then return end
+    for _, line in ipairs(credit) do
+      if type(line) == "string" and line ~= "" then lines[#lines + 1] = { text = line } end
+    end
+  end
+
+  local function basesOf(character, look)
+    local bases = {}
+    for _, key in ipairs(chainFor(character, look)) do
+      bases[#bases + 1] = SPRITES_DIR .. "/" .. key .. "/gen3/" .. running.id .. "/"
+    end
+    return bases
+  end
+
+  local function screenPreview(who, game)
+    local f, names = running, PLAYERS[running.id]
+    local textOn = mod.options:get("text" .. f.suffix) ~= "off"
+    local lines = {}
+    if who == "rival" then
+      local rival = currentRival(f)
+      if not rival then return { lines = { { text = "The game's own rival." } } } end
+      local look = selectedLook(f, rival, true)
+      local mode = genderModeOf(look)
+      if f.id == "frlg" then
+        lines[1] = { text = "Stands in for BLUE." }
+        if textOn then lines[2] = { text = "Oak's " .. GRAND[mode] .. "." } end
+      else
+        local picked = saveGender(game)
+        lines[1] = { text = picked and ("Takes over " .. (picked == "girl" and "BRENDAN" or "MAY") .. ".")
+          or "Shows once there's a save." }
+        if textOn then lines[2] = { text = "Called " .. rivalNameOf(look, rival) .. "." } end
+      end
+      creditLines(look, lines)
+      return { bases = basesOf(rival, look), frontFile = f.id == "frlg" and "rivalEarly.png" or nil,
+        lines = lines }
+    end
+    local character = currentCharacter(f)
+    if who == "text" then
+      lines[1] = { text = textOn and "Lines match your looks." or "The game's own text." }
+      if textOn then lines[2] = { text = "They/them for enby looks." } end
+    end
+    if not character then
+      if who ~= "text" then lines[1] = { text = "The game's own player." } end
+      return { lines = lines }
+    end
+    local look = selectedLook(f, character)
+    local mode = genderModeOf(look)
+    if who ~= "text" then
+      lines[1] = { text = MODE_WORD[mode] .. ": replaces " .. names[mode] .. "." }
+      local picked = saveGender(game)
+      if picked and mode ~= "enby" and picked ~= mode then
+        lines[2] = { text = "Not shown: save is " .. names[picked] .. ".", red = true }
+      end
+      creditLines(look, lines)
+    end
+    return { bases = basesOf(character, look), lines = lines }
+  end
+
+  -- The credits page: the player's and the rival's looks, every other
+  -- look this family offers, then the mod itself. -Elvie
+  local function lookName(character, key)
+    local label = (metaFor[key] or {}).label or key:upper()
+    return label == character and character or (character .. ": " .. label)
+  end
+
+  local function screenCredits()
+    local f, out, listed = running, {}, {}
+    local function addLook(title, character, key)
+      listed[key] = true
+      out[#out + 1] = { text = title .. lookName(character, key), heading = true }
+      local lines = {}
+      creditLines(key, lines)
+      if #lines == 0 then lines[1] = { text = "No credit listed." } end
+      for _, line in ipairs(lines) do out[#out + 1] = { text = line.text } end
+    end
+    local character, rival = currentCharacter(f), currentRival(f)
+    if character then addLook("YOU: ", character, selectedLook(f, character)) end
+    if rival then addLook("RIVAL: ", rival, selectedLook(f, rival, true)) end
+    for _, choice in ipairs(choicesFor[f.id]) do
+      for _, entry in ipairs(lookFolders[f.id][choice.key]) do
+        if not listed[entry.key] then addLook("", choice.key, entry.key) end
+      end
+    end
+    out[#out + 1] = { text = "EMERALD LENS", heading = true }
+    out[#out + 1] = { text = "Built on the Crystal Lens framework by Dgray66, used with permission." }
+    out[#out + 1] = { text = "Gen 3 support: Elvie" }
+    return out
+  end
+
+  local lensScreen
+  if running and defaults[running.id] then
+    lensScreen = require("mods.emerald_lens.lens_screen").new(mod, {
+      title = function() return "EMERALD LENS" end,
+      rows = screenRows,
+      set = setOption,
+      preview = screenPreview,
+      credits = screenCredits,
+    })
+  end
+
+  if lensScreen and mod.hooks and type(mod.hooks.wrap) == "function" then
+    -- START menu: LENS, just above MODS (or EXIT). -Elvie
+    mod.hooks:wrap("ui.start_menu.items", function(nextFn, game, items)
+      local out = nextFn()
+      if type(out) ~= "table" then return out end
+      -- Not in the scripted tutorial menu, which waits on a pick. -Elvie
+      local StartMenu = package.loaded["src.ui.game3.start_menu"]
+      if StartMenu and StartMenu._tutorial then return out end
+      local at
+      for i, item in ipairs(out) do
+        if type(item) == "table" and (item.id == "mods" or (item.id == "exit" and not at)) then at = i end
+      end
+      if not at then return out end
+      local copy = {}
+      for i, item in ipairs(out) do copy[i] = item end
+      table.insert(copy, at, { id = "emerald_lens", label = "LENS",
+        onSelect = function(g) lensScreen.open(liveGame(g) or game) end })
+      return copy
+    end)
+    -- OPTION menu: EMERALD LENS, showing the character. -Elvie
+    mod.hooks:wrap("ui.options.rows", function(nextFn, game, rows)
+      local out = nextFn()
+      if type(out) ~= "table" then return out end
+      local copy = {}
+      for i, row in ipairs(out) do copy[i] = row end
+      copy[#copy + 1] = { id = "emerald_lens", label = "EMERALD LENS",
+        value = function()
+          local character = currentCharacter(running)
+          return character or "OFF"
+        end,
+        activate = function(g) lensScreen.open(liveGame(g) or game) end,
+      }
+      return copy
+    end)
+  end
+
   if mod.events and type(mod.events.on) == "function" then
     -- Changing CHARACTER or LOOK in the mod options applies straight away,
     -- no restart, and GENDER follows. Only the running family's rows

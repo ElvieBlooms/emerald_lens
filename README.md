@@ -1,5 +1,5 @@
 # Emerald Lens
-A player sprite mod for the Gen 3 games in gen1recomp: FireRed, LeafGreen, Ruby, Sapphire and Emerald.
+A player sprite mod for the Gen 3 games in gen1recomp: FireRed, LeafGreen, Ruby, Sapphire and Emerald. Needs gen1recomp 0.3.91 or newer.
 
 <img width="960" height="641" alt="Kris" src="https://github.com/user-attachments/assets/ed42d94d-aaf5-41b7-b022-cbf9bb71f996" />
 <img width="1022" height="676" alt="krisfrlgow1" src="https://github.com/user-attachments/assets/fc2a50e5-a031-4e75-b665-75286d963de0" />
@@ -12,6 +12,8 @@ Emerald Lens is the Gen 3 companion to [Crystal Lens](https://github.com/dburton
 * Optional extras: the surf blob, the Fly bird and the Bag, plus a dive blob for Ruby/Sapphire/Emerald, which the games don't have.
 * Pick a character for FireRed/LeafGreen and for Ruby/Sapphire/Emerald separately, so a character only needs art for one of them.
 * Per-character gender: replace the boy, the girl, or both.
+* A **LENS** screen on the START menu and the OPTION menu: pick your character, look, rival and text with a preview of the look (see **The LENS screen** below).
+* A rival of your choosing: any character can stand in for Blue, or for May/Brendan, with the rival's own looks and fallback (see **The rival** below).
 * Gendered text follows your characters: girl or they/them wording where the game assumes a gender, for the player and the rival (see **Text** below).
 * Falls back sheet by sheet: the selected look, then the same character's other looks of the same generation, then its looks of the other generation, then the game's own sprite. Draw as much or as little as you like.
 * Sprite tools to draw from the game's own sprites and pack your art (`tools/sprite-templates`).
@@ -38,7 +40,7 @@ Each look is a folder at `assets/sprites/FOLDER_NAME_HERE` (no spaces in the fol
   Left out, it's `"girl"`, the same as Crystal Lens. The game still asks boy or girl at the start, so pick the one that matches your character (any choice works for enby).
 * `generation` (optional) is `3` for art in the games' own style or `4` for bigger DS-style art (HGSS/DPPt sprites, usually on the 32-wide sheets). It only decides fallback order: a missing sheet is taken from the character's looks of the same generation first, then from its other looks, so a Gen 4 look borrows from other Gen 4 looks before Gen 3 ones. Left out, it's `3`.
 * `nameChoices` (optional) is Crystal Lens's list of name choices. Emerald Lens uses the first one as the rival's name in Ruby/Sapphire/Emerald (see **The rival**); left out, the rival takes the character's name. Gen 3 names are 7 letters at most, so a longer one is cut.
-* `credit` (optional) names the artists, as a list of lines. The game doesn't show it; it keeps the credit with the art wherever the folder is copied. Please fill it in when you share a look made from someone else's sprites.
+* `credit` (optional) names the artists, as a list of lines. The LENS screen shows it under the look and in full on its CREDITS page; it also keeps the credit with the art wherever the folder is copied. Please fill it in when you share a look made from someone else's sprites.
 
 Keep `meta.json` valid JSON: a trailing comma after the last item (`"...",]`) makes it unreadable, and the look falls back to its folder name and `"girl"`.
 
@@ -66,6 +68,16 @@ Your own character's art only replaces the gender you picked once there's a save
 
 A boy or girl character only replaces that player, so the menu ends with a reminder: **GENDER MUST MATCH SAVE TO SHOW**. Enby characters replace either player. (The section names, GENDER and the reminder can be selected but don't do anything; the game's mod options don't have rows the cursor skips.)
 
+### The LENS screen
+The same choices for the game you're playing are on a screen of their own: **LENS** on the START menu (above MODS, or EXIT), and **EMERALD LENS** on the OPTION menu, which also works from the Ruby/Sapphire/Emerald title screen. Up and down pick a row, left and right (or A) change it, and B closes it. Changes apply straight away, the same as in the mod options, and are saved to the same settings.
+
+* **CHARACTER**, **LOOK**, **RIVAL**, **RIVAL LOOK** (when a rival is set) and **TEXT**, for the running family only, then **CREDITS**.
+* A preview of the look: its `front.png` (FR/LG rivals: `rivalEarly.png`, else `front.png`) and a walking sprite from `walk.png`, found through the same fallback chain the game uses. The player rows show the player, the rival rows the rival.
+* Under the rows: who the look replaces, a red **Not shown** line when the save is the other gender, what the rival stands in for (and, with TEXT on, what it's called), and as much of the look's `credit` as fits.
+* **CREDITS** (press A) opens a page with every credit in full: your look, the rival's, every other look offered for this game, and the mod's own. Up and down scroll, left and right turn a page, B goes back.
+
+The mod options still have every row for both families.
+
 ### Text
 With **TEXT** on (the default), lines that assume the player's or the rival's gender are reworded to match your characters:
 
@@ -79,6 +91,8 @@ Every folder of a character is still used as a fallback, in this order: the sele
 Changing a character or look applies straight away, no restart needed: the player changes as soon as you're back in the game. The one exception is the FireRed/LeafGreen trainer card, which keeps the portrait it first loaded until the game restarts. Adding or editing files in a character folder still needs a restart.
 
 Updating from 0.1.5 or earlier, your old character choice carries over to both families, wherever that character has art.
+
+Updating from 0.3.0, copy the new files over the old `emerald_lens` folder; no looks moved. The new **RIVAL** rows start **OFF** and **TEXT** starts **ON**, so nothing changes until you pick a rival, apart from the wording for your own character.
 
 ## Sheet sizes
 Every file is optional. Each one is looked for in the selected look's folder, then the character's other folders (in menu order), then the game's own sprite. A file that isn't exactly the right size is skipped and logged to the console, and the next folder is tried.
@@ -145,7 +159,7 @@ The surf blob and bird have no boy or girl version, so they're only used when yo
 * In link battles, an opponent who picked a replaced gender also shows your character, since front pics are replaced by picture number.
 
 ## Credits
-* Built on the Crystal Lens framework by Dgray66, used with permission.
+* Built on the Crystal Lens framework by Dgray66, used with permission. The gendered text follows Crystal Lens's girl and enby text modes.
 * Gen 3 support: Elvie
 * ASH (ASH, BACK CAP, HATLESS): shared by kalarie on [PokeCommunity](https://www.pokecommunity.com/threads/looking-for-trainer-overworld-sprites-of-jesse-james.404892/post-9821260); original artist not named; HGSS (Gen 4 style) by PKMNTrainerRick
 * BRENDAN: ORAS BRENDAN and SKATEBOARD from Team Aqua's Asset Repo; HGSS (Gen 4 style) by DiegoWT

@@ -1,4 +1,5 @@
--- Headless tests for wording.lua and the TEXT option in lens.lua. Run from
+-- Headless tests for wording.lua, the TEXT option in lens.lua and the LENS
+-- screen's rows (lens_screen.lua). Run from
 -- the repo root with luajit, pointing at an unpacked gen1recomp .love and
 -- an install's FireRed cache (game text stays on your machine):
 --
@@ -271,6 +272,14 @@ do
   local options, rows, handlers = {}, nil, {}
   local got = {}
   package.loaded["mods.emerald_lens.gen3"] = { init = function() return { configure = function() end } end }
+  package.loaded["mods.emerald_lens.lens_screen"] = dofile("lens_screen.lua")
+  local layers = {}
+  package.loaded["src.ui.game3.stack"] = {
+    push = function(id, m) layers[#layers + 1] = { id = id, mod = m } end,
+    pop = function(id) for i = #layers, 1, -1 do if layers[i].id == id then table.remove(layers, i) end end end,
+    has = function(id) for _, l in ipairs(layers) do if l.id == id then return true end end return false end,
+    onClear = function() end,
+  }
   package.loaded["mods.emerald_lens.wording"] = {
     init = function(_, family)
       got.family = family
@@ -298,6 +307,7 @@ do
       get = function(_, key) return options[key] end,
     },
     events = { on = function(_, name, fn) handlers[name] = fn end },
+    hooks = { wrap = function(_, name, fn) handlers[name] = fn end },
   }
   version = "firered"
   dofile("lens.lua").init(mod)
@@ -332,6 +342,42 @@ do
   handlers["save.created"](payload)
   check(got.refreshed == payload, "save.created refreshes with its payload")
   check(handlers["save.loaded"] ~= nil, "save.loaded is listened to")
+
+  -- The LENS screen (lens_screen.lua): its START and OPTION rows, and
+  -- setting an option the way the mod settings screen does. -Elvie
+  options.characterFrlg, options.rivalFrlg = "KRIS", "__off"
+  local emitted = {}
+  local game = { options = {}, writes = 0,
+    mods = { modOptions = {}, events = { emit = function(_, name, p) emitted[#emitted + 1] = p end } } }
+  function game:writeOptions() self.writes = self.writes + 1 end
+  local items = { { id = "save", label = "SAVE" }, { id = "option", label = "OPTION" },
+    { id = "mods", label = "MODS" }, { id = "exit", label = "EXIT" } }
+  local start = handlers["ui.start_menu.items"](function() return items end, game, items)
+  check(#start == 5 and start[3].id == "emerald_lens" and start[3].label == "LENS", "LENS sits above MODS")
+  check(#items == 4, "the engine's list isn't changed in place")
+  local noMods = handlers["ui.start_menu.items"](function() return { items[1], items[4] } end, game, {})
+  check(noMods[2].id == "emerald_lens", "without MODS, LENS sits above EXIT")
+  local optionRows = handlers["ui.options.rows"](function() return {} end, game, {})
+  local optionRow = optionRows[#optionRows]
+  check(optionRow.label == "EMERALD LENS" and optionRow.value(game) == "KRIS", "OPTION row shows the character")
+  optionRow.activate(game)
+  local screenLayer = layers[#layers]
+  check(screenLayer and screenLayer.id == "emerald_lens", "the OPTION row opens the screen")
+  optionRow.activate(game)
+  check(#layers == 1, "opening twice keeps one layer")
+  local function press(key) return { wasPressed = function(_, k) return k == key end } end
+  screenLayer.mod.handleInput(press("right"))
+  local set = game.mods.modOptions.emerald_lens or {}
+  check(set.characterFrlg == "SAGE" and game.options.modOptions.emerald_lens.characterFrlg == "SAGE",
+    "right on CHARACTER steps to the next choice in both option tables")
+  check(game.writes == 1 and emitted[1] and emitted[1].key == "characterFrlg" and emitted[1].value == "SAGE",
+    "the change is written and announced")
+  screenLayer.mod.handleInput(press("up"))
+  screenLayer.mod.handleInput(press("a"))
+  screenLayer.mod.handleInput(press("b"))
+  check(#layers == 1, "A on CREDITS opens the credits page, and B there goes back")
+  screenLayer.mod.handleInput(press("b"))
+  check(#layers == 0, "B closes the screen")
 end
 
 print(("%d passed, %d failed"):format(passed, failed))
