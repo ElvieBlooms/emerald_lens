@@ -618,6 +618,12 @@ function lens.init(mod)
     local picker = prism.picker()
     local entry = { id = "emerald_lens", label = "EMERALD LENS", short = "LENS",
       about = "You and your rival.",
+      colour = { 24, 140, 72 }, -- emerald -Elvie
+      draw = function(area, clock)
+        lensScreen.drawLook(screenPreview("player", liveGame()), {
+          frontX = area.x0 + 16, frontY = area.y1 - 64, walkX = area.x1 - 18, walkBottom = area.y1,
+        }, clock)
+      end,
       value = function() return currentCharacter(running) or "OFF" end,
       open = function(g) lensScreen.open(liveGame(g)) end,
     }

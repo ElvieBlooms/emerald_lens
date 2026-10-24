@@ -193,22 +193,33 @@ function screen.new(mod, model)
     return ""
   end
 
-  local function drawPreview(preview)
+  -- at = { frontX, frontY, walkX (centre), walkBottom } moves it (PRISM's
+  -- corner); there a 16-wide walker is doubled and a 32-wide one isn't. -Elvie
+  local function drawPreview(preview, at, clock)
     if not preview.bases or #preview.bases == 0 then return end
     local got = previewImages(preview)
+    clock = clock or 0
     love.graphics.setColor(1, 1, 1, 1)
-    if got.front then love.graphics.draw(got.front, FRONT_X, FRONT_Y) end
+    if got.front then love.graphics.draw(got.front, at and at.frontX or FRONT_X, at and at.frontY or FRONT_Y) end
     if got.walk then
       local w = got.walk:getWidth()
-      local turn = WALK[math.floor(state.clock / TURN_TIME) % #WALK + 1]
-      local frame = turn[math.floor(state.clock / STEP_TIME) % 4 + 1]
+      local scale = at and (w <= 16 and 2 or 1) or WALK_SCALE
+      local x = at and at.walkX or WALK_X
+      local y = at and (at.walkBottom - 32 * scale) or WALK_Y
+      local turn = WALK[math.floor(clock / TURN_TIME) % #WALK + 1]
+      local frame = turn[math.floor(clock / STEP_TIME) % 4 + 1]
       local quad = love.graphics.newQuad(0, frame * 32, w, 32, got.walk:getDimensions())
       if turn.flip then
-        love.graphics.draw(got.walk, quad, WALK_X + w * WALK_SCALE / 2, WALK_Y, 0, -WALK_SCALE, WALK_SCALE)
+        love.graphics.draw(got.walk, quad, x + w * scale / 2, y, 0, -scale, scale)
       else
-        love.graphics.draw(got.walk, quad, WALK_X - w * WALK_SCALE / 2, WALK_Y, 0, WALK_SCALE, WALK_SCALE)
+        love.graphics.draw(got.walk, quad, x - w * scale / 2, y, 0, scale, scale)
       end
     end
+  end
+
+  -- The look's preview anywhere, open or not (PRISM uses it). -Elvie
+  function S.drawLook(preview, at, clock)
+    if type(preview) == "table" then drawPreview(preview, at, clock) end
   end
 
   local function drawChrome(Window, FrlgFont, title, help)
@@ -273,7 +284,7 @@ function screen.new(mod, model)
 
     local selected = list[state.index]
     local preview = model.preview(selected and selected.who or "player", state.game)
-    drawPreview(preview)
+    drawPreview(preview, nil, state.clock)
     local y = ROW_Y0 + #list * ROW_STEP + 2
     for _, line in ipairs(preview.lines or {}) do
       if y + ROW_STEP > WIN_BOTTOM then break end
