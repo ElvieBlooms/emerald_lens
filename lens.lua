@@ -610,38 +610,29 @@ function lens.init(mod)
   end
 
   if lensScreen and mod.hooks and type(mod.hooks.wrap) == "function" then
-    -- START menu: LENS, just above MODS (or EXIT). -Elvie
+    -- START and OPTION menus: through prism.lua, so with Facets (or
+    -- another visuals mod) installed both share one PRISM item. On its
+    -- own it's LENS on the START menu and EMERALD LENS, showing the
+    -- character, on the OPTION menu, as before. -Elvie
+    local prism = require("mods.emerald_lens.prism")
+    local picker = prism.picker()
+    local entry = { id = "emerald_lens", label = "EMERALD LENS", short = "LENS",
+      about = "You and your rival.",
+      value = function() return currentCharacter(running) or "OFF" end,
+      open = function(g) lensScreen.open(liveGame(g)) end,
+    }
     mod.hooks:wrap("ui.start_menu.items", function(nextFn, game, items)
       local out = nextFn()
       if type(out) ~= "table" then return out end
       -- Not in the scripted tutorial menu, which waits on a pick. -Elvie
       local StartMenu = package.loaded["src.ui.game3.start_menu"]
       if StartMenu and StartMenu._tutorial then return out end
-      local at
-      for i, item in ipairs(out) do
-        if type(item) == "table" and (item.id == "mods" or (item.id == "exit" and not at)) then at = i end
-      end
-      if not at then return out end
-      local copy = {}
-      for i, item in ipairs(out) do copy[i] = item end
-      table.insert(copy, at, { id = "emerald_lens", label = "LENS",
-        onSelect = function(g) lensScreen.open(liveGame(g) or game) end })
-      return copy
+      return prism.addStart(out, entry, picker, game)
     end)
-    -- OPTION menu: EMERALD LENS, showing the character. -Elvie
     mod.hooks:wrap("ui.options.rows", function(nextFn, game, rows)
       local out = nextFn()
       if type(out) ~= "table" then return out end
-      local copy = {}
-      for i, row in ipairs(out) do copy[i] = row end
-      copy[#copy + 1] = { id = "emerald_lens", label = "EMERALD LENS",
-        value = function()
-          local character = currentCharacter(running)
-          return character or "OFF"
-        end,
-        activate = function(g) lensScreen.open(liveGame(g) or game) end,
-      }
-      return copy
+      return prism.addOption(out, entry, picker, game)
     end)
   end
 
