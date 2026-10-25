@@ -179,15 +179,19 @@ function gen3.init(mod, ctx)
     if not (love and love.image and love.graphics) then return nil end
     for _, base in ipairs(only and { only } or chain or bases) do
       local rel = base .. file
-      -- A Game Boy look's pics are fitted to size as they load. -Elvie
+      -- A Game Boy look's pics are fitted to size as they load. Some
+      -- come with extra rows below each 32-tall frame (fishing: the rod
+      -- hangs below the tile); the 5th value says how many. -Elvie
       if gameboy and gameboy.isBase(base) then
         local data = gameboy.load(mod, base, file, layout)
         local w, h
         if data then w, h = data:getDimensions() end
-        if data and (w == expectW or (altW and w == altW)) and h == expectH then
+        local drop = gameboy.DROP and gameboy.DROP[file] or 0
+        local tallH = expectH + drop * math.floor(expectH / 32)
+        if data and (w == expectW or (altW and w == altW)) and (h == expectH or (drop > 0 and h == tallH)) then
           local image = love.graphics.newImage(data)
           image:setFilter("nearest", "nearest")
-          return image, data, rel, w
+          return image, data, rel, w, h == expectH and 0 or drop
         end
       elseif mod.assets:info(rel) then
         local ok, data = pcall(love.image.newImageData, mod.assets:path(rel))
@@ -327,11 +331,17 @@ function gen3.init(mod, ctx)
       local w, h, n = vanilla.width, vanilla.height, vanilla.frameCount
       if not (w and h and n) then return nil end
       local rows = math.max(n, sheetFrames or n)
-      local image, data, rel, gotW = loadImage(file, w, h * rows, w == 16 and 32 or nil, nil, chain)
+      local image, data, rel, gotW, drop = loadImage(file, w, h * rows, w == 16 and 32 or nil, nil, chain)
       if not image then return nil end
       w = gotW or w
       local record = {}
       for k, v in pairs(vanilla) do record[k] = v end
+      if drop and drop > 0 then
+        -- taller frames drawn lower, so the player stays put -Elvie
+        h = h + drop
+        record.height = h
+        record.drawOffY = (vanilla.drawOffY or 0) + drop
+      end
       if file == "underwater.png" and extras.diveBlob and has("diveBlob.png") then
         local withBlob = diveFrames(data, w, h, n, rel:sub(1, #rel - #file))
         if withBlob then

@@ -448,6 +448,8 @@ do
   check(not gb.has(mod, "assets/sprites/arale/", "walk.png") and not gb.has(mod, "assets/sprites/arale/", "surf.png")
     and not gb.has(mod, "assets/sprites/arale/", "surfBlob.png"),
     "romOverworld with the game not installed: no walk, surf or blob, so they fall back")
+  check(not gb.has(mod, "assets/sprites/arale/", "fishing.png") and gb.DROP["fishing.png"] == 8,
+    "no fishing art readable: fishing.png isn't offered, so it falls back; fishing frames are 8 taller")
 end
 
 print(("%d passed, %d failed"):format(passed, failed))

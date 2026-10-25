@@ -110,6 +110,7 @@ local registered = {} -- [base] = meta -Elvie
 local warned = {}
 local romCache = {} -- ["kris|walk"] = { grey ImageData, the game's colours } or false -Elvie
 local fromRom -- below; gameboy.has asks it whether a game has a sprite -Elvie
+local FISH, fishArt -- below, with fishing -Elvie
 
 local function engine(name)
   local ok, m = pcall(require, name)
@@ -172,6 +173,10 @@ function gameboy.has(mod, base, file)
   -- surf art and the left-out blob only with a Pokémon to surf on -Elvie
   if MOUNT[file] or file == "surfBlob.png" then
     return which ~= nil and fromRom(mod, which, mountKind(which, file)) ~= nil
+  end
+  if file == "fishing.png" then
+    return which ~= nil and FISH[which] ~= nil and fromRom(mod, which, "walk") ~= nil
+      and fishArt(mod, which) ~= nil
   end
   local own = OW_FILES[file]
   if not own then return false end
@@ -344,12 +349,148 @@ local function mount(mod, base, file, layout)
   return out
 end
 
+-- Fishing
+-- On the Game Boy the fishing pose is the standing frame with its bottom
+-- 8 rows swapped for hands holding a rod, plus a loose rod tile beside it.
+-- Those tiles come through mod.datasets: Gen 1's from the field data's
+-- overworldFx (red_fish_front/back/side and fishing_rod), Gen 2's from the
+-- emotes sheet (fishing, Crystal's fishing_female for Kris: pose rows
+-- down, up, left, then the two rod tiles). Gen 2's emotes aren't served
+-- yet (gen1recomp issue filed 2026-10-25), so until they are, Gold and
+-- Kris fish with the other looks' art. -Elvie
+-- --------------------------------------------------
+FISH = {
+  red = { gen = 1, games = GEN1 }, blue = { gen = 1, games = GEN1 },
+  gold = { gen = 2, games = GEN2, key = "fishing" },
+  kris = { gen = 2, games = { "crystal" }, key = "fishingFemale" },
+}
+-- The rod tile, from the sprite's top-left: { dx, dy, tile, mirrored }.
+-- Right is left mirrored by the game. -Elvie
+-- src/world/OverworldController.lua ROD_OAM (Gen 1), src/world/gen2/Player.lua ROD_OAM (Gen 2)
+local ROD = {
+  [1] = { down = { 4, 15, 0 }, up = { 4, -8, 0 }, left = { -8, 4, 1 } },
+  [2] = { down = { 0, 16, 0 }, up = { 0, -8, 0 }, left = { -8, 5, 1, true } },
+}
+-- Gen 3 keeps fishing left, up, down, four frames each; facing down the
+-- rod hangs below the tile, so each frame gets 8 more rows and is drawn 8
+-- lower (as the dive blob does). -Elvie
+local FISH_ORDER = { "left", "up", "down" }
+local FISH_DROP = 8
+gameboy.DROP = { ["fishing.png"] = FISH_DROP }
+local STAND_OF = { down = S, up = U, left = L }
+local fishCache = {} -- [which] = { pose = { facing = ImageData }, rod = { [0], [1] } } or false -Elvie
+
+local function crop(src, x, y, w, h)
+  local out = love.image.newImageData(w, h)
+  out:paste(src, 0, 0, x, y, w, h)
+  return out
+end
+
+-- A tile from a dataset's cache, as ImageData, or nil. -Elvie
+local function datasetImage(view, path)
+  if type(path) ~= "string" then return nil end
+  local ok, full = pcall(view.assets.path, view.assets, path)
+  if not ok or type(full) ~= "string" then return nil end
+  local okData, data = pcall(love.image.newImageData, full)
+  return okData and data or nil
+end
+
+local function registryGet(view, name, id)
+  local registry = view.content and view.content[name]
+  if type(registry) ~= "table" or type(registry.get) ~= "function" then return nil end
+  local ok, value = pcall(registry.get, registry, id)
+  return ok and value or nil
+end
+
+local function fromDataset(view, info)
+  if info.gen == 1 then
+    local fx = registryGet(view, "field", "overworldFx")
+    if type(fx) ~= "table" then return nil end
+    local function pathOf(name) return type(fx[name]) == "table" and fx[name].path end
+    local pose = { down = datasetImage(view, pathOf("redFishFront")), up = datasetImage(view, pathOf("redFishBack")),
+      left = datasetImage(view, pathOf("redFishSide")) }
+    local rod = datasetImage(view, pathOf("fishingRod"))
+    if not (pose.down and pose.up and pose.left and rod) then return nil end
+    return { pose = pose, rod = { [0] = crop(rod, 0, 0, 8, 8), [1] = crop(rod, 0, 8, 8, 8) } }
+  end
+  -- Gen 2: wherever the fix puts the emotes record -Elvie
+  local emotes = registryGet(view, "menu_gfx", "emotes") or registryGet(view, "field", "emotes")
+  local sheet = type(emotes) == "table" and datasetImage(view, emotes[info.key])
+  if not sheet then return nil end
+  local w, h = sheet:getDimensions()
+  if w ~= 16 or h < 32 then return nil end
+  return { pose = { down = crop(sheet, 0, 0, 16, 8), up = crop(sheet, 0, 8, 16, 8), left = crop(sheet, 0, 16, 16, 8) },
+    rod = { [0] = crop(sheet, 0, 24, 8, 8), [1] = crop(sheet, 8, 24, 8, 8) } }
+end
+
+-- The fishing tiles for a trainer, still grey, from the first installed
+-- game that has them. -Elvie
+function fishArt(mod, which)
+  if fishCache[which] ~= nil then return fishCache[which] or nil end
+  local info = FISH[which]
+  local datasets = type(mod.datasets) == "table" and mod.datasets
+  local art
+  if info and datasets and type(datasets.open) == "function" then
+    for _, game in ipairs(info.games) do
+      local ok, view = pcall(datasets.open, datasets, game)
+      if ok and type(view) == "table" then art = fromDataset(view, info) end
+      if art then break end
+    end
+  end
+  if not art and info then
+    note(mod, which .. "|fish", "no fishing art for %s yet (%s); it fishes with its other looks' art", which:upper(),
+      info.gen == 2 and "Gen 2's isn't readable through mod.datasets yet" or "Red, Blue or Yellow isn't installed")
+  end
+  fishCache[which] = art or false
+  return art
+end
+
+local function fishing(mod, base)
+  local meta = registered[base] or {}
+  local which = romOf(meta)
+  if not (which and FISH[which]) then return nil end
+  local art = fishArt(mod, which)
+  if not art then return nil end
+  local walk = frames(mod, base, "walk")
+  if not walk then return nil end
+  local _, own = fromRom(mod, which, "walk")
+  local colors = colorsOf(meta, own or PALETTES.red)
+  local pose, rod = {}, {}
+  for facing, tile in pairs(art.pose) do pose[facing] = colourise(tile:clone(), colors, false) end
+  for i, tile in pairs(art.rod) do rod[i] = colourise(tile:clone(), colors, false) end
+  local offsets = ROD[FISH[which].gen]
+  local H = 32 + FISH_DROP
+  local out = love.image.newImageData(32, H * 12)
+  local function put(src, sx, sy, w, h, dx, dy, mirror)
+    for y = 0, h - 1 do
+      for x = 0, w - 1 do
+        local r, g, b, a = src:getPixel(sx + (mirror and w - 1 - x or x), sy + y)
+        local px, py = dx + x, dy + y
+        if a > 0 and px >= 0 and px < 32 and py >= 0 then out:setPixel(px, py, r, g, b, a) end
+      end
+    end
+  end
+  for group, facing in ipairs(FISH_ORDER) do
+    for k = 0, 3 do
+      local fi = (group - 1) * 4 + k
+      local x0, y0 = 8, fi * H + STAND_ROW - 15
+      -- the standing frame's top half, the fishing pose under it -Elvie
+      put(walk, 0, STAND_OF[facing] * 16, 16, 8, x0, y0)
+      put(pose[facing], 0, 0, 16, 8, x0, y0 + 8)
+      local o = offsets[facing]
+      put(rod[o[3]], 0, 0, 8, 8, x0 + o[1], y0 + o[2], o[4])
+    end
+  end
+  return out
+end
+
 -- The Gen 3 file as ImageData, or nil if the folder has no art for it.
 -- layout ("frlg" or "rse") sets the frame counts. -Elvie
 function gameboy.load(mod, base, file, layout)
   if not (love and love.image) then return nil end
   if OW_FILES[file] then return sheet(mod, base, file:sub(1, 4), layout) end
   if MOUNT[file] then return mount(mod, base, file, layout) end
+  if file == "fishing.png" then return fishing(mod, base) end
   if file == "surfBlob.png" then
     -- see-through: the Game Boy Pokémon is the whole picture -Elvie
     if not (BLOB[layout] and gameboy.has(mod, base, file)) then return nil end
