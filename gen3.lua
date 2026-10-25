@@ -20,6 +20,9 @@
 
 local gen3 = {}
 
+local okGameboy, gameboy = pcall(require, "mods.emerald_lens.gameboy")
+if not okGameboy then gameboy = nil end
+
 -- Overworld states. FRLG names its player graphics with OW_PLAYER_*
 -- constants; RSE lists them in the avatar table by state instead, with
 -- decorating fixed outside it. A state a game doesn't have is skipped.
@@ -176,7 +179,17 @@ function gen3.init(mod, ctx)
     if not (love and love.image and love.graphics) then return nil end
     for _, base in ipairs(only and { only } or chain or bases) do
       local rel = base .. file
-      if mod.assets:info(rel) then
+      -- A Game Boy look's pics are fitted to size as they load. -Elvie
+      if gameboy and gameboy.isBase(base) then
+        local data = gameboy.load(mod, base, file, layout)
+        local w, h
+        if data then w, h = data:getDimensions() end
+        if data and (w == expectW or (altW and w == altW)) and h == expectH then
+          local image = love.graphics.newImage(data)
+          image:setFilter("nearest", "nearest")
+          return image, data, rel, w
+        end
+      elseif mod.assets:info(rel) then
         local ok, data = pcall(love.image.newImageData, mod.assets:path(rel))
         if not ok or not data then
           warnOnce(rel, "could not load %s; skipping it", rel)
@@ -713,6 +726,17 @@ function gen3.init(mod, ctx)
   -- chain and slots, nothing built yet. -Elvie
   -- ---------------------------------------------
   local configured = false
+
+  -- A look's folder for this family: <key>/gen3/<family>/, or the folder
+  -- itself for a Game Boy look (gameBoy[key], from lens.lua). -Elvie
+  local function baseOf(dir, key, gameBoy)
+    if gameboy and type(gameBoy) == "table" and gameBoy[key] then return dir .. "/" .. key .. "/" end
+    return dir .. "/" .. key .. "/gen3/" .. layout .. "/"
+  end
+  local function exists(base, file)
+    if gameboy and gameboy.isBase(base) then return gameboy.has(mod, base, file) end
+    return mod.assets:info(base .. file) and true or false
+  end
   local RIVAL_FILES = { "walk.png", "bike.png", "acroBike.png", "surf.png", "fieldMove.png",
     "front.png", "intro.png", "rivalEarly.png", "rivalLate.png", "rivalChampion.png" }
   local function configure(newCtx)
@@ -727,7 +751,7 @@ function gen3.init(mod, ctx)
     for _, key in ipairs(folderKeys) do
       if key and not seen[key] then
         seen[key] = true
-        bases[#bases + 1] = newCtx.spritesDir .. "/" .. key .. "/gen3/" .. layout .. "/"
+        bases[#bases + 1] = baseOf(newCtx.spritesDir, key, newCtx.gameBoy)
       end
     end
 
@@ -739,7 +763,7 @@ function gen3.init(mod, ctx)
       for _, state in ipairs(OW_STATES) do files[#files + 1] = state.file end
       for _, file in ipairs(files) do
         for _, base in ipairs(bases) do
-          if mod.assets:info(base .. file) then present[file] = true end
+          if exists(base, file) then present[file] = true end
         end
       end
     end
@@ -753,12 +777,12 @@ function gen3.init(mod, ctx)
       for _, key in ipairs(rival.folderKeys or {}) do
         if key and not seenRival[key] then
           seenRival[key] = true
-          rivalBases[#rivalBases + 1] = (rival.spritesDir or newCtx.spritesDir) .. "/" .. key .. "/gen3/" .. layout .. "/"
+          rivalBases[#rivalBases + 1] = baseOf(rival.spritesDir or newCtx.spritesDir, key, rival.gameBoy)
         end
       end
       for _, file in ipairs(RIVAL_FILES) do
         for _, base in ipairs(rivalBases) do
-          if mod.assets:info(base .. file) then rivalPresent[file] = true end
+          if exists(base, file) then rivalPresent[file] = true end
         end
       end
     end

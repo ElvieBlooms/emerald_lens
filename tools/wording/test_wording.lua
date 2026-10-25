@@ -1,5 +1,5 @@
--- Headless tests for wording.lua, the TEXT option in lens.lua and the LENS
--- screen's rows (lens_screen.lua). Run from
+-- Headless tests for wording.lua, the TEXT option in lens.lua, the LENS
+-- screen's rows (lens_screen.lua) and Game Boy looks. Run from
 -- the repo root with luajit, pointing at an unpacked gen1recomp .love and
 -- an install's FireRed cache (game text stays on your machine):
 --
@@ -272,6 +272,8 @@ do
   local options, rows, handlers = {}, nil, {}
   local got = {}
   package.loaded["mods.emerald_lens.gen3"] = { init = function() return { configure = function() end } end }
+  package.loaded["mods.emerald_lens.prism"] = dofile("prism.lua")
+  package.loaded["mods.emerald_lens.gameboy"] = dofile("gameboy.lua")
   package.loaded["mods.emerald_lens.lens_screen"] = dofile("lens_screen.lua")
   local layers = {}
   package.loaded["src.ui.game3.stack"] = {
@@ -353,10 +355,10 @@ do
   local items = { { id = "save", label = "SAVE" }, { id = "option", label = "OPTION" },
     { id = "mods", label = "MODS" }, { id = "exit", label = "EXIT" } }
   local start = handlers["ui.start_menu.items"](function() return items end, game, items)
-  check(#start == 5 and start[3].id == "emerald_lens" and start[3].label == "LENS", "LENS sits above MODS")
+  check(#start == 5 and start[3].id == "prism" and start[3].label == "LENS", "LENS sits above MODS")
   check(#items == 4, "the engine's list isn't changed in place")
   local noMods = handlers["ui.start_menu.items"](function() return { items[1], items[4] } end, game, {})
-  check(noMods[2].id == "emerald_lens", "without MODS, LENS sits above EXIT")
+  check(noMods[2].id == "prism", "without MODS, LENS sits above EXIT")
   local optionRows = handlers["ui.options.rows"](function() return {} end, game, {})
   local optionRow = optionRows[#optionRows]
   check(optionRow.label == "EMERALD LENS" and optionRow.value(game) == "KRIS", "OPTION row shows the character")
@@ -378,6 +380,73 @@ do
   check(#layers == 1, "A on CREDITS opens the credits page, and B there goes back")
   screenLayer.mod.handleInput(press("b"))
   check(#layers == 0, "B closes the screen")
+end
+
+-- Game Boy looks: folders copied from Crystal Lens, with no gen3/ art,
+-- and romOverworld looks. -Elvie
+-- --------------------------------------------------
+do
+  local metas = {
+    kris = '{"label":"KRIS","character":"KRIS","genderMode":"girl"}',
+    zeta = '{"label":"ZETA","character":"KRIS","genderMode":"girl","generation":4}',
+    arale = '{"label":"ARALE","character":"KRIS","genderMode":"girl","romOverworld":"kris"}',
+    red_gb = '{"label":"RED","character":"RED","genderMode":"boy","romOverworld":"red"}',
+  }
+  local dirs = { "kris/gen3/frlg", "zeta/gen3/frlg" }
+  local files = { ["arale/backColor.png"] = true }
+  local options, handlers, ctxs = {}, {}, {}
+  package.loaded["mods.emerald_lens.gen3"] = { init = function(_, ctx)
+    ctxs[#ctxs + 1] = ctx
+    return { configure = function(c) ctxs[#ctxs + 1] = c end }
+  end }
+  local mod = {
+    id = "emerald_lens",
+    assets = {
+      list = function(_, dir) return dir == "assets/sprites" and { "arale", "kris", "red_gb", "zeta" } or {} end,
+      info = function(_, rel)
+        local key, rest = rel:match("^assets/sprites/([^/]+)/?(.*)$")
+        if not key or not metas[key] then return nil end
+        if rest == "" or rest == "gen3" then
+          if rest == "gen3" and key ~= "kris" and key ~= "zeta" then return nil end
+          return { type = "directory" }
+        end
+        if rest == "meta.json" or files[key .. "/" .. rest] then return { type = "file" } end
+        for _, d in ipairs(dirs) do if d == key .. "/" .. rest:gsub("/$", "") then return { type = "directory" } end end
+        return nil
+      end,
+    },
+    read = function(_, path) return metas[path:match("sprites/([^/]+)/")] end,
+    log = { warn = function() end, info = function() end },
+    options = { define = function() end, get = function(_, key) return options[key] end },
+    events = { on = function(_, name, fn) handlers[name] = fn end },
+    hooks = { wrap = function() end },
+  }
+  version = "firered"
+  options.characterFrlg = "KRIS"
+  dofile("lens.lua").init(mod)
+  local ctx = ctxs[#ctxs]
+  check(ctx and ctx.folderKeys[1] == "kris", "a Game Boy look doesn't become the default look")
+  check(ctx and table.concat(ctx.folderKeys, ",") == "kris,zeta,arale",
+    "Gen 3 look: Gen 4 before Game Boy: " .. tostring(ctx and table.concat(ctx.folderKeys, ",")))
+  check(ctx and ctx.gameBoy.arale and not ctx.gameBoy.kris, "copied folder is a Game Boy look")
+  options.lookFrlg_KRIS = "arale"
+  handlers["mod.options_changed"]({ mod = "emerald_lens", key = "lookFrlg_KRIS" })
+  ctx = ctxs[#ctxs]
+  check(table.concat(ctx.folderKeys, ",") == "arale,kris,zeta",
+    "Game Boy look: Gen 3 before Gen 4: " .. table.concat(ctx.folderKeys, ","))
+  options.characterFrlg = "RED"
+  handlers["mod.options_changed"]({ mod = "emerald_lens", key = "characterFrlg" })
+  ctx = ctxs[#ctxs]
+  check(ctx.folderKeys[1] == "red_gb" and ctx.genderMode == "boy" and ctx.gameBoy.red_gb,
+    "a romOverworld folder alone is a look")
+
+  local gb = package.loaded["mods.emerald_lens.gameboy"]
+  check(gb.isBase("assets/sprites/arale/") and not gb.isBase("assets/sprites/kris/gen3/frlg/"),
+    "Game Boy bases are told apart")
+  check(gb.has(mod, "assets/sprites/arale/", "back.png") and not gb.has(mod, "assets/sprites/arale/", "front.png"),
+    "back.png from backColor.png; no front art, no front.png")
+  check(gb.has(mod, "assets/sprites/arale/", "walk.png") and not gb.has(mod, "assets/sprites/arale/", "surf.png"),
+    "romOverworld gives walk.png, nothing gives surf.png")
 end
 
 print(("%d passed, %d failed"):format(passed, failed))

@@ -617,7 +617,7 @@ function lens.init(mod)
     local prism = require("mods.emerald_lens.prism")
     local picker = prism.picker()
     local entry = { id = "emerald_lens", label = "EMERALD LENS", short = "LENS",
-      about = "You and your rival.",
+      about = "The look of you and your rival.",
       colour = { 24, 140, 72 }, -- emerald -Elvie
       draw = function(area, clock)
         lensScreen.drawLook(screenPreview("player", liveGame()), {

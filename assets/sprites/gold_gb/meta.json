@@ -1,0 +1,7 @@
+{
+  "label": "GAME BOY",
+  "character": "GOLD",
+  "genderMode": "boy",
+  "romOverworld": "gold",
+  "credit": ["Overworld read from your own Gold, Silver or Crystal"]
+}

@@ -1,0 +1,9 @@
+{
+  "label": "DARIO",
+  "character": "KRIS",
+  "nameChoices": ["KRIS", "AMANDA", "JUANA", "JODI"],
+  "genderMode": "girl",
+  "romOverworld": "kris",
+  "overworldColors": [[255, 255, 255], [255, 173, 99], [1, 99, 198], [0, 0, 0]],
+  "credit": ["Art by DarioMelo"]
+}

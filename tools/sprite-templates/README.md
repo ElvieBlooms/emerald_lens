@@ -8,6 +8,12 @@ launcher for your system in `tools/`.
 Looking for the gendered text? Its tools are in `../wording`, with their
 own README.
 
+Have Game Boy art from Crystal Lens? It needs no packing: copy the folder
+into `assets/sprites/` as it is and the mod fits its battle pics and
+overworld files to the Gen 3 sizes when the game loads them (the mod
+README's **Game Boy looks**). Use these tools only if you want to draw
+proper Gen 3 sheets for it, in a `gen3/` folder next to the Game Boy files.
+
 Two formats, usable interchangeably -- draw in either, convert between them
 at any point, and pack from either or both:
 

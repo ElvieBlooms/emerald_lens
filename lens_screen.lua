@@ -7,6 +7,9 @@
 
 local screen = {}
 
+local okGameboy, gameboy = pcall(require, "mods.emerald_lens.gameboy")
+if not okGameboy then gameboy = nil end
+
 local LAYER = "emerald_lens"
 local HELP_BG = { 0 / 255, 123 / 255, 197 / 255, 1 } -- same blue as the OPTION menu -Elvie
 local HELP = "{DPAD_LEFTRIGHT}CHANGE {B_BUTTON}EXIT"
@@ -35,18 +38,23 @@ local function engine(name)
   return ok and m or nil
 end
 
--- Loads a sheet from the first folder in bases with a usable size. -Elvie
-local function loadFirst(mod, bases, file, ok)
+-- Loads a sheet from the first folder in bases with a usable size. A
+-- Game Boy look's is made to size (layout: "frlg" or "rse"). -Elvie
+local function loadFirst(mod, bases, file, ok, layout)
   if not (love and love.image and love.graphics) then return nil end
   for _, base in ipairs(bases) do
     local rel = base .. file
-    if mod.assets:info(rel) then
-      local loaded, data = pcall(love.image.newImageData, mod.assets:path(rel))
-      if loaded and data and ok(data:getDimensions()) then
-        local image = love.graphics.newImage(data)
-        image:setFilter("nearest", "nearest")
-        return image
-      end
+    local loaded, data
+    if gameboy and gameboy.isBase(base) then
+      data = gameboy.load(mod, base, file, layout)
+      loaded = data ~= nil
+    elseif mod.assets:info(rel) then
+      loaded, data = pcall(love.image.newImageData, mod.assets:path(rel))
+    end
+    if loaded and data and ok(data:getDimensions()) then
+      local image = love.graphics.newImage(data)
+      image:setFilter("nearest", "nearest")
+      return image
     end
   end
   return nil
@@ -65,9 +73,9 @@ function screen.new(mod, model)
     local got = images[key]
     if got == nil then
       got = {
-        front = loadFirst(mod, preview.bases, preview.frontFile or "front.png", isFront)
-          or (preview.frontFile and loadFirst(mod, preview.bases, "front.png", isFront)),
-        walk = loadFirst(mod, preview.bases, "walk.png", isWalk),
+        front = loadFirst(mod, preview.bases, preview.frontFile or "front.png", isFront, preview.layout)
+          or (preview.frontFile and loadFirst(mod, preview.bases, "front.png", isFront, preview.layout)),
+        walk = loadFirst(mod, preview.bases, "walk.png", isWalk, preview.layout),
       }
       images[key] = got
     end

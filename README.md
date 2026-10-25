@@ -5,7 +5,7 @@ A player sprite mod for the Gen 3 games in gen1recomp: FireRed, LeafGreen, Ruby,
 <img width="1022" height="676" alt="krisfrlgow1" src="https://github.com/user-attachments/assets/fc2a50e5-a031-4e75-b665-75286d963de0" />
 <img width="989" height="657" alt="krisfrlgtc" src="https://github.com/user-attachments/assets/ad6a854c-98f5-4937-8445-572a1665de4d" />
 
-Emerald Lens is the Gen 3 companion to [Crystal Lens](https://github.com/dburton95/crystal) and uses the same character folder format. Each mod reads only its own `assets/sprites` folder, but a character folder can be copied between them unchanged: Crystal Lens uses its Game Boy art and Emerald Lens uses its `gen3` art, so one folder can carry both and be copied into each mod. The two mods load on different games, so you can keep both enabled.
+Emerald Lens is the Gen 3 companion to [Crystal Lens](https://github.com/dburton95/crystal) and uses the same character folder format. Each mod reads only its own `assets/sprites` folder, but a character folder can be copied between them unchanged: Crystal Lens uses its Game Boy art and Emerald Lens uses its `gen3` art, so one folder can carry both and be copied into each mod. A folder with only Game Boy art works here too, as a Game Boy look (see **Game Boy looks** below). The two mods load on different games, so you can keep both enabled.
 
 ## Features
 * Replaces the player everywhere Gen 3 draws them: walking, running, biking, surfing, fishing and other overworld poses, the battle back pic and throw, the front pic (Hall of Fame, battle intro), the trainer card, the new-game intro, the map icon, and riding the bird in FRLG's Fly.
@@ -15,7 +15,8 @@ Emerald Lens is the Gen 3 companion to [Crystal Lens](https://github.com/dburton
 * A **LENS** screen on the START menu and the OPTION menu: pick your character, look, rival and text with a preview of the look (see **The LENS screen** below).
 * A rival of your choosing: any character can stand in for Blue, or for May/Brendan, with the rival's own looks and fallback (see **The rival** below).
 * Gendered text follows your characters: girl or they/them wording where the game assumes a gender, for the player and the rival (see **Text** below).
-* Falls back sheet by sheet: the selected look, then the same character's other looks of the same generation, then its looks of the other generation, then the game's own sprite. Draw as much or as little as you like.
+* Game Boy looks: drop in a folder from Crystal Lens and its battle art is used as it is; Red's, Gold's and Kris's Game Boy walking and biking sprites come from your own copies of those games (see **Game Boy looks** below).
+* Falls back sheet by sheet: the selected look, then the same character's other looks of the same generation, then its other looks, closest generation first, then the game's own sprite. Draw as much or as little as you like.
 * Sprite tools to draw from the game's own sprites and pack your art (`tools/sprite-templates`).
 
 ## Adding a character
@@ -38,13 +39,13 @@ Each look is a folder at `assets/sprites/FOLDER_NAME_HERE` (no spaces in the fol
   * `"enby"` replaces both, so the player looks like the character whichever gender is picked, and with **TEXT** on the game's gendered lines use they/them wording. The Hoenn rival battles with the player's portrait and shares the fishing, underwater and watering sprites, so for those an enby character only takes the gender actually picked, and the rival stays themselves.
   
   Left out, it's `"girl"`, the same as Crystal Lens. The game still asks boy or girl at the start, so pick the one that matches your character (any choice works for enby).
-* `generation` (optional) is `3` for art in the games' own style or `4` for bigger DS-style art (HGSS/DPPt sprites, usually on the 32-wide sheets). It only decides fallback order: a missing sheet is taken from the character's looks of the same generation first, then from its other looks, so a Gen 4 look borrows from other Gen 4 looks before Gen 3 ones. Left out, it's `3`.
+* `generation` (optional) is `3` for art in the games' own style or `4` for bigger DS-style art (HGSS/DPPt sprites, usually on the 32-wide sheets). It only decides fallback order: a missing sheet is taken from the character's looks of the same generation first, then from its other looks, so a Gen 4 look borrows from other Gen 4 looks before Gen 3 ones. Left out, it's `3`. Game Boy looks count as `2` (or `1`, if you set it).
 * `nameChoices` (optional) is Crystal Lens's list of name choices. Emerald Lens uses the first one as the rival's name in Ruby/Sapphire/Emerald (see **The rival**); left out, the rival takes the character's name. Gen 3 names are 7 letters at most, so a longer one is cut.
 * `credit` (optional) names the artists, as a list of lines. The LENS screen shows it under the look and in full on its CREDITS page; it also keeps the credit with the art wherever the folder is copied. Please fill it in when you share a look made from someone else's sprites.
 
 Keep `meta.json` valid JSON: a trailing comma after the last item (`"...",]`) makes it unreadable, and the look falls back to its folder name and `"girl"`.
 
-Crystal Lens's `overworldColors` is ignored here, so a folder copied from Crystal Lens works as-is once it has a `gen3` folder.
+A folder copied from Crystal Lens works as-is: with a `gen3` folder it's a normal look, and without one it's a Game Boy look.
 
 Gen 3 art goes in a `gen3` subfolder, one per game family, since their sheets are different sizes:
 
@@ -86,7 +87,20 @@ With **TEXT** on (the default), lines that assume the player's or the rival's ge
 
 FireRed/LeafGreen is covered: Oak's intro, Daisy and Lance on the rival; Mom, the Safari Zone warden, Bill, the S.S. Anne, Silph's president and a few others on the player (they/them wording for enby characters, where the game has a boy and a girl version); and bikers' "…, man" dropped for girls and enby. Ruby/Sapphire/Emerald needs much less, since the games already talk about May and Brendan as "my kid" and "our child": Brendan meeting an enby player who picked the girl, the Dewford Hall man's "chap", and the rival's mom, who says son, daughter or kid to match the RIVAL LOOK. In every game, an enby character also gets "Which would you like to be?" instead of "Are you a boy? Or are you a girl?" before the BOY/GIRL choice. Changes apply straight away (a message already on screen keeps its text). Each line is found by its own text, so it works the same in every version of a game, and a line another mod has changed, such as a translation, stays theirs.
 
-Every folder of a character is still used as a fallback, in this order: the selected look, the character's other looks of the same `generation`, then its looks of the other generation (menu order within each), then the game's own sprite.
+Every folder of a character is still used as a fallback, in this order: the selected look, the character's other looks of the same `generation`, then its other looks (Gen 3 and Gen 4 looks before Game Boy ones, and the other way round for a Game Boy look, then the closest generation first, menu order within each), then the game's own sprite.
+
+### Game Boy looks
+A folder with no `gen3` folder for a game family, but with Crystal Lens's Game Boy art, is a Game Boy look there. Nothing is converted on disk, so the folder stays exactly as Crystal Lens reads it and can be copied back and forth. What it supplies:
+
+* **Front pic** (`front.png`, and the FR/LG Oak intro) from `frontColor.png`, or `front.png` if there's no colour version. Gen 3 is always in colour, so the colour file comes first. It's drawn at its own size, centred, feet on the bottom edge: a 56x56 Game Boy pic sits in the 64x64 Gen 3 frame the way it does on a Game Boy.
+* **Back pic** (`back.png`) from `backColor.png` or `back.png`, the same way. A taller pic, like Crystal Lens's full-body backs, keeps its top 64 rows (the game's log says so once). Game Boy backs have no throw, so every throw frame is the still pic.
+* **Walking and biking** from the folder's own `overworldWalk.png` and `overworldBike.png` (Crystal Lens's 16x96 files, coloured with its `overworldColors`), or with `romOverworld` (below) from your own game. The six Game Boy frames are laid out on the Gen 3 sheets, at their own size, standing on the game's feet rows; steps mirror the way they do on a Game Boy.
+* Everything else (surf, fishing, the trainer card's other art and so on) falls back as usual: to the character's other looks, then the game's own sprite.
+
+`romOverworld` (optional, Emerald Lens only; Crystal Lens ignores it) is `"red"`, `"gold"` or `"kris"`. It takes that player's Game Boy walking and biking sprites from your own installed copy of the game, through the engine's Union Room sprite loader: Red from Red, Blue or Yellow, Gold from Gold, Silver or Crystal, Kris from Crystal. Nothing is shipped, so if you haven't imported that game yet the look falls back as usual (the game's log says which game it needs). Gold and Kris use their game's own colours, and Red gets Gold's red; `overworldColors` overrides either. A folder with only a `meta.json` and `romOverworld` is a look too: that's how **RED** and **GOLD**'s **GAME BOY** look work.
+
+A Game Boy look is never a character's default look when the character has Gen 3 or Gen 4 art, so adding one doesn't change what you already picked. The LENS screen says **Game Boy art.** under one.
+
 
 Changing a character or look applies straight away, no restart needed: the player changes as soon as you're back in the game. The one exception is the FireRed/LeafGreen trainer card, which keeps the portrait it first loaded until the game restarts. Adding or editing files in a character folder still needs a restart.
 
@@ -167,4 +181,6 @@ The surf blob and bird have no boy or girl version, so they're only used when yo
 * GREEN (BIG PUFF): sprites compiled from virdiangrass and Team Aqua's Asset Repo; additional edits and AcroJiggly by Elvie
 * KRIS: R/S/E sprites by richardPT, FR/LG sprites by FourLeafSunny; KRIS BLUE edits by eykav
 * KRIS: LOULILIE, PKATHLON and ROCKET (Gen 4 style) by LouLilie
+* KRIS Game Boy looks, from [Crystal Lens](https://github.com/dburton95/crystal): ARALE by Amanda Arale-Chan, DARIO by DarioMelo, ROCKET A, ROCKET B and SYGNA (with their ZOOM backs) by Elvie
+* RED, and GOLD's GAME BOY look: read from your own games, nothing shipped
 * MAY: ORAS MAY and SKATEBOARD from Team Aqua's Asset Repo; HGSS (Gen 4 style) by DiegoWT
