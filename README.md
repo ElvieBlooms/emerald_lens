@@ -1,5 +1,5 @@
 # Emerald Lens
-A player sprite mod for the Gen 3 games in gen1recomp: FireRed, LeafGreen, Ruby, Sapphire and Emerald. Needs gen1recomp 0.3.91 or newer.
+A player sprite mod for the Gen 3 games in gen1recomp: FireRed, LeafGreen, Ruby, Sapphire and Emerald. Needs gen1recomp 0.3.93 or newer.
 
 <img width="960" height="641" alt="Kris" src="https://github.com/user-attachments/assets/ed42d94d-aaf5-41b7-b022-cbf9bb71f996" />
 <img width="1022" height="676" alt="krisfrlgow1" src="https://github.com/user-attachments/assets/fc2a50e5-a031-4e75-b665-75286d963de0" />
@@ -179,10 +179,14 @@ The surf blob and bird have no boy or girl version, so they're only used when yo
 ## Credits
 * Built on the Crystal Lens framework by Dgray66, used with permission. The gendered text follows Crystal Lens's girl and enby text modes.
 * Gen 3 support: Elvie
+* AANG: made by iamtrine, commissioned by Slawter666; front and back pics by waterpixelart
 * ASH (ASH, BACK CAP, HATLESS): shared by kalarie on [PokeCommunity](https://www.pokecommunity.com/threads/looking-for-trainer-overworld-sprites-of-jesse-james.404892/post-9821260); original artist not named; HGSS (Gen 4 style) by PKMNTrainerRick
 * BRENDAN: ORAS BRENDAN and SKATEBOARD from Team Aqua's Asset Repo; HGSS (Gen 4 style) by DiegoWT
+* GARY (KANTO): by Alan_Flygon
 * GOLD: R/S/E sprites from Team Aqua's Asset Repo, FR/LG sprites by FourLeafSunny; HGSS (Gen 4 style) by GregarLink10
 * GREEN (BIG PUFF): sprites compiled from virdiangrass and Team Aqua's Asset Repo; additional edits and AcroJiggly by Elvie
+* GREEN (GREEN): by LouLilie
+* GREEN (HGSS, Gen 4 style): compiled by ChromeValiant; art by Poltergeist/Coffee Cup, Mid117, Wolfang62 and aethestode
 * KRIS: R/S/E sprites by richardPT, FR/LG sprites by FourLeafSunny; KRIS BLUE edits by eykav
 * KRIS: LOULILIE, PKATHLON and ROCKET (Gen 4 style) by LouLilie
 * KRIS Game Boy looks, from [Crystal Lens](https://github.com/dburton95/crystal): ARALE by Amanda Arale-Chan, DARIO by DarioMelo, ROCKET A, ROCKET B and SYGNA (with their ZOOM backs) by Elvie
