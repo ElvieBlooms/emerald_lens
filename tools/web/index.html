@@ -65,6 +65,7 @@
   <div class="row">
     <button class="btn" data-blank="frlg">Blank FR/LG recipe</button>
     <button class="btn" data-blank="rse">Blank R/S/E recipe</button>
+    <button class="btn" data-blank="gb">Blank Game Boy recipe</button>
     <label class="btn">Open a recipe file<input type="file" id="recipe-file" accept=".json,application/json" hidden></label>
     <button class="btn" id="recipe-save">Save the recipe</button>
   </div>
@@ -77,6 +78,7 @@
           <option value="rse" selected>Ruby / Sapphire / Emerald</option>
           <option value="frlg_wide">FireRed / LeafGreen, wide</option>
           <option value="rse_wide">Ruby / Sapphire / Emerald, wide</option>
+          <option value="gb">Game Boy (Crystal Lens)</option>
         </select>
       </label>
       <button class="btn primary" id="b-open" disabled>Open the sheet in the builder</button>
@@ -137,7 +139,7 @@
 
 <section class="step" id="step-pack" aria-labelledby="h-pack">
   <h2 id="h-pack"><span class="num">3</span> Pack into the game's sheets</h2>
-  <p>Packing cuts a filled sheet into the files the mod reads. Use the sheets from step 2, or your own: a combined sheet, an extras sheet, or a folder of separate templates. Blank templates: <a href="../sprite-templates/frlg_sheet.png" download>FR/LG</a>, <a href="../sprite-templates/rse_sheet.png" download>R/S/E</a>, <a href="../sprite-templates/frlg_wide_sheet.png" download>FR/LG wide</a>, <a href="../sprite-templates/rse_wide_sheet.png" download>R/S/E wide</a>, <a href="../sprite-templates/frlg_extras.png" download>FR/LG extras</a>, <a href="../sprite-templates/rse_extras.png" download>R/S/E extras</a>.</p>
+  <p>Packing cuts a filled sheet into the files the mod reads. Use the sheets from step 2, or your own: a combined sheet, an extras sheet, or a folder of separate templates. Blank templates: <a href="../sprite-templates/frlg_sheet.png" download>FR/LG</a>, <a href="../sprite-templates/rse_sheet.png" download>R/S/E</a>, <a href="../sprite-templates/frlg_wide_sheet.png" download>FR/LG wide</a>, <a href="../sprite-templates/rse_wide_sheet.png" download>R/S/E wide</a>, <a href="../sprite-templates/frlg_extras.png" download>FR/LG extras</a>, <a href="../sprite-templates/rse_extras.png" download>R/S/E extras</a>, <a href="../sprite-templates/gb_sheet.png" download>Game Boy</a>. Game Boy art packs to the look's top folder, where Crystal Lens keeps it, and shows in step 4's Game Boy panel.</p>
 
   <fieldset class="choice">
     <legend>Sheets to pack</legend>
@@ -159,6 +161,7 @@
         <option value="rse">Ruby / Sapphire / Emerald</option>
         <option value="frlg_wide">FireRed / LeafGreen, wide</option>
         <option value="rse_wide">Ruby / Sapphire / Emerald, wide</option>
+        <option value="gb">Game Boy (Crystal Lens)</option>
       </select>
     </label>
     <p class="hint">An extras sheet is recognised by its size and packed with the rest.</p>
@@ -182,6 +185,7 @@
           <option value="rse" selected>Ruby / Sapphire / Emerald</option>
           <option value="frlg_wide">FireRed / LeafGreen, wide</option>
           <option value="rse_wide">Ruby / Sapphire / Emerald, wide</option>
+          <option value="gb">Game Boy (Crystal Lens)</option>
         </select>
       </label>
     </div>
@@ -224,11 +228,38 @@
       <select id="m-generation">
         <option value="3">Gen 3 (the games' own style)</option>
         <option value="4">Gen 4 (bigger, DS style)</option>
+        <option value="gb">Game Boy (Crystal Lens art)</option>
       </select>
     </label>
     <label class="wide">Credits, one line each <textarea id="m-credit" rows="3" placeholder="RSE by richardPT&#10;FRLG by FourLeafSunny"></textarea></label>
   </form>
-  <p class="hint">The options menu shows 8 characters of a label or character name. Looks of the same character are grouped under it as LOOK choices. Generation sets the fallback order: a sheet this look doesn't have comes from the character's looks of the same generation first.</p>
+  <p class="hint">The options menu shows 8 characters of a label or character name. Looks of the same character are grouped under it as LOOK choices. Generation sets the fallback order: a sheet this look doesn't have comes from the character's looks of the same generation first. A Game Boy look needs no packing: see below.</p>
+  <div id="look-gb" hidden>
+    <h3 class="sub">Game Boy art</h3>
+    <p class="hint">A Game Boy look uses Crystal Lens's own files as they are, at the folder's top level, so the same folder works in both mods. Emerald Lens fits them into the Gen 3 frames when the game loads them: the front and back pics at their own size (a taller back keeps its top 64 rows), the walking, biking and surfing sprites laid out on the Gen 3 sheets, and the fishing pose built from the standing sprite. Anything the look doesn't have comes from the character's other looks.</p>
+    <div class="row">
+      <label class="btn">Add Crystal Lens files<input type="file" id="gb-files" accept=".png,image/png" multiple hidden></label>
+      <label>Sprites from your game
+        <select id="gb-rom">
+          <option value="">None (or my own overworldWalk.png)</option>
+          <option value="red">Red (Red, Blue or Yellow)</option>
+          <option value="blue">Blue, the rival (Red, Blue or Yellow; else Gold, Silver or Crystal)</option>
+          <option value="gold">Gold (Gold, Silver or Crystal)</option>
+          <option value="kris">Kris (Crystal)</option>
+        </select>
+      </label>
+    </div>
+    <p class="hint" id="gb-rom-note" hidden>Walking, biking, surfing and fishing come from your own copy of that game when you play, so they aren't in the download and this page can't show them. If that game isn't imported, the look falls back to the character's other looks.</p>
+    <div id="gb-list" class="files"></div>
+    <div id="gb-preview" class="fly-frames" hidden>
+      <figure><canvas id="gb-front" width="64" height="64"></canvas><figcaption>Front pic, in the Gen 3 frame</figcaption></figure>
+      <figure><canvas id="gb-back" width="64" height="64"></canvas><figcaption>Back pic</figcaption></figure>
+      <figure><canvas id="gb-walk" width="144" height="32"></canvas><figcaption>Walking: stand, then steps (down, up, left)</figcaption></figure>
+      <figure><canvas id="gb-surf" width="144" height="32"></canvas><figcaption>Surfing and diving, no blob under it</figcaption></figure>
+      <figure><canvas id="gb-fish" width="96" height="40"></canvas><figcaption>Fishing: left, up, down</figcaption></figure>
+    </div>
+    <pre class="log" id="gb-log" hidden></pre>
+  </div>
   <h3 class="sub">In this look</h3>
   <div id="look-files" class="files"><p class="empty">Nothing packed yet. Pack a sheet in step 3 and it shows up here.</p></div>
   <div id="look-feet" class="notice" role="status" hidden>

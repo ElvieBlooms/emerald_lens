@@ -57,7 +57,17 @@ const NAMES = { down: "Down", up: "Up", left: "Left", right: "Right", frames: ""
 export function sceneFor(key, family, sec) {
   const base = family.startsWith("frlg") ? "frlg" : "rse";
   const facings = Object.keys(sec.facings);
-  if (key === "back" && sec.facings.frames) {
+  if (family === "gb" && (WALKERS[key] || key === "surf") && sec.facings.down) {
+    // Game Boy: stand and one step a facing; down and up flip every
+    // other step, left doesn't (gameboy.lua's WALK). Surfing walks the
+    // same, on water with no blob. -Elvie
+    const w = WALKERS[key] || WALKERS.walk;
+    const seq = (f) => [[1, w.ticks], [0, w.ticks], [1, w.ticks, f !== "left"], [0, w.ticks]];
+    return { key, kind: "facing", seq: seq("down"), seqs: { down: seq("down"), up: seq("up"), left: seq("left") },
+             move: w.move, water: key === "surf",
+             note: "Step, stand, flipped step, stand, as the mod plays Game Boy art." };
+  }
+  if (key === "back" && sec.facings.frames && family !== "gb") {
     const slotOf = (frame) => sec.facings.frames.findIndex(([, i]) => i === frame);
     const b = BACK[base];
     const seq = [[slotOf(b.idle), HOLD], ...b.throw.map(([f, t]) => [slotOf(f), t])].filter(([s]) => s >= 0);
@@ -150,17 +160,22 @@ export function createStage(root, opts = {}) {
   const total = () => seqOf("down").reduce((n, [, t]) => n + (Number.isFinite(t) ? t : 0), 0);
   const animated = () => scene && (scene.surf || scene.hop || scene.dive || total() > 0 && seqOf("down").length > 1 || (scene.move && ui.move.checked));
 
-  function slotAt(t, facing) {
+  // The seq entry at tick t: [slot, ticks, flipped?]. -Elvie
+  function entryAt(t, facing) {
     const seq = seqOf(facing);
-    if (!seq.length) return -1;
+    if (!seq.length) return [-1];
     const len = seq.reduce((n, [, d]) => n + (Number.isFinite(d) ? d : 0), 0);
-    if (!len) return seq[0][0];
+    if (!len) return seq[0];
     let r = t % len;
-    for (const [slot, d] of seq) {
-      if (r < d) return slot;
-      r -= d;
+    for (const e of seq) {
+      if (r < e[1]) return e;
+      r -= e[1];
     }
-    return seq[0][0];
+    return seq[0];
+  }
+
+  function slotAt(t, facing) {
+    return entryAt(t, facing)[0];
   }
 
   function apply() {
@@ -249,7 +264,7 @@ export function createStage(root, opts = {}) {
       const off = moving ? (tick * scene.move) % 16 : 0;
       const dx = { left: off, right: -off, up: 0, down: 0 }[face];
       const dy = { up: off, down: -off, left: 0, right: 0 }[face];
-      const wet = scene.surf || scene.dive;
+      const wet = scene.surf || scene.dive || scene.water;
       g.fillStyle = wet ? col.water : col.ground;
       g.fillRect(0, 0, 48, 48);
       g.strokeStyle = wet ? col.wave : col.line;
@@ -283,9 +298,9 @@ export function createStage(root, opts = {}) {
         g.ellipse(tx + 8, ty + 15, 7, 2.5, 0, 0, Math.PI * 2);
         g.fill();
       }
-      const slot = scene.surf ? 0 : slotAt(tick, facing);
+      const [slot, , flip] = scene.surf ? [0] : entryAt(tick, facing);
       const img = slot >= 0 ? source.frame(facing, slot) : null;
-      if (img) drawImg(g, img, tx + Math.floor((16 - img.width) / 2), ty + 16 - img.height + bob, mirror);
+      if (img) drawImg(g, img, tx + Math.floor((16 - img.width) / 2), ty + 16 - img.height + bob, mirror !== !!flip);
     }
   }
 

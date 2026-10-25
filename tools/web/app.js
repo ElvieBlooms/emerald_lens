@@ -11,8 +11,8 @@ const CDN = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`;
 const LOCAL = new URL("pyodide/", import.meta.url).href;
 const TOOLS = new URL("../sprite-templates/", import.meta.url).href;
 const TOOL_FILES = ["pack_gen3.py", "import_sheet.py"];
-const BLANK = { frlg: "recipes/blank_frlg.json", rse: "recipes/blank_rse.json" };
-const FAMILY_NAMES = { frlg: "FireRed / LeafGreen", rse: "Ruby / Sapphire / Emerald" };
+const BLANK = { frlg: "recipes/blank_frlg.json", rse: "recipes/blank_rse.json", gb: "recipes/blank_gb.json" };
+const FAMILY_NAMES = { frlg: "FireRed / LeafGreen", rse: "Ruby / Sapphire / Emerald", gb: "Game Boy" };
 
 const $ = (id) => document.getElementById(id);
 let py = null, FS = null, W = null;
@@ -438,8 +438,8 @@ function parseRecipe() {
   try {
     const r = JSON.parse(text);
     if (typeof r !== "object" || Array.isArray(r) || !r) throw new Error("A recipe is one JSON object { … }.");
-    if (!["frlg", "rse", "frlg_wide", "rse_wide"].includes(r.family))
-      throw new Error('Set "family" to "frlg", "rse", "frlg_wide" or "rse_wide".');
+    if (!["frlg", "rse", "frlg_wide", "rse_wide", "gb"].includes(r.family))
+      throw new Error('Set "family" to "frlg", "rse", "frlg_wide", "rse_wide" or "gb".');
     if (!r.sections && !r.files)
       throw new Error('Put the sprites under "sections" (or "files" for a folder of charsets), as in the blank recipes.');
     err.hidden = true;
@@ -578,6 +578,9 @@ matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => buil
 
 const baseFamily = (fam) => fam.replace(/_wide$/, "").replace(/_extras$/, "");
 const otherFamily = (fam) => (fam.startsWith("frlg") ? fam.replace("frlg", "rse") : fam.replace("rse", "frlg"));
+// Where a family's packed files go: Game Boy art sits at the look's root,
+// as in Crystal Lens; Gen 3 art under gen3/<family> -Elvie
+const lookDir = (fam) => (baseFamily(fam) === "gb" ? "look" : `look/gen3/${baseFamily(fam)}`);
 const packMode = () => document.querySelector('input[name="pack-src"]:checked').value;
 
 document.querySelectorAll('input[name="pack-src"]').forEach((r) =>
@@ -649,11 +652,11 @@ function runMerge(script, argv, logEl, tag) {
 }
 
 function lookHas(fam) {
-  return list(`look/gen3/${baseFamily(fam)}`).length > 0;
+  return baseFamily(fam) === "gb" ? gbHas().length > 0 : list(lookDir(fam)).length > 0;
 }
 
 function packOne(fam, path, logEl, picks = [], box = null) {
-  const dst = `look/gen3/${baseFamily(fam)}`;
+  const dst = lookDir(fam);
   if (!$("pack-keep").checked || !lookHas(fam)) {
     return run("pack_gen3.py", ["pack", fam, path, dst], logEl) === 0;
   }
@@ -682,6 +685,13 @@ function packOne(fam, path, logEl, picks = [], box = null) {
 function packInto(fam, paths, logEl) {
   let failed = 0;
   for (const p of paths) if (!packOne(fam, p, logEl)) failed++;
+  // packed Game Boy art: show it in step 4's Game Boy panel -Elvie
+  if (baseFamily(fam) === "gb" && failed < paths.length && !isGb()) {
+    $("m-generation").value = "gb";
+    $("m-generation").dispatchEvent(new Event("change"));
+  } else if (baseFamily(fam) === "gb") {
+    showGb();
+  }
   return failed;
 }
 
@@ -703,9 +713,11 @@ $("do-transfer").addEventListener("click", (e) =>
     const made = [];
     for (const p of paths) {
       const from = W.sheet_family(p, fam);
-      const to = otherFamily(from);
-      const out = `transfer/${W.sheet_file(to)}`;
-      if (run("pack_gen3.py", ["transfer", from, p, to, out], $("pack-log")) === 0 && exists(out)) made.push([to, out]);
+      // a Game Boy sheet starts both Gen 3 sheets -Elvie
+      for (const to of from === "gb" ? ["frlg", "rse"] : [otherFamily(from)]) {
+        const out = `transfer/${W.sheet_file(to)}`;
+        if (run("pack_gen3.py", ["transfer", from, p, to, out], $("pack-log")) === 0 && exists(out)) made.push([to, out]);
+      }
     }
     const box = $("transfer-result");
     freeURLs("transfer-result");
@@ -841,7 +853,7 @@ $("cb-built").addEventListener("click", () => {
 });
 $("cb-look").addEventListener("click", () => {
   const fam = $("cb-family").value;
-  addCombine(`look/gen3/${baseFamily(fam)}`, `the look's ${FAMILY_NAMES[baseFamily(fam)]} files`);
+  addCombine(lookDir(fam), `the look's ${FAMILY_NAMES[baseFamily(fam)]} files`);
 });
 $("cb-files").addEventListener("change", (e) => upload(fromInput(e.target), addCombineUpload, e.target));
 $("cb-folder").addEventListener("change", (e) => upload(fromInput(e.target), addCombineUpload, e.target));
@@ -874,7 +886,9 @@ function showLook() {
   if (!files.length) {
     const p = document.createElement("p");
     p.className = "empty";
-    p.textContent = "Nothing packed yet. Pack a sheet in step 3 and it shows up here.";
+    p.textContent = isGb()
+      ? "No Gen 3 sheets, which is fine for a Game Boy look. Its Game Boy files are below."
+      : "Nothing packed yet. Pack a sheet in step 3 and it shows up here.";
     box.replaceChildren(p);
     refreshLookPreview({});
     $("look-feet").hidden = true;
@@ -1257,12 +1271,279 @@ $("lp-family").addEventListener("change", () => {
 });
 $("lp-section").addEventListener("change", showLookPreview);
 
+// --------------------------------------------------------- Game Boy looks
+// A Game Boy look is Crystal Lens's files at the folder's top level; the
+// mod fits them to Gen 3 sizes as the game loads them (gameboy.lua), so
+// nothing is converted here. The preview draws them the way the mod
+// will. -Elvie
+
+// Every file Crystal Lens reads from a look folder, so a folder made here
+// works in both mods. -Elvie
+const GB_FILES = ["front.png", "frontColor.png", "back.png", "backColor.png", "overworldWalk.png",
+  "overworldBike.png", "overworldFishSide.png", "overworldFishFront.png", "overworldFishBack.png",
+  "trainerCard.png", "trainerCardColor.png", "overworldSurf.png", "overworldFishRod.png"];
+// gameboy.lua's fishing: pose file per facing, and Gen 1's rod offsets
+// { dx, dy, tile } from the sprite's top-left, in Gen 3's order -Elvie
+const GB_FISH = [["left", "overworldFishSide.png", [-8, 4, 1]], ["up", "overworldFishBack.png", [4, -8, 0]],
+  ["down", "overworldFishFront.png", [4, 15, 0]]];
+const GB_STAND = { down: 0, up: 1, left: 2 };
+// Crystal Lens's own overworld colours, for overworldWalk.png -Elvie
+const CRYSTAL_COLORS = [[255, 255, 255], [255, 173, 99], [1, 99, 198], [0, 0, 0]];
+// gameboy.lua's WALK: Game Boy frame, mirrored, step (a row lower) -Elvie
+const GB_WALK = [[0], [1], [2], [3, false, true], [3, true, true], [4, false, true], [4, true, true],
+  [5, false, true], [5, false, true]];
+const isGb = () => $("m-generation").value === "gb";
+const gbHas = () => GB_FILES.filter((n) => exists(`look/${n}`));
+// meta.json keys this page doesn't edit (nameChoices, overworldColors...),
+// kept from an opened look so downloading again doesn't drop them -Elvie
+let keptMeta = {};
+
+function loadImg(path, owner) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => res(img);
+    img.onerror = () => rej(new Error(`${path} didn't load as a picture`));
+    img.src = imageURL(path, owner);
+  });
+}
+
+function scaled(canvas, zoom = 3) {
+  canvas.style.width = `${canvas.width * zoom}px`;
+  canvas.style.height = `${canvas.height * zoom}px`;
+}
+
+// The pic in a w x h box: centred across, feet on the bottom edge; a
+// taller pic keeps its top rows, a wider one its middle (gameboy.lua fit). -Elvie
+function fitPic(canvas, img) {
+  const { width: w, height: h } = canvas;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, w, h);
+  const cw = Math.min(img.width, w), ch = Math.min(img.height, h);
+  ctx.drawImage(img, Math.floor((img.width - cw) / 2), 0, cw, ch, Math.floor((w - cw) / 2), h - ch, cw, ch);
+  return img.width > w || img.height > h;
+}
+
+// Crystal Lens's overworld art is four shades, sometimes tinted: ranked by
+// brightness, the lightest (or see-through) is the backdrop, the rest take
+// the look's colours. -Elvie
+function shadeWalk(img, colors) {
+  const c = document.createElement("canvas");
+  c.width = img.width;
+  c.height = img.height;
+  const ctx = c.getContext("2d");
+  ctx.drawImage(img, 0, 0);
+  const data = ctx.getImageData(0, 0, c.width, c.height);
+  const px = data.data, seen = new Map();
+  let clear = false;
+  for (let i = 0; i < px.length; i += 4) {
+    if (px[i + 3] < 128) { clear = true; continue; }
+    const key = (px[i] << 16) | (px[i + 1] << 8) | px[i + 2];
+    if (!seen.has(key)) seen.set(key, 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2]);
+  }
+  const ranked = [...seen.keys()].sort((a, b) => seen.get(b) - seen.get(a));
+  const shade = new Map(ranked.map((k, i) => [k, Math.min(3, (clear ? 1 : 0) + i)]));
+  for (let i = 0; i < px.length; i += 4) {
+    const s = px[i + 3] < 128 ? 0 : shade.get((px[i] << 16) | (px[i + 1] << 8) | px[i + 2]);
+    if (!s) { px[i + 3] = 0; continue; }
+    [px[i], px[i + 1], px[i + 2]] = colors[s];
+    px[i + 3] = 255;
+  }
+  ctx.putImageData(data, 0, 0);
+  return c;
+}
+
+async function gbPreview() {
+  freeURLs("gb-preview");
+  const notes = [];
+  const pick = (names) => names.find((n) => exists(`look/${n}`));
+  const front = pick(["frontColor.png", "front.png"]);
+  const back = pick(["backColor.png", "back.png"]);
+  const walk = exists("look/overworldWalk.png") ? "overworldWalk.png" : null;
+  const surf = exists("look/overworldSurf.png") ? "overworldSurf.png" : null;
+  const fishOwn = GB_FISH.some(([, f]) => exists(`look/${f}`)) || exists("look/overworldFishRod.png");
+  $("gb-preview").hidden = !(front || back || walk || surf);
+  for (const [id, file] of [["gb-front", front], ["gb-back", back]]) {
+    const canvas = $(id);
+    scaled(canvas);
+    canvas.parentElement.hidden = !file;
+    if (!file) continue;
+    const img = await loadImg(`look/${file}`, "gb-preview");
+    if (fitPic(canvas, img)) {
+      notes.push(`${file} is ${img.width}x${img.height}: the game shows ${img.height > canvas.height ? `its top ${canvas.height} rows` : `its middle ${canvas.width} columns`}.`);
+    }
+  }
+  const colors = Array.isArray(keptMeta.overworldColors) && keptMeta.overworldColors.length === 4
+    ? keptMeta.overworldColors : CRYSTAL_COLORS;
+  // Loads the overworld files, checks their sizes and shades them together,
+  // as the mod does: { name: canvas } -Elvie
+  const sizes = { "overworldWalk.png": [16, 96], "overworldSurf.png": [16, 96], "overworldFishFront.png": [16, 8],
+    "overworldFishBack.png": [16, 8], "overworldFishSide.png": [16, 8], "overworldFishRod.png": [8, 16] };
+  const imgs = {};
+  for (const [name, [w, h]] of Object.entries(sizes)) {
+    if (!exists(`look/${name}`)) continue;
+    const img = await loadImg(`look/${name}`, "gb-preview");
+    if (img.width === w && img.height === h) imgs[name] = img;
+    else notes.push(`${name} is ${img.width}x${img.height}; it needs ${w}x${h}, so the game won't use it.`);
+  }
+  const shaded = {};
+  const fishNames = Object.keys(imgs).filter((n) => n.startsWith("overworldFish"));
+  if (imgs["overworldWalk.png"] || fishNames.length) {
+    // the walk and the fishing files ranked as one picture -Elvie
+    const names = [...(imgs["overworldWalk.png"] ? ["overworldWalk.png"] : []), ...fishNames];
+    const stack = document.createElement("canvas");
+    stack.width = 16;
+    stack.height = names.reduce((n, k) => n + imgs[k].height, 0);
+    let y = 0;
+    const at = {};
+    for (const k of names) { stack.getContext("2d").drawImage(imgs[k], 0, y); at[k] = y; y += imgs[k].height; }
+    const all = shadeWalk(stack, colors);
+    for (const k of names) {
+      const c = document.createElement("canvas");
+      c.width = imgs[k].width;
+      c.height = imgs[k].height;
+      c.getContext("2d").drawImage(all, 0, at[k], c.width, c.height, 0, 0, c.width, c.height);
+      shaded[k] = c;
+    }
+  }
+  if (imgs["overworldSurf.png"]) shaded["overworldSurf.png"] = shadeWalk(imgs["overworldSurf.png"], colors);
+  const strip = (id, file, rowOf) => {
+    const c = $(id);
+    scaled(c);
+    c.parentElement.hidden = !shaded[file];
+    const ctx = c.getContext("2d");
+    ctx.clearRect(0, 0, c.width, c.height);
+    if (!shaded[file]) return;
+    GB_WALK.forEach(([f, mirror, step], i) => {
+      const y = rowOf(step);
+      ctx.save();
+      if (mirror) {
+        ctx.translate(i * 16 + 16, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(shaded[file], 0, f * 16, 16, 16, 0, y, 16, 16);
+      } else {
+        ctx.drawImage(shaded[file], 0, f * 16, 16, 16, i * 16, y, 16, 16);
+      }
+      ctx.restore();
+    });
+  };
+  strip("gb-walk", "overworldWalk.png", (step) => (step ? 31 : 30) - 15);
+  // surfing: the tile the player stands on, the bottom 16 rows -Elvie
+  strip("gb-surf", "overworldSurf.png", () => 16);
+  // fishing, when the look has its own fishing art and a walk to put it under -Elvie
+  const fc = $("gb-fish");
+  scaled(fc);
+  const fishReady = shaded["overworldWalk.png"] && GB_FISH.every(([, f]) => shaded[f]) && shaded["overworldFishRod.png"];
+  fc.parentElement.hidden = !fishReady;
+  if (fishOwn && !fishReady) {
+    notes.push("Fishing needs all three overworldFish files, overworldFishRod.png and overworldWalk.png to show here. In the game, missing parts come from an installed Red, Blue or Yellow.");
+  }
+  if (fishReady) {
+    const ctx = fc.getContext("2d");
+    ctx.clearRect(0, 0, fc.width, fc.height);
+    GB_FISH.forEach(([facing, file, [dx, dy, tile]], i) => {
+      const x0 = i * 32 + 8, y0 = 30 - 15;
+      ctx.drawImage(shaded["overworldWalk.png"], 0, GB_STAND[facing] * 16, 16, 8, x0, y0, 16, 8);
+      ctx.drawImage(shaded[file], 0, 0, 16, 8, x0, y0 + 8, 16, 8);
+      ctx.drawImage(shaded["overworldFishRod.png"], 0, tile * 8, 8, 8, x0 + dx, y0 + dy, 8, 8);
+    });
+  }
+  const logEl = $("gb-log");
+  logEl.hidden = !notes.length;
+  logEl.textContent = notes.join("\n");
+}
+
+function showGb() {
+  $("look-gb").hidden = !isGb();
+  $("gb-rom-note").hidden = !$("gb-rom").value;
+  if (!isGb() || !W) return;
+  const box = $("gb-list");
+  freeURLs("gb-list");
+  const have = gbHas();
+  if (!have.length) {
+    const p = document.createElement("p");
+    p.className = "empty";
+    p.textContent = $("gb-rom").value
+      ? "No files needed: the sprites come from your game. Add a front or back pic if you have them."
+      : "No Game Boy files yet. Add a Crystal Lens look's PNGs, or pick a game to take the sprites from.";
+    box.replaceChildren(p);
+  } else {
+    const row = document.createElement("div");
+    row.className = "list";
+    for (const name of have) {
+      const fig = document.createElement("figure");
+      fig.className = "file";
+      fig.style.margin = "0";
+      const frame = document.createElement("div");
+      frame.className = "frame";
+      const img = new Image();
+      img.alt = name;
+      img.src = imageURL(`look/${name}`, "gb-list");
+      frame.append(img);
+      const cap = document.createElement("figcaption");
+      cap.textContent = name + " ";
+      const rm = document.createElement("button");
+      rm.type = "button";
+      rm.className = "btn quiet";
+      rm.textContent = "Remove";
+      rm.setAttribute("aria-label", `Remove ${name}`);
+      rm.addEventListener("click", () => {
+        W.clear(`look/${name}`);
+        showGb();
+        refresh();
+      });
+      cap.append(rm);
+      fig.append(frame, cap);
+      row.append(fig);
+    }
+    box.replaceChildren(row);
+  }
+  gbPreview().catch((err) => {
+    $("gb-log").hidden = false;
+    $("gb-log").textContent = err.message;
+  });
+}
+
+// PNGs go in by their Crystal Lens name, from any folder; anything else is
+// skipped with a note. -Elvie
+async function addGb(items) {
+  const added = [], skipped = [];
+  for (const { file, path } of items) {
+    const name = path.split("/").pop();
+    if (!GB_FILES.includes(name)) {
+      if (!name.startsWith(".")) skipped.push(name);
+      continue;
+    }
+    writeFile(`look/${name}`, new Uint8Array(await file.arrayBuffer()));
+    added.push(name);
+  }
+  showGb();
+  const parts = [];
+  if (added.length) parts.push(`Added ${added.join(", ")}.`);
+  if (skipped.length) parts.push(`Skipped ${skipped.join(", ")}: not a Game Boy look file (${GB_FILES.join(", ")}).`);
+  status(parts.join(" "), added.length ? "ready" : "failed");
+}
+
+$("gb-files").addEventListener("change", (e) => upload(fromInput(e.target), addGb, e.target));
+$("gb-rom").addEventListener("change", () => {
+  showGb();
+  refresh();
+});
+$("m-generation").addEventListener("change", () => {
+  showGb();
+  showLook();
+});
+
 function metaJson() {
-  const meta = { label: $("m-label").value.trim() };
+  const meta = { ...keptMeta, label: $("m-label").value.trim() };
+  delete meta.character;
   const character = $("m-character").value.trim();
   if (character) meta.character = character;
   meta.genderMode = $("m-gender").value;
-  meta.generation = Number($("m-generation").value);
+  // Game Boy looks are generation 2 in the mod's fallback order -Elvie
+  meta.generation = isGb() ? 2 : Number($("m-generation").value);
+  delete meta.romOverworld;
+  if (isGb() && $("gb-rom").value) meta.romOverworld = $("gb-rom").value;
+  delete meta.credit;
   const credit = $("m-credit").value.split("\n").map((s) => s.trim()).filter(Boolean);
   if (credit.length) meta.credit = credit;
   return JSON.stringify(meta, null, 2) + "\n";
@@ -1287,13 +1568,18 @@ $("look-zip").addEventListener("change", async (e) => {
     W.replace_dir(s.path, "look");
     W.clear("lookzip");
     const meta = JSON.parse(W.read_meta("look/meta.json"));
+    keptMeta = { ...meta };
     $("m-folder").value = s.path.split("/").pop();
     state.folderTouched = true;
     $("m-label").value = meta.label || "";
     $("m-character").value = meta.character || "";
     $("m-gender").value = ["girl", "boy", "enby"].includes(meta.genderMode) ? meta.genderMode : "girl";
-    // left out (or anything but 4) is Gen 3, as lens.lua reads it -Elvie
-    $("m-generation").value = Number(meta.generation) === 4 ? "4" : "3";
+    // left out (or anything but 4) is Gen 3, as lens.lua reads it; a folder
+    // with Game Boy art and no gen3 folder is a Game Boy look -Elvie
+    const gb = !exists("look/gen3") && (gbHas().length > 0 || !!meta.romOverworld);
+    $("m-generation").value = gb ? "gb" : Number(meta.generation) === 4 ? "4" : "3";
+    $("gb-rom").value = ["red", "blue", "gold", "kris"].includes(meta.romOverworld) ? meta.romOverworld : "";
+    showGb();
     $("m-credit").value = (Array.isArray(meta.credit) ? meta.credit : meta.credit ? [meta.credit] : []).join("\n");
     noteLength($("m-label"), $("m-label-note"));
     noteLength($("m-character"), $("m-character-note"));
@@ -1309,6 +1595,9 @@ $("do-clear").addEventListener("click", () => {
   if (!confirm("Clear the look you're assembling? Download it first if you want to keep it.")) return;
   W.clear("look");
   $("meta").reset();
+  $("gb-rom").value = "";
+  keptMeta = {};
+  showGb();
   state.folderTouched = false;
   $("m-label-note").textContent = $("m-character-note").textContent = "";
   showLook();
@@ -1361,7 +1650,8 @@ function refresh() {
   $("cb-built").disabled = !ready || !state.built.length;
   $("cb-look").disabled = !ready || !lookHas($("cb-family").value);
   $("do-combine").disabled = !ready || combine.sources.length < 2;
-  const packed = ready && list("look/gen3").length > 0;
+  // a Game Boy look can be just its files, or just a meta.json naming a game -Elvie
+  const packed = ready && (list("look/gen3").length > 0 || (isGb() && (gbHas().length > 0 || !!$("gb-rom").value)));
   $("do-download").disabled = !packed;
   const rse = ready && exists("look/gen3/rse");
   $("look-dive").hidden = !rse;

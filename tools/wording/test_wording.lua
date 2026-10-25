@@ -450,6 +450,10 @@ do
     "romOverworld with the game not installed: no walk, surf or blob, so they fall back")
   check(not gb.has(mod, "assets/sprites/arale/", "fishing.png") and gb.DROP["fishing.png"] == 8,
     "no fishing art readable: fishing.png isn't offered, so it falls back; fishing frames are 8 taller")
+  files["arale/overworldSurf.png"] = true
+  check(gb.has(mod, "assets/sprites/arale/", "surf.png") and gb.has(mod, "assets/sprites/arale/", "surfBlob.png")
+    and gb.has(mod, "assets/sprites/arale/", "underwater.png") and not gb.has(mod, "assets/sprites/arale/", "walk.png"),
+    "a folder's own overworldSurf.png: surf, dive and the left-out blob, with no game installed")
 end
 
 print(("%d passed, %d failed"):format(passed, failed))

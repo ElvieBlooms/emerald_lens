@@ -67,6 +67,35 @@ shows the sheet a page at a time too (picking a frame or typing a number
 turns to its page). Drawn as one image, a folder that size ran Pyodide out
 of memory.
 
+Step 4's Generation has a third choice, **Game Boy (Crystal Lens art)**,
+for a Game Boy look: one that uses Crystal Lens's own files, which the mod
+fits into the Gen 3 frames when the game loads them (the mod README's
+**Game Boy looks**). Nothing is packed or converted. "Add Crystal Lens
+files" takes the PNGs Crystal Lens reads (`front`, `frontColor`, `back`,
+`backColor`, `overworldWalk`, `overworldBike`, the three `overworldFish*`
+and `trainerCard`/`trainerCardColor`, plus Emerald Lens's `overworldSurf`
+and `overworldFishRod`), by name and from any folder, and
+puts them at the look's top level; anything else is skipped with a note.
+"Sprites from your game" sets `romOverworld` (Red, Blue, Gold or Kris):
+those sprites are read from the player's own game when they play, so they
+aren't in the download and the page can't show them, and a look can be
+just a `meta.json` naming a game. A preview draws the front and back pics
+in the Gen 3 frame, and the walking, surfing and fishing frames in
+`overworldColors` (Crystal Lens's colours when the look has none) the way
+`gameboy.lua` does (fishing once the look has all three fishing halves, the
+rod and a walk), and says when a pic is cut to fit. The download writes
+`"generation": 2`. Opening a Crystal Lens folder with "Add to a look I
+already have" picks Game Boy for it when it has Game Boy art and no `gen3`
+folder, and the keys the page doesn't edit (`nameChoices`,
+`overworldColors`...) are kept when it's downloaded again.
+
+Steps 2 and 3 have a **Game Boy (Crystal Lens)** family too, the `gb`
+sheet from the tools README: a blank recipe button, the builder (its walk,
+bike and surf previews step, stand, flipped step, stand, as the mod does,
+surf on water with no blob), a template link, packing (to the look's top
+level, then step 4 switches to Game Boy and shows it) and combining.
+"Start the other game's sheet" on a Game Boy sheet makes both Gen 3 sheets.
+
 `reference` isn't on the site: it reads the game's own art from a local
 install, so it stays command-line only.
 

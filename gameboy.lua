@@ -18,7 +18,15 @@
 -- Surfing: the Game Boy games show only the Pokémon (Gen 1's Seel, Gen
 -- 2's Lapras), so with romOverworld that's surf.png, and the Gen 3 surf
 -- blob under it is left out. R/S/E diving (underwater.png) uses the same
--- Pokémon, except Gold and Kris dive on Gen 1's Seel. -Elvie
+-- Pokémon, except Gold and Kris dive on Gen 1's Seel. A folder's own
+-- overworldSurf.png (16x96, like overworldWalk.png; Emerald Lens only)
+-- wins over the game's, for surfing and diving. -Elvie
+--
+-- Fishing: Crystal Lens's overworldFishFront/Back/Side.png (16x8, the
+-- pose under the standing frame's top half) win over the game's, facing
+-- by facing, and overworldFishRod.png (8x16: the rod tile for down and
+-- up, then the one for left, drawn as Gen 1's; Emerald Lens only) over
+-- the game's rod. -Elvie
 -- --------------------------------------------------
 
 local gameboy = {}
@@ -47,6 +55,11 @@ local OW_FILES = {
   ["walk.png"] = "overworldWalk.png",
   ["bike.png"] = "overworldBike.png",
 }
+-- A folder's own file for each kind of Game Boy sheet -Elvie
+local OWN_OF = { walk = "overworldWalk.png", bike = "overworldBike.png",
+  surf = "overworldSurf.png", dive = "overworldSurf.png" }
+local OWN_FISH = { down = "overworldFishFront.png", up = "overworldFishBack.png", left = "overworldFishSide.png" }
+local OWN_ROD = "overworldFishRod.png"
 -- Each trainer's sprites: per kind, { games, sprite id, colours for a
 -- game with none } in order; the first installed game is used. -Elvie
 -- pokered/data/sprites/sprites.asm, pokecrystal/data/sprites/sprites.asm
@@ -110,7 +123,7 @@ local registered = {} -- [base] = meta -Elvie
 local warned = {}
 local romCache = {} -- ["kris|walk"] = { grey ImageData, the game's colours } or false -Elvie
 local fromRom -- below; gameboy.has asks it whether a game has a sprite -Elvie
-local FISH, fishArt -- below, with fishing -Elvie
+local FISH, fishParts -- below, with fishing -Elvie
 
 local function engine(name)
   local ok, m = pcall(require, name)
@@ -139,7 +152,8 @@ gameboy.romOf = romOf
 
 -- What makes a folder a Game Boy look: Crystal Lens battle art, its
 -- overworld files, or a romOverworld. -Elvie
-local ART = { "front.png", "frontColor.png", "back.png", "backColor.png", "overworldWalk.png", "overworldBike.png" }
+local ART = { "front.png", "frontColor.png", "back.png", "backColor.png", "overworldWalk.png", "overworldBike.png",
+  "overworldSurf.png" }
 function gameboy.hasArt(mod, base, meta)
   if romOf(meta) then return true end
   for _, name in ipairs(ART) do
@@ -170,13 +184,14 @@ end
 function gameboy.has(mod, base, file)
   if SOURCES[file] then return sourceOf(mod, base, file) ~= nil end
   local which = romOf(registered[base])
-  -- surf art and the left-out blob only with a Pokémon to surf on -Elvie
+  -- surf art and the left-out blob only with something to surf on -Elvie
   if MOUNT[file] or file == "surfBlob.png" then
+    if mod.assets:info(base .. OWN_OF.surf) then return true end
     return which ~= nil and fromRom(mod, which, mountKind(which, file)) ~= nil
   end
   if file == "fishing.png" then
-    return which ~= nil and FISH[which] ~= nil and fromRom(mod, which, "walk") ~= nil
-      and fishArt(mod, which) ~= nil
+    local walk = mod.assets:info(base .. OWN_OF.walk) or (which ~= nil and fromRom(mod, which, "walk") ~= nil)
+    return walk and fishParts(mod, base) ~= nil
   end
   local own = OW_FILES[file]
   if not own then return false end
@@ -210,19 +225,24 @@ local function greyShade(r)
   return 3
 end
 
-local function rankedShades(data)
+-- datas: one ImageData, or a list ranked together (a folder's walk and
+-- fishing files, so their shades agree). -Elvie
+local function rankedShades(datas)
+  if type(datas) ~= "table" then datas = { datas } end
   local seen, list, clear = {}, {}, false
-  data:mapPixel(function(_, _, r, g, b, a)
-    if a < 0.5 then clear = true
-    else
-      local key = math.floor(r * 255) * 65536 + math.floor(g * 255) * 256 + math.floor(b * 255)
-      if not seen[key] then
-        seen[key] = 0.299 * r + 0.587 * g + 0.114 * b
-        list[#list + 1] = key
+  for _, data in ipairs(datas) do
+    data:mapPixel(function(_, _, r, g, b, a)
+      if a < 0.5 then clear = true
+      else
+        local key = math.floor(r * 255) * 65536 + math.floor(g * 255) * 256 + math.floor(b * 255)
+        if not seen[key] then
+          seen[key] = 0.299 * r + 0.587 * g + 0.114 * b
+          list[#list + 1] = key
+        end
       end
-    end
-    return r, g, b, a
-  end)
+      return r, g, b, a
+    end)
+  end
   table.sort(list, function(x, y) return seen[x] > seen[y] end)
   local shade = {}
   -- with no see-through pixels, the lightest colour is the backdrop -Elvie
@@ -233,8 +253,11 @@ local function rankedShades(data)
   end
 end
 
+-- ranked: true to rank this picture's own colours, a shade function
+-- from rankedShades, or false for the game's grey. -Elvie
 local function colourise(data, colors, ranked)
-  local shadeOf = ranked and rankedShades(data) or function(r) return greyShade(r) end
+  local shadeOf = type(ranked) == "function" and ranked or ranked and rankedShades(data)
+    or function(r) return greyShade(r) end
   data:mapPixel(function(_, _, r, g, b, a)
     if a < 0.5 then return 0, 0, 0, 0 end
     local s = shadeOf(r, g, b)
@@ -280,7 +303,7 @@ end
 -- The six Game Boy frames for a walk, bike or surf sheet, coloured. -Elvie
 local function frames(mod, base, kind)
   local meta = registered[base] or {}
-  local own = OW_FILES[kind .. ".png"] and base .. OW_FILES[kind .. ".png"]
+  local own = OWN_OF[kind] and base .. OWN_OF[kind]
   if own and mod.assets:info(own) then
     local ok, data = pcall(love.image.newImageData, mod.assets:path(own))
     if ok and data then return colourise(data, colorsOf(meta, CRYSTAL_COLORS), true) end
@@ -329,8 +352,8 @@ local function mount(mod, base, file, layout)
   local size = MOUNT[file][layout]
   if not size then return nil end
   local which = romOf(registered[base])
-  if not which then return nil end
-  local src = frames(mod, base, mountKind(which, file))
+  -- the folder's own surf art first, else the game's Pokémon -Elvie
+  local src = frames(mod, base, mod.assets:info(base .. OWN_OF.surf) and "surf" or mountKind(which, file))
   if not src then return nil end
   local sw, sh = src:getDimensions()
   if sw ~= 16 or sh < 16 * 6 then return nil end
@@ -378,7 +401,7 @@ local FISH_ORDER = { "left", "up", "down" }
 local FISH_DROP = 8
 gameboy.DROP = { ["fishing.png"] = FISH_DROP }
 local STAND_OF = { down = S, up = U, left = L }
-local fishCache = {} -- [which] = { pose = { facing = ImageData }, rod = { [0], [1] } } or false -Elvie
+local fishCache = {} -- [base] = { pose = { facing = ImageData }, rod = { [0], [1] }, gen, own } or false -Elvie
 
 local function crop(src, x, y, w, h)
   local out = love.image.newImageData(w, h)
@@ -425,8 +448,9 @@ end
 
 -- The fishing tiles for a trainer, still grey, from the first installed
 -- game that has them. -Elvie
-function fishArt(mod, which)
-  if fishCache[which] ~= nil then return fishCache[which] or nil end
+local fishCacheOf = {} -- [which] = art or false -Elvie
+local function fishArt(mod, which)
+  if fishCacheOf[which] ~= nil then return fishCacheOf[which] or nil end
   local info = FISH[which]
   local datasets = type(mod.datasets) == "table" and mod.datasets
   local art
@@ -437,28 +461,92 @@ function fishArt(mod, which)
       if art then break end
     end
   end
-  if not art and info then
-    note(mod, which .. "|fish", "no fishing art for %s yet (%s); it fishes with its other looks' art", which:upper(),
-      info.gen == 2 and "Gen 2's isn't readable through mod.datasets yet" or "Red, Blue or Yellow isn't installed")
+  if art then art.gen = info.gen end
+  fishCacheOf[which] = art or false
+  return art
+end
+
+local function ownImage(mod, rel)
+  if not (love and love.image and mod.assets:info(rel)) then return nil end
+  local ok, data = pcall(love.image.newImageData, mod.assets:path(rel))
+  if ok and data then return data end
+  note(mod, rel, "could not load %s; skipping it", rel)
+  return nil
+end
+
+-- A folder's fishing: each pose and the rod from its own files where it
+-- has them, the rest from a game (its romOverworld trainer's, else Gen 1's,
+-- else Gen 2's). Own tiles are shaded with the folder's walk, game tiles
+-- from grey. The rod's offsets follow whoever drew it. nil if any part
+-- is missing, so it fishes with the other looks' art. -Elvie
+function fishParts(mod, base)
+  if fishCache[base] ~= nil then return fishCache[base] or nil end
+  local which = romOf(registered[base])
+  local pose, own, rod, gen = {}, {}, nil, nil
+  for facing, name in pairs(OWN_FISH) do
+    local data = ownImage(mod, base .. name)
+    local w, h = 0, 0
+    if data then w, h = data:getDimensions() end
+    if data and w == 16 and h == 8 then pose[facing], own[facing] = data, true
+    elseif data then note(mod, base .. name, "%s%s is %dx%d; it needs 16x8", base, name, w, h) end
   end
-  fishCache[which] = art or false
+  local rodData = ownImage(mod, base .. OWN_ROD)
+  if rodData then
+    local w, h = rodData:getDimensions()
+    if w == 8 and h == 16 then
+      rod, gen, own.rod = { [0] = crop(rodData, 0, 0, 8, 8), [1] = crop(rodData, 0, 8, 8, 8) }, 1, true
+    else
+      note(mod, base .. OWN_ROD, "%s%s is %dx%d; it needs 8x16", base, OWN_ROD, w, h)
+    end
+  end
+  if not (pose.down and pose.up and pose.left and rod) then
+    local game
+    for _, who in ipairs(which and FISH[which] and { which } or { "red", "gold" }) do
+      game = fishArt(mod, who)
+      if game then break end
+    end
+    if game then
+      for facing, tile in pairs(game.pose) do pose[facing] = pose[facing] or tile end
+      if not rod then rod, gen = game.rod, game.gen end
+    end
+  end
+  local art = pose.down and pose.up and pose.left and rod and { pose = pose, rod = rod, gen = gen, own = own } or nil
+  if not art and (which and FISH[which] or next(own)) then
+    note(mod, base .. "|fish", "no fishing art for %s yet (%s); it fishes with its other looks' art", base,
+      which and FISH[which] and FISH[which].gen == 2 and "Gen 2's isn't readable through mod.datasets yet"
+        or "no overworldFish files or rod, and Red, Blue or Yellow isn't installed")
+  end
+  fishCache[base] = art or false
   return art
 end
 
 local function fishing(mod, base)
   local meta = registered[base] or {}
   local which = romOf(meta)
-  if not (which and FISH[which]) then return nil end
-  local art = fishArt(mod, which)
+  local art = fishParts(mod, base)
   if not art then return nil end
   local walk = frames(mod, base, "walk")
   if not walk then return nil end
-  local _, own = fromRom(mod, which, "walk")
-  local colors = colorsOf(meta, own or PALETTES.red)
+  -- the walk's colours, and the folder's own shades for its own tiles -Elvie
+  local ownWalk = mod.assets:info(base .. OWN_OF.walk)
+  local colors
+  if ownWalk then
+    colors = colorsOf(meta, CRYSTAL_COLORS)
+  else
+    local _, romColors = fromRom(mod, which, "walk")
+    colors = colorsOf(meta, romColors or PALETTES.red)
+  end
+  local mine = {}
+  if ownWalk then mine[#mine + 1] = ownImage(mod, base .. OWN_OF.walk) end
+  for facing in pairs(OWN_FISH) do if art.own[facing] then mine[#mine + 1] = art.pose[facing] end end
+  if art.own.rod then mine[#mine + 1] = art.rod[0]; mine[#mine + 1] = art.rod[1] end
+  local shades = #mine > 0 and rankedShades(mine) or nil
   local pose, rod = {}, {}
-  for facing, tile in pairs(art.pose) do pose[facing] = colourise(tile:clone(), colors, false) end
-  for i, tile in pairs(art.rod) do rod[i] = colourise(tile:clone(), colors, false) end
-  local offsets = ROD[FISH[which].gen]
+  for facing, tile in pairs(art.pose) do
+    pose[facing] = colourise(tile:clone(), colors, art.own[facing] and shades or false)
+  end
+  for i, tile in pairs(art.rod) do rod[i] = colourise(tile:clone(), colors, art.own.rod and shades or false) end
+  local offsets = ROD[art.gen]
   local H = 32 + FISH_DROP
   local out = love.image.newImageData(32, H * 12)
   local function put(src, sx, sy, w, h, dx, dy, mirror)

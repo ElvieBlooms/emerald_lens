@@ -11,8 +11,28 @@ own README.
 Have Game Boy art from Crystal Lens? It needs no packing: copy the folder
 into `assets/sprites/` as it is and the mod fits its battle pics and
 overworld files to the Gen 3 sizes when the game loads them (the mod
-README's **Game Boy looks**). Use these tools only if you want to draw
-proper Gen 3 sheets for it, in a `gen3/` folder next to the Game Boy files.
+README's **Game Boy looks**); the website's step 4 makes one with its
+**Game Boy** generation. To draw Game Boy art, or import it from another
+sheet, use the `gb` family: `gb_sheet.png` (blank recipe
+`recipes/blank_gb.json`) holds Crystal Lens's `frontColor` (56x56),
+`backColor` (48x48), `trainerCardColor` (40x56), `overworldWalk` and
+`overworldBike` (16x16, rows down, up, left; stand, then step), plus
+`overworldSurf` (the same six frames, for surfing and diving), the three
+`overworldFish*` bottom halves (16x8) and `overworldFishRod` (two 8x8 rod
+tiles: down and up, then left). `overworldSurf` and `overworldFishRod` are
+Emerald Lens's own; Crystal Lens ignores them. Packing `gb` writes the
+files to the look folder's top level, where Crystal Lens keeps them:
+
+    python3 pack_gen3.py pack gb gb_sheet.png ../../assets/sprites/mylook
+
+The overworld files are four shades, coloured by `overworldColors`. The
+importer stands everything on its frame's bottom row and centres it, so a
+rod tile drawn off-centre is easiest drawn straight on `gb_sheet.png` (or
+moved with `shift`); the slicer skips pieces under 12 pixels, so a thin rod
+won't get a number. `transfer gb` starts both Gen 3 sheets from Game Boy
+art (front, back, walk, bike; surf goes to the surf frames). Use the Gen 3
+families if you want proper Gen 3 sheets as well, in a `gen3/` folder next
+to the Game Boy files.
 
 Two formats, usable interchangeably -- draw in either, convert between them
 at any point, and pack from either or both:

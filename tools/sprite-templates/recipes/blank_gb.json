@@ -1,0 +1,100 @@
+{
+  "family": "gb",
+  "note": "Blank recipe for a Game Boy look: Crystal Lens's own files, at the Game Boy's sizes. Replace null with piece numbers from your slice preview and delete the sections you don't need; anything left out falls back to the character's other looks. The packed files go at the look folder's top level, where Crystal Lens reads them too. Keys starting with _ are notes and are ignored.",
+  "_how": {
+    "piece": "a number from the slice preview, e.g. 12",
+    "pieces drawn as one sprite": [
+      12,
+      13
+    ],
+    "mirrored": {
+      "piece": 12,
+      "flip": true
+    },
+    "moved off centre": {
+      "piece": 151,
+      "shift": -3
+    },
+    "blank frame": null,
+    "one-row sections": "can be a plain list, e.g. \"front\": [12]",
+    "other top-level options": "\"scale\", \"background\" (\"#ff7f27\"), \"reach\", \"split\", \"shrink\" (list of section names), \"lossy\", \"colors\""
+  },
+  "_sections": {
+    "front": "frontColor.png: 1 frame, 56x56. battle front pic, also the trainer card when there's no trainer card pic",
+    "back": "backColor.png: 1 frame, 48x48. battle back pic (the Game Boy has no throw)",
+    "trainer card": "trainerCardColor.png: 1 frame, 40x56. Crystal Lens's Gen 2 trainer card portrait (optional)",
+    "walk": "overworldWalk.png: 2 down, 2 up, 2 left, 16x16. stand, step (the game mirrors the step); four shades, coloured by overworldColors",
+    "bike": "overworldBike.png: 2 down, 2 up, 2 left, 16x16. stand, pedal; four shades",
+    "surf": "overworldSurf.png: 2 down, 2 up, 2 left, 16x16. stand, step; what shows while surfing and diving (the Game Boy shows only the Pokémon, but it can be anything). Emerald Lens only; four shades",
+    "fish down": "overworldFishFront.png: 1 frame, 16x8. the bottom half while fishing facing down; the standing frame's top half goes above it. four shades",
+    "fish up": "overworldFishBack.png: 1 frame, 16x8. the bottom half while fishing facing up",
+    "fish left": "overworldFishSide.png: 1 frame, 16x8. the bottom half while fishing facing left (right is mirrored)",
+    "rod": "overworldFishRod.png: 2 frames, 8x8. the rod for down and up, then for left, placed as Gen 1's. Emerald Lens only; without it, the rod comes from an installed game"
+  },
+  "sections": {
+    "front": [
+      null
+    ],
+    "back": [
+      null
+    ],
+    "trainer card": [
+      null
+    ],
+    "walk": {
+      "down": [
+        null,
+        null
+      ],
+      "up": [
+        null,
+        null
+      ],
+      "left": [
+        null,
+        null
+      ]
+    },
+    "bike": {
+      "down": [
+        null,
+        null
+      ],
+      "up": [
+        null,
+        null
+      ],
+      "left": [
+        null,
+        null
+      ]
+    },
+    "surf": {
+      "down": [
+        null,
+        null
+      ],
+      "up": [
+        null,
+        null
+      ],
+      "left": [
+        null,
+        null
+      ]
+    },
+    "fish down": [
+      null
+    ],
+    "fish up": [
+      null
+    ],
+    "fish left": [
+      null
+    ],
+    "rod": [
+      null,
+      null
+    ]
+  }
+}

@@ -286,6 +286,8 @@ FOOT = {
   "frlg": {"surf.png": 30, "flyBird.png": 47, "front.png": 63, "intro.png": 93,
            "surfBlob.png": 30, "bird.png": 47, "bag.png": 60},
   "rse":  {"underwater.png": 29, "front.png": 63, "mapIcon.png": 15, "bag.png": 60},
+  # Game Boy: everything stands on the frame's bottom row -Elvie
+  "gb": {},
 }
 
 def foot(family, name, h, index=None):
@@ -731,7 +733,7 @@ def build(src, recipe_path, out_dir):
     recipe = json.load(open(recipe_path))
     family = recipe["family"]
     if family not in P.EXTRAS_OF:
-        sys.exit(f"recipe family must be frlg, rse, frlg_wide or rse_wide, not {family}")
+        sys.exit(f"recipe family must be frlg, rse, frlg_wide, rse_wide or gb, not {family}")
     piece_image.cells = ()
     if os.path.isdir(src) and "files" in recipe:
         return write_out(*build_folder(src, recipe), out_dir)

@@ -160,7 +160,7 @@ export function createBuilder(api) {
     // The builder numbers the sheet the way build will, so the slicing
     // options from step 1 go into the recipe. -Elvie
     Object.assign(r, api.sliceOptions(r));
-    if (!["frlg", "rse", "frlg_wide", "rse_wide"].includes(r.family)) r.family = el.family.value;
+    if (!["frlg", "rse", "frlg_wide", "rse_wide", "gb"].includes(r.family)) r.family = el.family.value;
     r.sections ||= {};
     data = null; // reload below, not from write()
     write(r);

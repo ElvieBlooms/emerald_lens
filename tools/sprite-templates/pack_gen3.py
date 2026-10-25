@@ -129,8 +129,24 @@ SPECS = {
   "frlg_extras": [("surfBlob.png", 32, 32, 6), ("bird.png", 64, 64, 1), ("bag.png", 64, 64, 4)],
   "rse_extras":  [("surfBlob.png", 32, 32, 3), ("bird.png", 32, 32, 1), ("bag.png", 64, 64, 6),
                   ("diveBlob.png", 32, 32, 3)],
+  # Game Boy: Crystal Lens's own files, at the Game Boy's sizes, for a Game
+  # Boy look (the mod fits them to Gen 3 when the game loads them). Colour
+  # pics; the overworld in four shades, since both mods colour it with
+  # overworldColors. 16x16 frames: stand down, up, left, then the steps
+  # (the games mirror them). Fishing poses are the 16x8 bottom half under
+  # the standing frame; the rod is two 8x8 tiles, for down/up then left.
+  # overworldSurf.png and overworldFishRod.png are Emerald Lens's own;
+  # Crystal Lens leaves them be. No extras. -Elvie
+  "gb": [
+    ("overworldWalk.png", 16, 16, 6), ("overworldBike.png", 16, 16, 6),
+    ("frontColor.png", 56, 56, 1), ("backColor.png", 48, 48, 1), ("trainerCardColor.png", 40, 56, 1),
+    ("overworldSurf.png", 16, 16, 6), ("overworldFishFront.png", 16, 8, 1),
+    ("overworldFishBack.png", 16, 8, 1), ("overworldFishSide.png", 16, 8, 1),
+    ("overworldFishRod.png", 8, 8, 2),
+  ],
+  "gb_extras": [],
 }
-EXTRAS_OF = {"frlg": "frlg_extras", "rse": "rse_extras"}
+EXTRAS_OF = {"frlg": "frlg_extras", "rse": "rse_extras", "gb": "gb_extras"}
 GUIDE = (255, 0, 255, 255)
 CLEAR = (0, 0, 0, 0)
 
@@ -195,15 +211,32 @@ LAYOUT = {
     # goes. Added after the first release, so last. -Elvie
     ("DIVE BLOB", "diveBlob.png", [((0, 1, 2), 1)]),
   ],
+  # Walk and bike: a standing column, then a step column, rows down, up,
+  # left, so recipes fill them like the Gen 3 walk ("down": [stand, step]). -Elvie
+  "gb": [
+    ("FRONT", "frontColor.png", [((0,), 1)]),
+    ("BACK", "backColor.png", [((0,), 1)]),
+    ("TRAINER CARD", "trainerCardColor.png", [((0,), 1)]),
+    ("WALK", "overworldWalk.png", [((0, 1, 2), 1), ((3, 4, 5), 1)]),
+    ("BIKE", "overworldBike.png", [((0, 1, 2), 1), ((3, 4, 5), 1)]),
+    ("SURF", "overworldSurf.png", [((0, 1, 2), 1), ((3, 4, 5), 1)]),
+    ("FISH DOWN", "overworldFishFront.png", [((0,), 1)]),
+    ("FISH UP", "overworldFishBack.png", [((0,), 1)]),
+    ("FISH LEFT", "overworldFishSide.png", [((0,), 1)]),
+    ("ROD", "overworldFishRod.png", [((0,), 2)]),
+  ],
+  "gb_extras": [],
 }
-SHEET_W = {"frlg": 500, "rse": 470, "frlg_extras": 500, "rse_extras": 470}
+SHEET_W = {"frlg": 500, "rse": 470, "frlg_extras": 500, "rse_extras": 470, "gb": 260, "gb_extras": 260}
 TITLE = {"frlg": "FireRed / LeafGreen", "rse": "Ruby / Sapphire / Emerald",
+         "gb": "Game Boy (Crystal Lens)", "gb_extras": "Game Boy extras (none)",
          "frlg_extras": "FireRed / LeafGreen extras", "rse_extras": "Ruby / Sapphire / Emerald extras"}
 HINT = {"frlg_extras": "Optional. Surf blob rows: down, up, left.",
         "rse_extras": "Optional. Surf and dive blob rows: down, up, left.",
         # RSE's back pic stands in its last frame, FRLG's in its first -Elvie
         "rse": "Draw inside the boxes. Rows: down, up, left. BACK: throw first, standing last.",
-        "rse_wide": "Draw inside the boxes. Rows: down, up, left. BACK: throw first, standing last."}
+        "rse_wide": "Draw inside the boxes. Rows: down, up, left. BACK: throw first, standing last.",
+        "gb": "Down, up, left; stand, step. FISH: lower half."}
 
 # Wide: the same sheets, but the 16-wide overworld frames are 32 wide, for
 # characters drawn bigger than the game's own (Gen 4 sprites, say). The mod
