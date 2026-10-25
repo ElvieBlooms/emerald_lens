@@ -82,6 +82,8 @@ end
 lens.decodeJson = decodeJson
 
 function lens.init(mod)
+  local okGameboy, gameboy = pcall(require, "mods.emerald_lens.gameboy")
+  if not okGameboy then gameboy = nil end
   local function readMeta(key)
     local metaPath = SPRITES_DIR .. "/" .. key .. "/meta.json"
     if mod.assets:info(metaPath) then
@@ -119,6 +121,10 @@ function lens.init(mod)
   local OFF = "__off"
   local allFolders, metaFor = {}, {}
   local lookFolders = { frlg = {}, rse = {} } -- [family][character] = looks
+  -- A folder with no gen3/ art for a family but Crystal Lens art (or a
+  -- romOverworld) is a Game Boy look there: gameboy.lua fits it to the
+  -- Gen 3 sizes. [family][key] = true. -Elvie
+  local gameBoyFor = { frlg = {}, rse = {} }
 
   for _, key in ipairs(mod.assets:list(SPRITES_DIR)) do
     if isDirectory(SPRITES_DIR .. "/" .. key) then
@@ -130,8 +136,13 @@ function lens.init(mod)
       local entry = { label = label, key = key }
       allFolders[character] = allFolders[character] or {}
       table.insert(allFolders[character], entry)
+      local root = SPRITES_DIR .. "/" .. key .. "/"
+      local gameBoy = gameboy and gameboy.hasArt(mod, root, meta)
+      if gameBoy then gameboy.register(root, meta) end
       for _, family in ipairs(FAMILIES) do
-        if isDirectory(SPRITES_DIR .. "/" .. key .. "/gen3/" .. family.id) then
+        local own = isDirectory(SPRITES_DIR .. "/" .. key .. "/gen3/" .. family.id)
+        if not own and gameBoy then gameBoyFor[family.id][key] = true end
+        if own or gameBoy then
           local looks = lookFolders[family.id]
           looks[character] = looks[character] or {}
           table.insert(looks[character], entry)
@@ -154,7 +165,7 @@ function lens.init(mod)
   end
 
   if not any then
-    mod.log:info("no character folders with gen3 art in %s; nothing to replace", SPRITES_DIR)
+    mod.log:info("no character folders with gen3 or Game Boy art in %s; nothing to replace", SPRITES_DIR)
     return
   end
 
@@ -195,7 +206,12 @@ function lens.init(mod)
       defaults[family.id] = default
       for _, choice in ipairs(choices) do
         local looks = lookFolders[family.id][choice.key]
+        -- the first look in menu order, but not a Game Boy one if the
+        -- character has Gen 3 or 4 art, so copied folders don't change it -Elvie
         local lookDefault = looks[1].key
+        for i = #looks, 1, -1 do
+          if not gameBoyFor[family.id][looks[i].key] then lookDefault = looks[i].key end
+        end
         local oldLook = mod.options:get("lookFor_" .. sanitizeKey(choice.key))
         for _, entry in ipairs(looks) do
           if entry.key == oldLook then lookDefault = oldLook end
@@ -336,23 +352,36 @@ function lens.init(mod)
   updateGender()
 
   -- "generation" in meta.json: 3 for art in the games' own style, 4 for
-  -- bigger DS-style art. Left out, it's 3. -Elvie
+  -- bigger DS-style art. Left out, it's 3. A Game Boy look (in the running
+  -- family) is 2, or 1 if meta.json says so. -Elvie
   local function generationOf(key)
     local g = tonumber((metaFor[key] or {}).generation)
+    if running and gameBoyFor[running.id][key] then return g == 1 and 1 or 2 end
     return g == 4 and 4 or 3
   end
 
   -- Fallback: the selected look, then the character's looks of the same
-  -- generation, then its other looks, each in menu order. -Elvie
+  -- generation, then its other looks, each in menu order. With Game Boy
+  -- looks in the mix, the other looks go closest first: Gen 3 and 4
+  -- looks before Game Boy ones (and the other way round), then by how
+  -- many generations apart. With only Gen 3 and 4 looks that's the same
+  -- order as before. -Elvie
   local function chainFor(character, selected)
     local folderKeys = { selected }
     local gen = generationOf(selected)
-    for pass = 1, 2 do
-      for _, entry in ipairs(allFolders[character]) do
-        local same = generationOf(entry.key) == gen
-        if entry.key ~= selected and same == (pass == 1) then table.insert(folderKeys, entry.key) end
+    local others = {}
+    for i, entry in ipairs(allFolders[character]) do
+      if entry.key ~= selected then
+        local g = generationOf(entry.key)
+        local apart = ((g <= 2) ~= (gen <= 2)) and 10 or 0
+        others[#others + 1] = { key = entry.key, rank = g == gen and -1 or apart + math.abs(g - gen), i = i }
       end
     end
+    table.sort(others, function(a, b)
+      if a.rank ~= b.rank then return a.rank < b.rank end
+      return a.i < b.i
+    end)
+    for _, o in ipairs(others) do folderKeys[#folderKeys + 1] = o.key end
     return folderKeys
   end
 
@@ -365,7 +394,8 @@ function lens.init(mod)
 
   local handle
   local function resolve()
-    local ctx = { folderKeys = {}, genderMode = DEFAULT_GENDER_MODE, spritesDir = SPRITES_DIR }
+    local ctx = { folderKeys = {}, genderMode = DEFAULT_GENDER_MODE, spritesDir = SPRITES_DIR,
+      gameBoy = gameBoyFor[running.id] }
     local character = currentCharacter(running)
     if character then
       local selected = selectedLook(running, character)
@@ -374,7 +404,7 @@ function lens.init(mod)
     end
     local rival = currentRival(running)
     if rival then
-      ctx.rival = { folderKeys = chainFor(rival, selectedLook(running, rival, true)) }
+      ctx.rival = { folderKeys = chainFor(rival, selectedLook(running, rival, true)), gameBoy = gameBoyFor[running.id] }
     end
     if not character and not rival then return nil end
     return ctx
@@ -518,7 +548,7 @@ function lens.init(mod)
   local function basesOf(character, look)
     local bases = {}
     for _, key in ipairs(chainFor(character, look)) do
-      bases[#bases + 1] = SPRITES_DIR .. "/" .. key .. "/gen3/" .. running.id .. "/"
+      bases[#bases + 1] = SPRITES_DIR .. "/" .. key .. (gameBoyFor[running.id][key] and "/" or ("/gen3/" .. running.id .. "/"))
     end
     return bases
   end
@@ -541,9 +571,10 @@ function lens.init(mod)
           or "Shows once there's a save." }
         if textOn then lines[2] = { text = "Called " .. rivalNameOf(look, rival) .. "." } end
       end
+      if gameBoyFor[f.id][look] then lines[#lines + 1] = { text = "Game Boy art." } end
       creditLines(look, lines)
       return { bases = basesOf(rival, look), frontFile = f.id == "frlg" and "rivalEarly.png" or nil,
-        lines = lines }
+        lines = lines, layout = f.id }
     end
     local character = currentCharacter(f)
     if who == "text" then
@@ -562,9 +593,10 @@ function lens.init(mod)
       if picked and mode ~= "enby" and picked ~= mode then
         lines[2] = { text = "Not shown: save is " .. names[picked] .. ".", red = true }
       end
+      if gameBoyFor[f.id][look] then lines[#lines + 1] = { text = "Game Boy art." } end
       creditLines(look, lines)
     end
-    return { bases = basesOf(character, look), lines = lines }
+    return { bases = basesOf(character, look), lines = lines, layout = f.id }
   end
 
   -- The credits page: the player's and the rival's looks, every other
