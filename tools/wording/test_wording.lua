@@ -445,8 +445,9 @@ do
     "Game Boy bases are told apart")
   check(gb.has(mod, "assets/sprites/arale/", "back.png") and not gb.has(mod, "assets/sprites/arale/", "front.png"),
     "back.png from backColor.png; no front art, no front.png")
-  check(gb.has(mod, "assets/sprites/arale/", "walk.png") and not gb.has(mod, "assets/sprites/arale/", "surf.png"),
-    "romOverworld gives walk.png, nothing gives surf.png")
+  check(not gb.has(mod, "assets/sprites/arale/", "walk.png") and not gb.has(mod, "assets/sprites/arale/", "surf.png")
+    and not gb.has(mod, "assets/sprites/arale/", "surfBlob.png"),
+    "romOverworld with the game not installed: no walk, surf or blob, so they fall back")
 end
 
 print(("%d passed, %d failed"):format(passed, failed))

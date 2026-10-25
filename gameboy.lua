@@ -10,10 +10,15 @@
 --
 -- Overworld: the folder's own overworldWalk.png / overworldBike.png
 -- (Crystal Lens's files), or with "romOverworld" in meta.json ("red",
--- "gold" or "kris"), that player's sprites from the player's own
+-- "blue", "gold" or "kris"), that trainer's sprites from the player's own
 -- installed Gen 1 or Gen 2 game, through the engine's Union Room avatar
 -- loader (which reads other games' sprites for online play). Nintendo's
 -- art is never shipped. -Elvie
+--
+-- Surfing: the Game Boy games show only the Pokémon (Gen 1's Seel, Gen
+-- 2's Lapras), so with romOverworld that's surf.png, and the Gen 3 surf
+-- blob under it is left out. R/S/E diving (underwater.png) uses the same
+-- Pokémon, except Gold and Kris dive on Gen 1's Seel. -Elvie
 -- --------------------------------------------------
 
 local gameboy = {}
@@ -42,16 +47,33 @@ local OW_FILES = {
   ["walk.png"] = "overworldWalk.png",
   ["bike.png"] = "overworldBike.png",
 }
--- The player's own sprites in each game; the first installed game in
--- the list is used. -Elvie
--- pokecrystal/data/sprites/player_sprites.asm, pokered/data/sprites/sprites.asm
+-- Each trainer's sprites: per kind, { games, sprite id, colours for a
+-- game with none } in order; the first installed game is used. -Elvie
+-- pokered/data/sprites/sprites.asm, pokecrystal/data/sprites/sprites.asm
+-- and player_sprites.asm
+local GEN1, GEN2 = { "red", "blue", "yellow" }, { "gold", "silver", "crystal" }
 local ROM = {
-  red  = { games = { "red", "blue", "yellow" }, walk = "SPRITE_RED", bike = "SPRITE_RED_BIKE", palette = "red" },
-  gold = { games = { "gold", "silver", "crystal" }, walk = "SPRITE_CHRIS", bike = "SPRITE_CHRIS_BIKE", palette = "red" },
-  kris = { games = { "crystal" }, walk = "SPRITE_KRIS", bike = "SPRITE_KRIS_BIKE", palette = "blue" },
+  red  = { walk = { { GEN1, "SPRITE_RED", "red" } }, bike = { { GEN1, "SPRITE_RED_BIKE", "red" } },
+           surf = { { GEN1, "SPRITE_SEEL", "blue" } } },
+  -- the rival in Gen 1, the Viridian Gym Leader in Gen 2; no bike -Elvie
+  blue = { walk = { { GEN1, "SPRITE_BLUE", "red" }, { GEN2, "SPRITE_BLUE", "red" } },
+           surf = { { GEN1, "SPRITE_SEEL", "blue" } } },
+  -- surf on Lapras, dive on Gen 1's Seel (Lapras without a Gen 1 game) -Elvie
+  gold = { walk = { { GEN2, "SPRITE_CHRIS", "red" } }, bike = { { GEN2, "SPRITE_CHRIS_BIKE", "red" } },
+           surf = { { GEN2, "SPRITE_SURF", "blue" } },
+           dive = { { GEN1, "SPRITE_SEEL", "blue" }, { GEN2, "SPRITE_SURF", "blue" } } },
+  kris = { walk = { { { "crystal" }, "SPRITE_KRIS", "blue" } }, bike = { { { "crystal" }, "SPRITE_KRIS_BIKE", "blue" } },
+           surf = { { GEN2, "SPRITE_SURF", "blue" } },
+           dive = { { GEN1, "SPRITE_SEEL", "blue" }, { GEN2, "SPRITE_SURF", "blue" } } },
 }
+-- The sprite kind each mount file reads: diving has its own where a
+-- trainer lists one, else it's the surf Pokémon. -Elvie
+local function mountKind(which, file)
+  if file == "underwater.png" and ROM[which] and ROM[which].dive then return "dive" end
+  return "surf"
+end
 -- Gen 2 sprites come with the game's own colours. Gen 1's are grey, so
--- Red gets Gen 2's: pokecrystal/gfx/overworld/npc_sprites.pal, day,
+-- they get Gen 2's: pokecrystal/gfx/overworld/npc_sprites.pal, day,
 -- PAL_OW_RED and PAL_OW_BLUE, as the engine draws them (the same values
 -- Facets uses). Shade 0 is see-through. -Elvie
 local PALETTES = {
@@ -77,10 +99,17 @@ local LAYOUT = {
   rse = { 18, WALK },
 }
 local STAND_ROW, BIKE_ROW = 30, 31 -- the game's feet rows (pack_gen3 GAME_FEET) -Elvie
+-- Surf and underwater: 0-8 like walking, FR/LG and R/S/E surf's 9-11 one
+-- per facing. The Pokémon fills the tile the player stands on: the
+-- bottom 16 rows, centred. Surf blob sizes, to leave it out. -Elvie
+local MOUNT = { ["surf.png"] = { frlg = { 16, 12 }, rse = { 32, 12 } }, ["underwater.png"] = { rse = { 32, 9 } } }
+local MOUNT_EXTRA = { { S }, { U }, { L } }
+local BLOB = { frlg = 6, rse = 3 }
 
 local registered = {} -- [base] = meta -Elvie
 local warned = {}
 local romCache = {} -- ["kris|walk"] = { grey ImageData, the game's colours } or false -Elvie
+local fromRom -- below; gameboy.has asks it whether a game has a sprite -Elvie
 
 local function engine(name)
   local ok, m = pcall(require, name)
@@ -139,10 +168,15 @@ end
 
 function gameboy.has(mod, base, file)
   if SOURCES[file] then return sourceOf(mod, base, file) ~= nil end
+  local which = romOf(registered[base])
+  -- surf art and the left-out blob only with a Pokémon to surf on -Elvie
+  if MOUNT[file] or file == "surfBlob.png" then
+    return which ~= nil and fromRom(mod, which, mountKind(which, file)) ~= nil
+  end
   local own = OW_FILES[file]
   if not own then return false end
   if mod.assets:info(base .. own) then return true end
-  return romOf(registered[base]) ~= nil
+  return which ~= nil and fromRom(mod, which, file:sub(1, 4)) ~= nil
 end
 
 -- The pic in a w x h box: centred across, feet on the bottom edge. A
@@ -206,41 +240,43 @@ local function colourise(data, colors, ranked)
   return data
 end
 
--- The player's sprite sheet from an installed game: grey, plus the
--- game's own colours (Gen 2) or nil (Gen 1). -Elvie
-local function fromRom(mod, which, kind)
+-- A trainer's sprite sheet from an installed game: grey, plus colours
+-- (the game's own for Gen 2, else Gen 2's). nil if no game has it. -Elvie
+function fromRom(mod, which, kind)
   local key = which .. "|" .. kind
   if romCache[key] ~= nil then return unpack(romCache[key] or {}) end
   local Avatars = engine("src.online.union.Avatars")
-  local rom = ROM[which]
-  local data, colors
-  if Avatars and type(Avatars.hostEntry) == "function" then
-    for _, game in ipairs(rom.games) do
-      local ok, entry = pcall(Avatars.hostEntry, game, rom[kind])
-      if ok and type(entry) == "table" and entry.layout == "gb" then
-        local okData, grey = pcall(Avatars.imageData, entry)
-        if okData and grey then
-          data = grey
-          colors = type(entry.palette) == "table" and type(entry.palette.colors) == "table"
-            and #entry.palette.colors == 4 and entry.palette.colors or nil
-          break
+  local sources = ROM[which] and ROM[which][kind] or {}
+  local data, colors, games = nil, nil, {}
+  for _, source in ipairs(sources) do
+    for _, game in ipairs(source[1]) do
+      games[#games + 1] = game
+      if not data and Avatars and type(Avatars.hostEntry) == "function" then
+        local ok, entry = pcall(Avatars.hostEntry, game, source[2])
+        if ok and type(entry) == "table" and entry.layout == "gb" then
+          local okData, grey = pcall(Avatars.imageData, entry)
+          if okData and grey then
+            data = grey
+            local own = type(entry.palette) == "table" and entry.palette.colors
+            colors = type(own) == "table" and #own == 4 and own or PALETTES[source[3]]
+          end
         end
       end
     end
   end
-  if not data then
+  if not data and #sources > 0 then
     note(mod, key, "no %s sprite for %s: %s isn't installed (or hasn't been started yet)",
-      kind, which:upper(), table.concat(rom.games, "/"))
+      kind, which:upper(), table.concat(games, "/"))
   end
   romCache[key] = data and { data, colors } or false
   return data, colors
 end
 
--- The six Game Boy frames for a walk or bike sheet, coloured. -Elvie
+-- The six Game Boy frames for a walk, bike or surf sheet, coloured. -Elvie
 local function frames(mod, base, kind)
   local meta = registered[base] or {}
-  local own = base .. OW_FILES[kind .. ".png"]
-  if mod.assets:info(own) then
+  local own = OW_FILES[kind .. ".png"] and base .. OW_FILES[kind .. ".png"]
+  if own and mod.assets:info(own) then
     local ok, data = pcall(love.image.newImageData, mod.assets:path(own))
     if ok and data then return colourise(data, colorsOf(meta, CRYSTAL_COLORS), true) end
     note(mod, own, "could not load %s; skipping it", own)
@@ -248,10 +284,12 @@ local function frames(mod, base, kind)
   end
   local which = romOf(meta)
   if not which then return nil end
-  local grey, own = fromRom(mod, which, kind)
+  local grey, colors = fromRom(mod, which, kind)
   if not grey then return nil end
-  -- overworldColors in meta.json wins over the game's own colours -Elvie
-  return colourise(grey:clone(), colorsOf(meta, own or PALETTES[ROM[which].palette]), false)
+  -- overworldColors in meta.json wins over the game's own colours, but
+  -- not for the Pokémon you surf or dive on -Elvie
+  if kind ~= "surf" and kind ~= "dive" then colors = colorsOf(meta, colors) end
+  return colourise(grey:clone(), colors, false)
 end
 
 local function sheet(mod, base, kind, layout)
@@ -281,11 +319,42 @@ local function sheet(mod, base, kind, layout)
   return out
 end
 
+-- Surfing or diving: the Pokémon in the tile at the bottom of each frame. -Elvie
+local function mount(mod, base, file, layout)
+  local size = MOUNT[file][layout]
+  if not size then return nil end
+  local which = romOf(registered[base])
+  if not which then return nil end
+  local src = frames(mod, base, mountKind(which, file))
+  if not src then return nil end
+  local sw, sh = src:getDimensions()
+  if sw ~= 16 or sh < 16 * 6 then return nil end
+  local w, n = size[1], size[2]
+  local out = love.image.newImageData(w, 32 * n)
+  for i = 0, n - 1 do
+    local f = i < 9 and WALK[i + 1] or MOUNT_EXTRA[i - 8]
+    local x0, y0 = (w - 16) / 2, i * 32 + 16
+    for y = 0, 15 do
+      for x = 0, 15 do
+        local r, g, b, a = src:getPixel(f[2] and 15 - x or x, f[1] * 16 + y)
+        if a > 0 then out:setPixel(x0 + x, y0 + y, r, g, b, a) end
+      end
+    end
+  end
+  return out
+end
+
 -- The Gen 3 file as ImageData, or nil if the folder has no art for it.
 -- layout ("frlg" or "rse") sets the frame counts. -Elvie
 function gameboy.load(mod, base, file, layout)
   if not (love and love.image) then return nil end
   if OW_FILES[file] then return sheet(mod, base, file:sub(1, 4), layout) end
+  if MOUNT[file] then return mount(mod, base, file, layout) end
+  if file == "surfBlob.png" then
+    -- see-through: the Game Boy Pokémon is the whole picture -Elvie
+    if not (BLOB[layout] and gameboy.has(mod, base, file)) then return nil end
+    return love.image.newImageData(32, 32 * BLOB[layout])
+  end
   local rel = sourceOf(mod, base, file)
   if not rel then return nil end
   local ok, src = pcall(love.image.newImageData, mod.assets:path(rel))
