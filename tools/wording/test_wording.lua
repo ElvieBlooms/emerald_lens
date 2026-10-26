@@ -317,6 +317,10 @@ do
   local textRow
   for _, row in ipairs(rows) do if row.key == "textFrlg" then textRow = row end end
   check(textRow and textRow.label == "  TEXT" and textRow.default == "on", "TEXT row defined, ON by default")
+  local genderRow
+  for _, row in ipairs(rows) do if row.key == "genderFrlg" then genderRow = row end end
+  check(genderRow and #genderRow.choices == 2 and genderRow.choices[2][1] == "MY SAVE" and genderRow.default == "look",
+    "GENDER row: the look's gender or MY SAVE")
   check(got.family == "frlg", "text set up for the running family")
 
   options.characterFrlg, options.rivalFrlg = "KRIS", "SAGE"
@@ -439,6 +443,16 @@ do
   ctx = ctxs[#ctxs]
   check(ctx.folderKeys[1] == "red_gb" and ctx.genderMode == "boy" and ctx.gameBoy.red_gb,
     "a romOverworld folder alone is a look")
+
+  -- GENDER: MY SAVE fits the look to either save (gen3 takes both slots) -Elvie
+  check(not ctx.fitSave, "GENDER is the look's own by default")
+  options.genderFrlg = "save"
+  handlers["mod.options_changed"]({ mod = "emerald_lens", key = "genderFrlg" })
+  ctx = ctxs[#ctxs]
+  check(ctx.fitSave == true and ctx.genderMode == "boy", "GENDER MY SAVE reaches gen3; the text's genderMode stays")
+  options.genderFrlg = "_"
+  handlers["mod.options_changed"]({ mod = "emerald_lens", key = "genderFrlg" })
+  check(not ctxs[#ctxs].fitSave, "an older version's stored GENDER value counts as the look's own")
 
   local gb = package.loaded["mods.emerald_lens.gameboy"]
   check(gb.isBase("assets/sprites/arale/") and not gb.isBase("assets/sprites/kris/gen3/frlg/"),

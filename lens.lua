@@ -245,7 +245,7 @@ function lens.init(mod)
   -- Layout
   -- A heading per family with CHARACTER, LOOK and GENDER under it, then
   -- RIVAL, RIVAL LOOK and TEXT, then a reminder at the bottom. Mod options only have rows the cursor can land
-  -- on, so the headings, GENDER and the reminder are choice rows with one
+  -- on, so the headings and the reminder are choice rows with one
   -- choice: selectable, but they do nothing. -Elvie
   -- --------------------------------------------------
   local INERT = "_"
@@ -254,17 +254,24 @@ function lens.init(mod)
       default = INERT, visible_if = visibleIf }
   end
 
-  -- A boy or girl character only replaces that player, so the menu ends
-  -- with a reminder. Labels are cut at 18 characters, so it takes two
-  -- rows. -Elvie
-  local WARNING = { "GENDER MUST MATCH", "SAVE TO SHOW" }
+  -- A boy or girl look only replaces that player, unless GENDER is MY
+  -- SAVE, so the menu ends with a reminder. Labels are cut at 18
+  -- characters, so it takes two rows. -Elvie
+  local WARNING = { "GENDER MY SAVE:", "FITS EITHER SAVE" }
 
-  -- GENDER shows the selected look's genderMode. The options screen keeps
-  -- the rows it opened with but reads each value as it draws, so the one
-  -- choice's text is changed in place and shows straight away. Values are
-  -- cut at 8 characters, hence ENBY. -Elvie
+  -- GENDER: the selected look's genderMode, or MY SAVE, where the look
+  -- replaces whichever player the save picked (as an enby look does).
+  -- Only the sprites; the text still follows the look. The options screen
+  -- keeps the rows it opened with but reads each value as it draws, so
+  -- the first choice's text is changed in place and shows straight away.
+  -- Values are cut at 8 characters, hence ENBY. -Elvie
   local GENDER_TEXT = { boy = "BOY", girl = "GIRL", enby = "ENBY" }
+  local LOOK_GENDER, SAVE_GENDER = "look", "save"
   local genderRows = {} -- [family id] = the GENDER row
+  local function genderRow(key)
+    return { key = key, type = "choice", label = "  GENDER",
+      choices = { { "", LOOK_GENDER }, { "MY SAVE", SAVE_GENDER } }, default = LOOK_GENDER }
+  end
 
   local function buildRows()
     local rows = {}
@@ -288,7 +295,7 @@ function lens.init(mod)
             })
           end
         end
-        genderRows[family.id] = inertRow("gender" .. family.suffix, "  GENDER")
+        genderRows[family.id] = genderRow("gender" .. family.suffix)
         table.insert(rows, genderRows[family.id])
         -- R/S/E: the gender the player didn't pick; FR/LG: Blue. OFF keeps
         -- the game's own rival. -Elvie
@@ -338,6 +345,12 @@ function lens.init(mod)
     if character == OFF then return nil end
     if not lookFolders[family.id][character] then character = defaults[family.id] end
     return character
+  end
+
+  -- GENDER set to MY SAVE (anything else is the look's own, including
+  -- the "_" older versions stored in this row) -Elvie
+  local function fitsSave(family)
+    return mod.options:get("gender" .. family.suffix) == SAVE_GENDER
   end
 
   local function updateGender()
@@ -401,6 +414,7 @@ function lens.init(mod)
       local selected = selectedLook(running, character)
       ctx.folderKeys = chainFor(character, selected)
       ctx.genderMode = genderModeOf(selected)
+      ctx.fitSave = fitsSave(running) or nil
     end
     local rival = currentRival(running)
     if rival then
@@ -503,6 +517,13 @@ function lens.init(mod)
     if character then
       add({ key = lookKey(f, character), label = "LOOK", who = "player",
         choices = pairsOf(lookFolders[f.id][character]), value = selectedLook(f, character) })
+      -- an enby look already fits either save, so it has no GENDER row -Elvie
+      local mode = genderModeOf(selectedLook(f, character))
+      if mode ~= "enby" then
+        add({ key = "gender" .. f.suffix, label = "GENDER", who = "player",
+          choices = { { GENDER_TEXT[mode], LOOK_GENDER }, { "MY SAVE", SAVE_GENDER } },
+          value = fitsSave(f) and SAVE_GENDER or LOOK_GENDER })
+      end
     end
     local rivals = pairsOf(choicesFor[f.id])
     table.insert(rivals, 1, { "OFF", OFF })
@@ -588,10 +609,15 @@ function lens.init(mod)
     local look = selectedLook(f, character)
     local mode = genderModeOf(look)
     if who ~= "text" then
-      lines[1] = { text = MODE_WORD[mode] .. ": replaces " .. names[mode] .. "." }
       local picked = saveGender(game)
-      if picked and mode ~= "enby" and picked ~= mode then
-        lines[2] = { text = "Not shown: save is " .. names[picked] .. ".", red = true }
+      if fitsSave(f) and mode ~= "enby" then
+        -- MY SAVE: whoever the save picked, both before there's a save -Elvie
+        lines[1] = { text = (picked and "Save: replaces " or "Replaces ") .. names[picked or "enby"] .. "." }
+      else
+        lines[1] = { text = MODE_WORD[mode] .. ": replaces " .. names[mode] .. "." }
+        if picked and mode ~= "enby" and picked ~= mode then
+          lines[2] = { text = "Not shown: save is " .. names[picked] .. ".", red = true }
+        end
       end
       if gameBoyFor[f.id][look] then lines[#lines + 1] = { text = "Game Boy art." } end
       creditLines(look, lines)
@@ -676,7 +702,7 @@ function lens.init(mod)
 
   if mod.events and type(mod.events.on) == "function" then
     -- Changing CHARACTER or LOOK in the mod options applies straight away,
-    -- no restart, and GENDER follows. Only the running family's rows
+    -- no restart, and GENDER follows (and MY SAVE in GENDER). Only the running family's rows
     -- change the sprites. -Elvie
     local lookPrefix = running and ("look" .. running.suffix .. "_")
     local rivalPrefix = running and ("rivalLook" .. running.suffix .. "_")
@@ -685,6 +711,7 @@ function lens.init(mod)
       local key = change.key
       if key:sub(1, 9) == "character" or key:sub(1, 4) == "look" then updateGender() end
       if handle and (key == "character" .. running.suffix or key:sub(1, #lookPrefix) == lookPrefix
+          or key == "gender" .. running.suffix
           or key == "rival" .. running.suffix or key:sub(1, #rivalPrefix) == rivalPrefix) then
         handle.configure(resolve())
       end

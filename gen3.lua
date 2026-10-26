@@ -97,7 +97,7 @@ local function warnOnce(key, fmt, ...)
   print(("[emerald_lens] " .. fmt):format(...))
 end
 
--- ctx comes from lens.lua: { folderKeys, genderMode, spritesDir }, with
+-- ctx comes from lens.lua: { folderKeys, genderMode, fitSave, spritesDir }, with
 -- folderKeys in fallback order, the selected look first. nil means OFF:
 -- everything passes through to the game's own art. Returns a handle whose
 -- configure(ctx) changes the choice later. -Elvie
@@ -750,7 +750,9 @@ function gen3.init(mod, ctx)
   local RIVAL_FILES = { "walk.png", "bike.png", "acroBike.png", "surf.png", "fieldMove.png",
     "front.png", "intro.png", "rivalEarly.png", "rivalLate.png", "rivalChampion.png" }
   local function configure(newCtx)
-    slots = newCtx and SLOTS_FOR_GENDER_MODE[newCtx.genderMode] or NONE
+    -- fitSave (GENDER set to MY SAVE): both slots, as for enby; with a
+    -- save, sharedSlots keeps only the picked one -Elvie
+    slots = newCtx and SLOTS_FOR_GENDER_MODE[newCtx.fitSave and "enby" or newCtx.genderMode] or NONE
     local folderKeys = newCtx and (newCtx.folderKeys or { newCtx.folderKey }) or {}
     if #folderKeys == 0 then slots = NONE end
 

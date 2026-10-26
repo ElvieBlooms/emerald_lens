@@ -1,8 +1,8 @@
 {
   "modkit": "1.0.0",
-  "packed_at": "2026-10-25T18:00:39Z",
+  "packed_at": "2026-10-26T03:38:13Z",
   "id": "emerald_lens",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "api": 2,
   "engine_range": ">=0.3.93",
   "files": [
@@ -13,8 +13,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 25028,
-      "sha256": "9de57e87272defe62c042806a59a52963f860580d0ca86160b4e776eb82ff629"
+      "bytes": 25891,
+      "sha256": "b91b2c9835c629ba6ec7ab1d681fc821356e218d49903ed4d4974ebedce13035"
     },
     {
       "path": "assets/sprites/aang/gen3/frlg/back.png",
@@ -2333,8 +2333,8 @@
     },
     {
       "path": "gen3.lua",
-      "bytes": 35052,
-      "sha256": "f2b6954514704416d0314ecd55f5d3b4dc5da632b48c32f75c0868ca287d23a5"
+      "bytes": 35220,
+      "sha256": "e6e8174825745b1fc76d913862935509bd7b7e6f3a4cb47a9c5a4b2daaaf1db8"
     },
     {
       "path": "index.html",
@@ -2343,8 +2343,8 @@
     },
     {
       "path": "lens.lua",
-      "bytes": 29565,
-      "sha256": "356a35059719b76634061d5852f52706c8e723d6e8b35a1316ef9cceb486e389"
+      "bytes": 30983,
+      "sha256": "fef4fbffb142f2826c99adddcfab90a47efee83aeaea4b348c6946cda5ab786c"
     },
     {
       "path": "lens_screen.lua",
@@ -2359,7 +2359,7 @@
     {
       "path": "manifest.json",
       "bytes": 590,
-      "sha256": "7ee75926b26fec4404d4eb161c9f19c7d66a1cffa27b5efee6e2d67046582b05"
+      "sha256": "406ef9bf5bc40ddd984f68fa3d669cc052ec7946b28402f68a6cb336a3b65303"
     },
     {
       "path": "prism.lua",
