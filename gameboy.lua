@@ -378,9 +378,9 @@ end
 -- Those tiles come through mod.datasets: Gen 1's from the field data's
 -- overworldFx (red_fish_front/back/side and fishing_rod), Gen 2's from the
 -- emotes sheet (fishing, Crystal's fishing_female for Kris: pose rows
--- down, up, left, then the two rod tiles). Gen 2's emotes aren't served
--- yet (gen1recomp issue filed 2026-10-25), so until they are, Gold and
--- Kris fish with the other looks' art. -Elvie
+-- down, up, left, then the two rod tiles), which gen1recomp serves as
+-- field:get("emotes") from 0.3.97. On an older build, Gold and Kris fish
+-- with the other looks' art. -Elvie
 -- --------------------------------------------------
 FISH = {
   red = { gen = 1, games = GEN1 }, blue = { gen = 1, games = GEN1 },
@@ -436,8 +436,8 @@ local function fromDataset(view, info)
     if not (pose.down and pose.up and pose.left and rod) then return nil end
     return { pose = pose, rod = { [0] = crop(rod, 0, 0, 8, 8), [1] = crop(rod, 0, 8, 8, 8) } }
   end
-  -- Gen 2: wherever the fix puts the emotes record -Elvie
-  local emotes = registryGet(view, "menu_gfx", "emotes") or registryGet(view, "field", "emotes")
+  -- Gen 2: one path per emote sheet (gen1recomp 0.3.97 and newer) -Elvie
+  local emotes = registryGet(view, "field", "emotes")
   local sheet = type(emotes) == "table" and datasetImage(view, emotes[info.key])
   if not sheet then return nil end
   local w, h = sheet:getDimensions()
@@ -513,7 +513,7 @@ function fishParts(mod, base)
   local art = pose.down and pose.up and pose.left and rod and { pose = pose, rod = rod, gen = gen, own = own } or nil
   if not art and (which and FISH[which] or next(own)) then
     note(mod, base .. "|fish", "no fishing art for %s yet (%s); it fishes with its other looks' art", base,
-      which and FISH[which] and FISH[which].gen == 2 and "Gen 2's isn't readable through mod.datasets yet"
+      which and FISH[which] and FISH[which].gen == 2 and "Gen 2's needs gen1recomp 0.3.97 or newer, and Gold, Silver or Crystal"
         or "no overworldFish files or rod, and Red, Blue or Yellow isn't installed")
   end
   fishCache[base] = art or false
