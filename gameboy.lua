@@ -137,8 +137,10 @@ local function note(mod, key, fmt, ...)
   mod.log:info(fmt, ...)
 end
 
+-- Only folders lens.lua registered: other folders without /gen3/ (the
+-- SURF row's assets/surfmons/<id>/<family>/) are plain Gen 3 art. -Elvie
 function gameboy.isBase(base)
-  return type(base) == "string" and not base:find("/gen3/", 1, true)
+  return type(base) == "string" and registered[base] ~= nil and not base:find("/gen3/", 1, true)
 end
 
 function gameboy.register(base, meta)
