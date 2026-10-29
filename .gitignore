@@ -1,3 +1,5 @@
 __pycache__/
 *.pyc
 tools/web/pyodide/
+# modkit pack writes this into release zips; not part of the source -Elvie
+.modkit/

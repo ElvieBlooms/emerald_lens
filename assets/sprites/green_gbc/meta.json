@@ -1,0 +1,32 @@
+{
+  "label": "GBC",
+  "character": "GREEN",
+  "genderMode": "girl",
+  "generation": 2,
+  "credit": [
+    "Art by Bani"
+  ],
+  "overworldColors": [
+    [
+      255,
+      255,
+      255
+    ],
+    [
+      231,
+      159,
+      124
+    ],
+    [
+      40,
+      128,
+      56
+    ],
+    [
+      0,
+      0,
+      0
+    ]
+  ],
+  "fishRod": "gen2"
+}

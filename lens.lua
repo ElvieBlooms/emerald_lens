@@ -1,6 +1,7 @@
 local lens = {}
 
 local SPRITES_DIR = "assets/sprites"
+local SURF_DIR = "assets/surfmons" -- ridden Pokemon for the LENS screen's SURF row -Elvie
 local DEFAULT_GENDER_MODE = "girl" -- matches Crystal Lens, so a folder acts the same in both -Elvie
 local VALID_GENDER_MODES = { boy = true, girl = true, enby = true }
 
@@ -84,6 +85,8 @@ lens.decodeJson = decodeJson
 function lens.init(mod)
   local okGameboy, gameboy = pcall(require, "mods.emerald_lens.gameboy")
   if not okGameboy then gameboy = nil end
+  local okCross, crossgame = pcall(require, "mods.emerald_lens.crossgame")
+  if not okCross then crossgame = nil end
   local function readMeta(key)
     local metaPath = SPRITES_DIR .. "/" .. key .. "/meta.json"
     if mod.assets:info(metaPath) then
@@ -125,6 +128,9 @@ function lens.init(mod)
   -- romOverworld) is a Game Boy look there: gameboy.lua fits it to the
   -- Gen 3 sizes. [family][key] = true. -Elvie
   local gameBoyFor = { frlg = {}, rse = {} }
+  -- A "fromGame" folder is the other family's player, read from that game
+  -- (crossgame.lua), in the family it isn't from. [family][key] = true. -Elvie
+  local crossFor = { frlg = {}, rse = {} }
 
   for _, key in ipairs(mod.assets:list(SPRITES_DIR)) do
     if isDirectory(SPRITES_DIR .. "/" .. key) then
@@ -139,10 +145,16 @@ function lens.init(mod)
       local root = SPRITES_DIR .. "/" .. key .. "/"
       local gameBoy = gameboy and gameboy.hasArt(mod, root, meta)
       if gameBoy then gameboy.register(root, meta) end
+      local crossFamily = crossgame and crossgame.familyFor(meta)
       for _, family in ipairs(FAMILIES) do
         local own = isDirectory(SPRITES_DIR .. "/" .. key .. "/gen3/" .. family.id)
+        local cross = crossFamily == family.id
+        if cross then
+          crossgame.register(SPRITES_DIR .. "/" .. key .. "/gen3/" .. family.id .. "/", meta)
+          crossFor[family.id][key] = true
+        end
         if not own and gameBoy then gameBoyFor[family.id][key] = true end
-        if own or gameBoy then
+        if own or gameBoy or cross then
           local looks = lookFolders[family.id]
           looks[character] = looks[character] or {}
           table.insert(looks[character], entry)
@@ -206,11 +218,13 @@ function lens.init(mod)
       defaults[family.id] = default
       for _, choice in ipairs(choices) do
         local looks = lookFolders[family.id][choice.key]
-        -- the first look in menu order, but not a Game Boy one if the
-        -- character has Gen 3 or 4 art, so copied folders don't change it -Elvie
+        -- the first look in menu order, but not a Game Boy one or one read
+        -- from the other games if the character has art of its own, so
+        -- added folders don't change it -Elvie
         local lookDefault = looks[1].key
         for i = #looks, 1, -1 do
-          if not gameBoyFor[family.id][looks[i].key] then lookDefault = looks[i].key end
+          local key = looks[i].key
+          if not gameBoyFor[family.id][key] and not crossFor[family.id][key] then lookDefault = key end
         end
         local oldLook = mod.options:get("lookFor_" .. sanitizeKey(choice.key))
         for _, entry in ipairs(looks) do
@@ -405,11 +419,39 @@ function lens.init(mod)
     return character
   end
 
+  -- Ridden Pokemon (surf kits): assets/surfmons/<id>/ with a meta.json
+  -- (label, credit) and frlg/ and rse/ folders made by pack_gen3.py
+  -- surfmon. Picked on the LENS screen only, per family; OFF keeps the
+  -- look's blob or the game's. -Elvie
+  local surfKits = {} -- [family id] = { { key, label, credit } } -Elvie
+  for _, id in ipairs(mod.assets:list(SURF_DIR) or {}) do
+    if isDirectory(SURF_DIR .. "/" .. id) then
+      local ok, meta = pcall(decodeJson, mod:read(SURF_DIR .. "/" .. id .. "/meta.json"))
+      meta = ok and type(meta) == "table" and meta or {}
+      for _, family in ipairs(FAMILIES) do
+        if mod.assets:info(SURF_DIR .. "/" .. id .. "/" .. family.id .. "/surfBlob.png") then
+          surfKits[family.id] = surfKits[family.id] or {}
+          table.insert(surfKits[family.id], { key = id, label = meta.label or id:upper(), credit = meta.credit })
+        end
+      end
+    end
+  end
+  for _, list in pairs(surfKits) do table.sort(list, byLabel) end
+  local function surfKitOf(family)
+    local value = mod.options:get("surf" .. family.suffix)
+    for _, kit in ipairs(surfKits[family.id] or {}) do
+      if kit.key == value then return value end
+    end
+    return nil
+  end
+
   local handle
   local function resolve()
     local ctx = { folderKeys = {}, genderMode = DEFAULT_GENDER_MODE, spritesDir = SPRITES_DIR,
       gameBoy = gameBoyFor[running.id] }
     local character = currentCharacter(running)
+    local kit = surfKitOf(running)
+    if kit then ctx.surfKit = SURF_DIR .. "/" .. kit .. "/" .. running.id .. "/" end
     if character then
       local selected = selectedLook(running, character)
       ctx.folderKeys = chainFor(character, selected)
@@ -420,7 +462,7 @@ function lens.init(mod)
     if rival then
       ctx.rival = { folderKeys = chainFor(rival, selectedLook(running, rival, true)), gameBoy = gameBoyFor[running.id] }
     end
-    if not character and not rival then return nil end
+    if not character and not rival and not kit then return nil end
     return ctx
   end
 
@@ -536,6 +578,12 @@ function lens.init(mod)
     add({ key = "text" .. f.suffix, label = "TEXT", who = "text",
       choices = { { "ON", "on" }, { "OFF", "off" } },
       value = mod.options:get("text" .. f.suffix) == "off" and "off" or "on" })
+    -- SURF: a Pokemon to ride, on this screen only -Elvie
+    if surfKits[f.id] and #surfKits[f.id] > 0 then
+      local kits = pairsOf(surfKits[f.id])
+      table.insert(kits, 1, { "OFF", OFF })
+      add({ key = "surf" .. f.suffix, label = "SURF", who = "surf", choices = kits, value = surfKitOf(f) or OFF })
+    end
     -- A opens the full credits page (credits below). -Elvie
     add({ key = "credits", label = "CREDITS", who = "player", page = true, valueLabel = "SEE ALL" })
     return rows
@@ -593,9 +641,28 @@ function lens.init(mod)
         if textOn then lines[2] = { text = "Called " .. rivalNameOf(look, rival) .. "." } end
       end
       if gameBoyFor[f.id][look] then lines[#lines + 1] = { text = "Game Boy art." } end
+      if crossFor[f.id][look] then
+        lines[#lines + 1] = { text = "Read from your " .. (f.id == "rse" and "FR/LG" or "R/S/E") .. " game." }
+      end
       creditLines(look, lines)
       return { bases = basesOf(rival, look), frontFile = f.id == "frlg" and "rivalEarly.png" or nil,
         lines = lines, layout = f.id }
+    end
+    if who == "surf" then
+      local kit = surfKitOf(f)
+      if not kit then return { lines = { { text = "The look's surf blob, or the game's." } } } end
+      for _, entry in ipairs(surfKits[f.id]) do
+        if entry.key == kit then
+          lines[1] = { text = "Everyone rides " .. entry.label .. "." }
+          local credit = entry.credit
+          if type(credit) == "string" then credit = { credit } end
+          for _, line in ipairs(type(credit) == "table" and credit or {}) do lines[#lines + 1] = { text = line } end
+        end
+      end
+      local character = currentCharacter(f)
+      if not character then return { lines = lines } end
+      local look = selectedLook(f, character)
+      return { bases = basesOf(character, look), lines = lines, layout = f.id }
     end
     local character = currentCharacter(f)
     if who == "text" then
@@ -620,6 +687,9 @@ function lens.init(mod)
         end
       end
       if gameBoyFor[f.id][look] then lines[#lines + 1] = { text = "Game Boy art." } end
+      if crossFor[f.id][look] then
+        lines[#lines + 1] = { text = "Read from your " .. (f.id == "rse" and "FR/LG" or "R/S/E") .. " game." }
+      end
       creditLines(look, lines)
     end
     return { bases = basesOf(character, look), lines = lines, layout = f.id }
@@ -649,6 +719,13 @@ function lens.init(mod)
       for _, entry in ipairs(lookFolders[f.id][choice.key]) do
         if not listed[entry.key] then addLook("", choice.key, entry.key) end
       end
+    end
+    -- the Pokemon to ride on the SURF row -Elvie
+    for _, kit in ipairs(surfKits[f.id] or {}) do
+      out[#out + 1] = { text = "SURF: " .. kit.label, heading = true }
+      local credit = kit.credit
+      if type(credit) == "string" then credit = { credit } end
+      for _, line in ipairs(type(credit) == "table" and credit or { "No credit listed." }) do out[#out + 1] = { text = line } end
     end
     out[#out + 1] = { text = "EMERALD LENS", heading = true }
     out[#out + 1] = { text = "Built on the Crystal Lens framework by Dgray66, used with permission." }
@@ -711,7 +788,7 @@ function lens.init(mod)
       local key = change.key
       if key:sub(1, 9) == "character" or key:sub(1, 4) == "look" then updateGender() end
       if handle and (key == "character" .. running.suffix or key:sub(1, #lookPrefix) == lookPrefix
-          or key == "gender" .. running.suffix
+          or key == "gender" .. running.suffix or key == "surf" .. running.suffix
           or key == "rival" .. running.suffix or key:sub(1, #rivalPrefix) == rivalPrefix) then
         handle.configure(resolve())
       end

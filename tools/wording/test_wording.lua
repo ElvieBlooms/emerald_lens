@@ -274,6 +274,7 @@ do
   package.loaded["mods.emerald_lens.gen3"] = { init = function() return { configure = function() end } end }
   package.loaded["mods.emerald_lens.prism"] = dofile("prism.lua")
   package.loaded["mods.emerald_lens.gameboy"] = dofile("gameboy.lua")
+  package.loaded["mods.emerald_lens.crossgame"] = dofile("crossgame.lua")
   package.loaded["mods.emerald_lens.lens_screen"] = dofile("lens_screen.lua")
   local layers = {}
   package.loaded["src.ui.game3.stack"] = {
@@ -395,6 +396,8 @@ do
     zeta = '{"label":"ZETA","character":"KRIS","genderMode":"girl","generation":4}',
     arale = '{"label":"ARALE","character":"KRIS","genderMode":"girl","romOverworld":"kris"}',
     red_gb = '{"label":"RED","character":"RED","genderMode":"boy","romOverworld":"red"}',
+    red_x = '{"label":"FR/LG","character":"RED","genderMode":"boy","fromGame":"red"}',
+    may_x = '{"label":"EMERALD","character":"MAY","genderMode":"girl","fromGame":"may"}',
   }
   local dirs = { "kris/gen3/frlg", "zeta/gen3/frlg" }
   local files = { ["arale/backColor.png"] = true }
@@ -406,7 +409,7 @@ do
   local mod = {
     id = "emerald_lens",
     assets = {
-      list = function(_, dir) return dir == "assets/sprites" and { "arale", "kris", "red_gb", "zeta" } or {} end,
+      list = function(_, dir) return dir == "assets/sprites" and { "arale", "kris", "may_x", "red_gb", "red_x", "zeta" } or {} end,
       info = function(_, rel)
         local key, rest = rel:match("^assets/sprites/([^/]+)/?(.*)$")
         if not key or not metas[key] then return nil end
@@ -443,6 +446,16 @@ do
   ctx = ctxs[#ctxs]
   check(ctx.folderKeys[1] == "red_gb" and ctx.genderMode == "boy" and ctx.gameBoy.red_gb,
     "a romOverworld folder alone is a look")
+  check(not ctx.gameBoy.red_x, "a fromGame look isn't a Game Boy look")
+  options.characterFrlg = "MAY"
+  handlers["mod.options_changed"]({ mod = "emerald_lens", key = "characterFrlg" })
+  check(ctxs[#ctxs].folderKeys[1] == "may_x", "a fromGame look is offered in the other family (Emerald's May in FR/LG)")
+  local X = package.loaded["mods.emerald_lens.crossgame"]
+  check(X and X.isBase("assets/sprites/may_x/gen3/frlg/") and not X.isBase("assets/sprites/red_x/gen3/frlg/"),
+    "fromGame bases are registered for the other family only")
+  options.characterFrlg = "RED"
+  handlers["mod.options_changed"]({ mod = "emerald_lens", key = "characterFrlg" })
+  ctx = ctxs[#ctxs]
 
   -- GENDER: MY SAVE fits the look to either save (gen3 takes both slots) -Elvie
   check(not ctx.fitSave, "GENDER is the look's own by default")

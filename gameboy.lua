@@ -25,8 +25,9 @@
 -- Fishing: Crystal Lens's overworldFishFront/Back/Side.png (16x8, the
 -- pose under the standing frame's top half) win over the game's, facing
 -- by facing, and overworldFishRod.png (8x16: the rod tile for down and
--- up, then the one for left, drawn as Gen 1's; Emerald Lens only) over
--- the game's rod. -Elvie
+-- up, then the one for left, drawn as Gen 1's, or as Gen 2's with
+-- "fishRod": "gen2" in meta.json; Emerald Lens only) over the game's
+-- rod. -Elvie
 -- --------------------------------------------------
 
 local gameboy = {}
@@ -229,11 +230,12 @@ end
 -- fishing files, so their shades agree). -Elvie
 local function rankedShades(datas)
   if type(datas) ~= "table" then datas = { datas } end
-  local seen, list, clear = {}, {}, false
+  local seen, list, clear, grey = {}, {}, false, true
   for _, data in ipairs(datas) do
     data:mapPixel(function(_, _, r, g, b, a)
       if a < 0.5 then clear = true
       else
+        if r ~= g or g ~= b then grey = false end
         local key = math.floor(r * 255) * 65536 + math.floor(g * 255) * 256 + math.floor(b * 255)
         if not seen[key] then
           seen[key] = 0.299 * r + 0.587 * g + 0.114 * b
@@ -243,6 +245,9 @@ local function rankedShades(datas)
       return r, g, b, a
     end)
   end
+  -- plain greys (a Crystal Clear import, say) keep their own shade even
+  -- when a picture leaves one out; only tinted art is ranked -Elvie
+  if grey and #list > 0 then return function(r) return greyShade(r) end end
   table.sort(list, function(x, y) return seen[x] > seen[y] end)
   local shade = {}
   -- with no see-through pixels, the lightest colour is the backdrop -Elvie
@@ -494,7 +499,10 @@ function fishParts(mod, base)
   if rodData then
     local w, h = rodData:getDimensions()
     if w == 8 and h == 16 then
-      rod, gen, own.rod = { [0] = crop(rodData, 0, 0, 8, 8), [1] = crop(rodData, 0, 8, 8, 8) }, 1, true
+      -- placed as Gen 1's rod, or Gen 2's (a Crystal Clear sheet's) -Elvie
+      local meta = registered[base] or {}
+      rod, gen, own.rod = { [0] = crop(rodData, 0, 0, 8, 8), [1] = crop(rodData, 0, 8, 8, 8) },
+        meta.fishRod == "gen2" and 2 or 1, true
     else
       note(mod, base .. OWN_ROD, "%s%s is %dx%d; it needs 8x16", base, OWN_ROD, w, h)
     end

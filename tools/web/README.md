@@ -45,7 +45,14 @@ Every look also gets "No surf blob?" (`pack_gen3.py blobs`): pick one of
 the ready-made blob sets in `sprite-templates/blobs/`, see all its frames
 on water, and add its FR/LG surf blob, R/S/E surf blob and dive blob (or
 just the surf or dive ones) to the look. New sets only need their folder
-and a line in `BLOB_KITS` in `app.js`.
+and a line in `BLOB_KITS` in `app.js`. "A surfing Pokémon" under it picks
+one of the ready-made sheets in `sprite-templates/surfmons/` (listed with
+credits in its `kits.json`, the hack's five legacy HG/SS ones included; the credit goes into the look's credits) or
+takes your own sheet, and runs `pack_gen3.py surfmon` on it (the tools
+README); the surf preview draws its `surfOverlay.png` over the player as
+the mod does. Arrows then nudge the rider on the Pokémon, for every facing
+or one at a time ("Rider on the Pokémon"), which reruns `surfmon` with
+`--off`; "As the sheet drew it" goes back to the offsets it worked out.
 
 A look with FR/LG surf art also gets "No Fly bird?" (`pack_gen3.py
 flybird`): pick a ready-made bird from `sprite-templates/flybirds/`, and
@@ -76,6 +83,12 @@ files" takes the PNGs Crystal Lens reads (`front`, `frontColor`, `back`,
 and `trainerCard`/`trainerCardColor`, plus Emerald Lens's `overworldSurf`
 and `overworldFishRod`), by name and from any folder, and
 puts them at the look's top level; anything else is skipped with a note.
+"Add a Crystal Clear sheet" runs `crystal_clear.py` (the tools README) on a
+Crystal Clear player sheet, puts its files at the look's top level, keeps
+`"fishRod": "gen2"` and (with its box ticked, the default) the sheet's
+Injecting colours as `overworldColors` for the download, and switches the
+look to Game Boy.
+The fishing preview places the rod as Gen 2 does when the look has that key.
 "Sprites from your game" sets `romOverworld` (Red, Blue, Gold or Kris):
 those sprites are read from the player's own game when they play, so they
 aren't in the download and the page can't show them, and a look can be

@@ -300,7 +300,14 @@ export function createStage(root, opts = {}) {
       }
       const [slot, , flip] = scene.surf ? [0] : entryAt(tick, facing);
       const img = slot >= 0 ? source.frame(facing, slot) : null;
-      if (img) drawImg(g, img, tx + Math.floor((16 - img.width) / 2), ty + 16 - img.height + bob, mirror !== !!flip);
+      // surfBlob.json: the player moved on the blob (mirrored for right) -Elvie
+      const [rx, ry] = scene.surf && source.riderOffset ? source.riderOffset(facing) : [0, 0];
+      if (img) drawImg(g, img, tx + Math.floor((16 - img.width) / 2) + (mirror ? -rx : rx), ty + 16 - img.height + bob + ry, mirror !== !!flip);
+      if (scene.surf && source.overlay) {
+        // the surf Pokemon's front parts, over the player (gen3.lua surfOverlay) -Elvie
+        const over = source.overlay(facing);
+        if (over) drawImg(g, over, tx - 8, ty - 8 + bob, mirror);
+      }
     }
   }
 

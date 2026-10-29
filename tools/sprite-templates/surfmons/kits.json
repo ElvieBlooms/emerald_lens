@@ -1,0 +1,191 @@
+{
+ "source": "dynamic_surf_ows_masters-expansion (Shiny miner, ansh, jordank; original by ghoulslash), https://github.com/jmynes/dynamic_surf_ows_masters-expansion",
+ "kits": [
+  {
+   "id": "barboach",
+   "name": "Barboach",
+   "credit": "Surf sprite by Pokets"
+  },
+  {
+   "id": "blastoise",
+   "name": "Blastoise",
+   "credit": "Surf sprite by eMMe97"
+  },
+  {
+   "id": "carvanha",
+   "name": "Carvanha",
+   "credit": "Surf sprite by Michelle Soto"
+  },
+  {
+   "id": "clamperl",
+   "name": "Clamperl",
+   "credit": "Surf sprite by Nolo33LP"
+  },
+  {
+   "id": "corphish",
+   "name": "Corphish",
+   "credit": "Surf sprite by EduarPokeN"
+  },
+  {
+   "id": "crawdaunt",
+   "name": "Crawdaunt",
+   "credit": "Surf sprite by EduarPokeN"
+  },
+  {
+   "id": "dewgong",
+   "name": "Dewgong",
+   "credit": "Edited from HG/SS sprites, dynamic surf overworlds contributors"
+  },
+  {
+   "id": "dratini",
+   "name": "Dratini",
+   "credit": "Surf sprite by Michelle Soto"
+  },
+  {
+   "id": "feebas",
+   "name": "Feebas",
+   "credit": "Surf sprite by Pokets"
+  },
+  {
+   "id": "gorebyss",
+   "name": "Gorebyss",
+   "credit": "Surf sprite by Nolo33LP"
+  },
+  {
+   "id": "huntail",
+   "name": "Huntail",
+   "credit": "Surf sprite by Nolo33LP"
+  },
+  {
+   "id": "kyogre",
+   "name": "Kyogre",
+   "credit": "Surf sprite by Surskitty"
+  },
+  {
+   "id": "lapras",
+   "name": "Lapras",
+   "credit": "Edited from HG/SS sprites, dynamic surf overworlds contributors"
+  },
+  {
+   "id": "latias",
+   "name": "Latias",
+   "credit": "Surf sprite by Nolo33LP"
+  },
+  {
+   "id": "latios",
+   "name": "Latios",
+   "credit": "Surf sprite by Nolo33LP"
+  },
+  {
+   "id": "ludicolo",
+   "name": "Ludicolo",
+   "credit": "Edited from HG/SS sprites, dynamic surf overworlds contributors"
+  },
+  {
+   "id": "lugia",
+   "name": "Lugia",
+   "credit": "Surf sprite by Pokets"
+  },
+  {
+   "id": "luvdisc",
+   "name": "Luvdisc",
+   "credit": "Surf sprite by Pokets"
+  },
+  {
+   "id": "mantine",
+   "name": "Mantine",
+   "credit": "Edited from HG/SS sprites, dynamic surf overworlds contributors"
+  },
+  {
+   "id": "masquerain",
+   "name": "Masquerain",
+   "credit": "Surf sprite by Pokets"
+  },
+  {
+   "id": "pelipper",
+   "name": "Pelipper",
+   "credit": "Edited from HG/SS sprites, dynamic surf overworlds contributors"
+  },
+  {
+   "id": "pichu",
+   "name": "Pichu",
+   "credit": "Surf sprite by Nolo33LP, additional editing by Jordank"
+  },
+  {
+   "id": "pikachu",
+   "name": "Pikachu",
+   "credit": "Surf sprite by Nolo33LP, additional editing by Jordank"
+  },
+  {
+   "id": "raichu",
+   "name": "Raichu",
+   "credit": "Surf sprite by Nolo33LP, additional editing by Jordank"
+  },
+  {
+   "id": "rayquaza",
+   "name": "Rayquaza",
+   "credit": "Surf sprite by Nolo33LP"
+  },
+  {
+   "id": "relicanth",
+   "name": "Relicanth",
+   "credit": "Surf sprite by Pokets"
+  },
+  {
+   "id": "sharpedo",
+   "name": "Sharpedo",
+   "credit": "Surf sprite by Pokets"
+  },
+  {
+   "id": "snorlax",
+   "name": "Snorlax",
+   "credit": "Surf sprite by Pokets, 4-frame snoring by Jordank"
+  },
+  {
+   "id": "squirtle",
+   "name": "Squirtle",
+   "credit": "Surf sprite by eMMe97"
+  },
+  {
+   "id": "surskit",
+   "name": "Surskit",
+   "credit": "Surf sprite by Pokets"
+  },
+  {
+   "id": "tentacool",
+   "name": "Tentacool",
+   "credit": "Surf sprite by Avara"
+  },
+  {
+   "id": "tentacruel",
+   "name": "Tentacruel",
+   "credit": "Surf sprite by Avara"
+  },
+  {
+   "id": "wailmer",
+   "name": "Wailmer",
+   "credit": "Surf sprite by Hestia"
+  },
+  {
+   "id": "wailord",
+   "name": "Wailord",
+   "credit": "Surf sprite by Pokets"
+  },
+  {
+   "id": "wartortle",
+   "name": "Wartortle",
+   "credit": "Surf sprite by Avara"
+  },
+  {
+   "id": "whiscash",
+   "name": "Whiscash",
+   "credit": "Surf sprite by EduarPokeN"
+  },
+  {
+   "id": "zangoose",
+   "name": "Zangoose",
+   "credit": "Surf sprite by Pokets"
+  }
+ ],
+ "legacy": "Sheets credited 'Edited from HG/SS sprites' are the hack's legacy sprites, edited from HeartGold/SoulSilver's following Pokemon by its contributors (ghoulslash, grunt-lucas, Slawter666, Surskitty, wally-217)."
+}

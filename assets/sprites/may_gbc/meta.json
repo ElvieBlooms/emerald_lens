@@ -1,0 +1,32 @@
+{
+  "label": "GBC",
+  "character": "MAY",
+  "genderMode": "girl",
+  "generation": 2,
+  "credit": [
+    "Art by isactuallyabear"
+  ],
+  "overworldColors": [
+    [
+      255,
+      255,
+      255
+    ],
+    [
+      230,
+      147,
+      141
+    ],
+    [
+      176,
+      56,
+      63
+    ],
+    [
+      0,
+      0,
+      0
+    ]
+  ],
+  "fishRod": "gen2"
+}

@@ -34,6 +34,31 @@ art (front, back, walk, bike; surf goes to the surf frames). Use the Gen 3
 families if you want proper Gen 3 sheets as well, in a `gen3/` folder next
 to the Game Boy files.
 
+Looks that are the other Gen 3 games' players (`"fromGame"`, the mod
+README's **Players from the other Gen 3 games**) need no art at all: they're
+read from the player's own games. Only a `diveBlob.png` goes in their
+`gen3/rse` folder, from a `blobs/` set.
+
+A **Crystal Clear** player sheet goes straight into a Game Boy look with
+`crystal_clear.py`, no recipe needed:
+
+    python3 crystal_clear.py sheet.png ../../assets/sprites/mylook
+
+It finds the sprites by the sheet's blue (top-left) and green
+(bottom-right) corner marks, so the sheet can sit anywhere on the image and
+be scaled up by a whole number, and reads the Greyscale and Injecting
+palette rows. It writes `front`, `back` and `trainerCard` in greyscale and
+their `Color` versions in the Injecting colours (white touching the edge
+becomes see-through), `overworldWalk`, `overworldSurf`, the three
+`overworldFish*` halves (fishing tiles 1-6) and `overworldFishRod` (tiles 7
+and 8; white is see-through in all the overworld art). The rod is drawn the
+way Gen 2 places it, so the script adds `"fishRod": "gen2"` to `meta.json`,
+and the Injecting row as `overworldColors`, so the overworld sprites wear
+the sheet's colours too (`--keep-colors` leaves those out). It makes a
+`meta.json` if the folder has none; `--no-meta` leaves it alone, and
+`--meta-out keys.json` writes just the keys to their own file. The sword is
+skipped.
+
 Two formats, usable interchangeably -- draw in either, convert between them
 at any point, and pack from either or both:
 
@@ -237,6 +262,51 @@ into a packed look's `gen3` folder, for whichever families it has:
 - The dive blob only shows behind `underwater.png` from the same folder
   (see Dive blob above), so a look with no diving art of its own also needs
   `dive --underwater`.
+
+### A surfing Pokémon as the surf blob
+
+The dynamic surf overworlds hacks (ghoulslash's FireRed hack and its
+expansion by Shiny miner, ansh and jordank) draw a Pokémon to surf on: the
+Pokémon facing down, up and left, two bob frames each, then the same again
+with just the parts that go in front of the player. `surfmon` turns one into
+the look's surf blobs plus `surfOverlay.png`, which the mod draws over the
+player:
+
+    python3 pack_gen3.py surfmon surfmons/lapras.png ../../assets/sprites/<folder>/gen3
+
+- `surfmons/` has 37 ready-made sheets: the 32 custom drawn for the
+  expansion, free to use with credit, and five of the hack's legacy ones
+  (Dewgong, Lapras, Ludicolo, Mantine, Pelipper), edited from HG/SS
+  sprites by its contributors and credited that way. Ten of them also ship
+  with the mod in `assets/surfmons/<id>/frlg|rse`, built with this command,
+  for the LENS screen's SURF row; a new one there needs its folder and a
+  `meta.json` with `label` and `credit`. `surfmons/kits.json` lists each one's
+  artist: put it in the look's `credit` (the website does that for you).
+- The FR/LG blob takes both bob frames, the R/S/E one the first (it bobs in
+  code); the overlay is the first frame's front parts, for both families.
+  The blob includes the front parts too, so nothing's missing where the
+  player doesn't cover it.
+- All the hack's layouts work: 12 frames (the usual), 6 (no front parts),
+  16 (its own right-facing frames, not used: the games mirror left) and 32
+  (four frames a facing; the first two are used).
+- 64x64 sheets: the games' blob is 32x32, so each facing keeps the 32x32
+  centred on its drawing (as little as possible is cut, at full size), and
+  the rider moves with it to stay where the sheet drew them. Those rider
+  offsets go in `surfBlob.json` next to the blob, `{"player": [[dx, dy],
+  [dx, dy], [dx, dy]]}` for down, up and left (right mirrors left), and the
+  mod moves the player by them while surfing on that blob. Any distance
+  works: past the edge of the 32x32 surf frame (8 px either way, 12 up or
+  2 down) the mod makes the player's surf frames bigger to fit, the way it
+  does for fishing's rod.
+- `--off dx,dy` sets the offset for every facing yourself, or
+  `--off dx,dy/dx,dy/dx,dy` one each (any sheet, 32x32 ones too).
+  `--middle` keeps the middle 32x32 instead of centring (where the hack's
+  template seats the rider, so no offset), and `--half` draws the whole
+  frame at half size (every edge kept, but the Pokémon smaller than the
+  rider).
+- Colour 0 of an indexed sheet is see-through (those sheets fill it with a
+  backdrop colour, and some say otherwise in the PNG).
+- Files already there are kept unless `--force`.
 
 ### Fly bird from a ready-made bird
 

@@ -9,6 +9,8 @@ local screen = {}
 
 local okGameboy, gameboy = pcall(require, "mods.emerald_lens.gameboy")
 if not okGameboy then gameboy = nil end
+local okCross, crossgame = pcall(require, "mods.emerald_lens.crossgame")
+if not okCross then crossgame = nil end
 
 local LAYER = "emerald_lens"
 local HELP_BG = { 0 / 255, 123 / 255, 197 / 255, 1 } -- same blue as the OPTION menu -Elvie
@@ -50,6 +52,9 @@ local function loadFirst(mod, bases, file, ok, layout)
       loaded = data ~= nil
     elseif mod.assets:info(rel) then
       loaded, data = pcall(love.image.newImageData, mod.assets:path(rel))
+    elseif crossgame and crossgame.isBase(base) then
+      data = crossgame.load(mod, base, file, layout)
+      loaded = data ~= nil
     end
     if loaded and data and ok(data:getDimensions()) then
       local image = love.graphics.newImage(data)

@@ -69,6 +69,22 @@ blobs      Ready-made surf and dive blobs from a blob set (blobs/<set>/)
              python3 pack_gen3.py blobs ../../assets/sprites/<folder>/gen3 blobs/set1
              python3 pack_gen3.py blobs ../../assets/sprites/<folder>/gen3 blobs/set2 --dive
 
+surfmon    A surfing Pokemon sheet from the dynamic surf overworlds hacks
+           (12 frames: down, up, left, two bob frames each, then the same
+           again for the parts in front of the player; their 6, 16 and
+           32-frame layouts too) into a packed look's gen3 folder:
+           surfBlob.png for FR/LG and R/S/E, plus surfOverlay.png, which
+           the mod draws over the player. 64x64 sheets are cut to the
+           32x32 centred on the drawing, and the rider moves with it to
+           stay where the sheet drew them (--middle keeps the middle
+           32x32, --half draws the frame at half size). --off dx,dy sets
+           the rider offset yourself (surfBlob.json), for every facing or
+           as down/up/left (--off 0,-4/0,-6/2,-3). Colour 0
+           of an indexed sheet is see-through. surfmons/ has ready-made
+           sheets. Files already there are kept unless --force:
+             python3 pack_gen3.py surfmon surfmons/lugia.png ../../assets/sprites/<folder>/gen3
+             python3 pack_gen3.py surfmon surfmons/lugia.png ../../assets/sprites/<folder>/gen3 --off 0,-6 --force
+
 flybird    A Fly sheet (flyBird.png) for a packed FR/LG look folder from a
            bird kit: the kit's back layer, the look's surf sitting frame
            tilted onto it, then the kit's front layer (the bird) over
@@ -1361,6 +1377,170 @@ def blobs(gen3, kit, kinds=("surf", "dive"), force=False):
         made += 1
     return made > 0
 
+# Dynamic surf overworld sheets (ghoulslash's FR hack and its expansion):
+# the Pokemon facing down, up and left (and right, on sheets with a
+# unique one), then the same frames again for the parts drawn over the
+# player. Placed like the game's own blob, so they map frame for frame:
+# FR/LG's blob takes two bob frames a facing, R/S/E's the first (it bobs
+# in code), and the overlay is that first frame's front parts. -Elvie
+# Frames per sheet -> frames per facing, facings (down, up, left[, right]),
+# and whether there's an overlay half. From the hack's src/surf_mons.h. -Elvie
+SURFMON_LAYOUTS = {6: (2, 3, False), 12: (2, 3, True), 16: (2, 4, True), 32: (4, 4, True)}
+# 64x64 sheets: the games' blob is 32x32 around the same centre (the
+# hack's 64x64 template has the player 16 in from where the 32x32 one
+# does). Each facing keeps the 32x32 centred on its drawing, so as little
+# as possible is cut, and the rider moves with it to stay where the sheet
+# drew them: the rider offsets, saved as surfBlob.json and applied by the
+# mod.
+# --middle keeps the middle 32x32 instead; --half draws the whole frame at
+# half size (every edge kept, but the Pokemon smaller than the rider). -Elvie
+# How far the rider can move and stay in its 32x32 surf frame (the game's
+# surf sitters fill rows 12-29, columns 8-23 of it). Past that the mod
+# grows the surf frames to fit, so it's only mentioned. -Elvie
+SURFMON_REACH = ((-8, 8), (-12, 2))
+
+def surfmon_strip(path):
+    """The sheet as RGBA. GBA sheets keep colour 0 for see-through, whatever
+    the PNG's own transparency says."""
+    im = Image.open(path)
+    if im.mode == "P":
+        mask = im.point(lambda i: 0 if i == 0 else 255, "L")
+        im = im.convert("RGBA")
+        im.putalpha(mask)
+        return im
+    return im.convert("RGBA")
+
+def surfmon_half(frame):
+    """Half size, pixel art friendly: each 2x2 block takes its commonest
+    colour (the darker on a tie), a lone dark pixel kept for outlines."""
+    w, h = frame.size
+    out = Image.new("RGBA", (w // 2, h // 2), CLEAR)
+    px, po = frame.load(), out.load()
+    for y in range(h // 2):
+        for x in range(w // 2):
+            block = [px[2 * x + i, 2 * y + j] for j in (0, 1) for i in (0, 1)]
+            solid = [p for p in block if p[3] >= 128]
+            if len(solid) < 2:
+                if solid and sum(solid[0][:3]) < 200:
+                    po[x, y] = solid[0][:3] + (255,)
+                continue
+            counts = {}
+            for p in solid:
+                counts[p[:3]] = counts.get(p[:3], 0) + 1
+            best = max(counts.items(), key=lambda kv: (kv[1], -sum(kv[0])))[0]
+            po[x, y] = best + (255,)
+    return out
+
+FACINGS3 = ("down", "up", "left")
+
+def surfmon_frames(path, fit=None):
+    """[(base, overlay or None)] for down, up, left, each a list of the
+    facing's bob frames as 32x32 RGBA; a note on any resizing; and each
+    facing's rider offset that keeps the rider where the sheet drew them."""
+    im = surfmon_strip(path)
+    size = im.width
+    if size not in (32, 64) or im.height % size:
+        return None, f"it's {im.width}x{im.height}; it needs 32 or 64 wide", None
+    n = im.height // size
+    if n not in SURFMON_LAYOUTS:
+        return None, f"it has {n} frames; the layouts known are {sorted(SURFMON_LAYOUTS)}", None
+    per, faces, over = SURFMON_LAYOUTS[n]
+    frames = [im.crop((0, i * size, size, (i + 1) * size)) for i in range(n)]
+    half = per * faces
+    notes, riders, out = [], [], []
+    for face in range(3):
+        idx = list(range(face * per, face * per + 2))
+        top_idx = [half + i for i in idx] if over else []
+        base = [frames[i] for i in idx]
+        top = [frames[i] for i in top_idx] if over else None
+        rider = (0, 0)
+        if size == 64:
+            if fit == "half":
+                base = [surfmon_half(f) for f in base]
+                top = [surfmon_half(f) for f in top] if top else None
+                notes.append(f"{FACINGS3[face]} at half size")
+            else:
+                # each facing's own 32x32, centred on its drawing -Elvie
+                bb = None
+                for f in base + (top or []):
+                    b2 = f.getbbox()
+                    if b2:
+                        bb = b2 if bb is None else (min(bb[0], b2[0]), min(bb[1], b2[1]), max(bb[2], b2[2]), max(bb[3], b2[3]))
+                x0 = y0 = 16
+                if fit != "middle" and bb is not None:
+                    x0 = max(0, min(32, (bb[0] + bb[2]) // 2 - 16))
+                    y0 = max(0, min(32, (bb[1] + bb[3]) // 2 - 16))
+                base = [f.crop((x0, y0, x0 + 32, y0 + 32)) for f in base]
+                top = [f.crop((x0, y0, x0 + 32, y0 + 32)) for f in top] if top else None
+                rider = (16 - x0, 16 - y0)
+                past = 0 if bb is None else max(x0 - bb[0], y0 - bb[1], bb[2] - x0 - 32, bb[3] - y0 - 32, 0)
+                notes.append(f"{FACINGS3[face]} cut" + (f", {past} px past the edge" if past else ""))
+        riders.append(rider)
+        out.append((base, top))
+    note = ("64x64: " + "; ".join(notes)) if notes else ""
+    return out, note, riders
+
+def surfmon(path, gen3, force=False, fit=None, off=None):
+    """surfBlob.png and surfOverlay.png for each family folder the look has,
+    and surfBlob.json with the rider offsets (down, up, left) when any
+    isn't (0, 0). fit: "half" or "middle" for a 64x64 sheet, else each
+    facing is centred on its drawing. off: one offset for every facing, or
+    three, instead of the ones that keep the sheet's."""
+    faces, note, riders = surfmon_frames(path, fit)
+    if faces is None:
+        print(f"  ERROR   {os.path.basename(path)}: {note}")
+        return False
+    if note:
+        print(f"  note    {note}")
+    if off is not None:
+        riders = list(off) if len(off) == 3 else [off[0]] * 3
+    (lx, hx), (ly, hy) = SURFMON_REACH
+    riders = [tuple(r) for r in riders]
+    for face, r in enumerate(riders):
+        if not (lx <= r[0] <= hx and ly <= r[1] <= hy):
+            print(f"  note    {FACINGS3[face]} rider offset {r[0]},{r[1]} goes past the surf frame; the mod makes the frame bigger")
+    moved = any(r != (0, 0) for r in riders)
+    if moved:
+        print("  note    rider offsets " + "  ".join(f"{FACINGS3[i]} {r[0]},{r[1]}" for i, r in enumerate(riders)))
+    made = 0
+    for fam, bobs in (("frlg", 2), ("rse", 1)):
+        dst_dir = os.path.join(gen3, fam)
+        if not os.path.isdir(dst_dir):
+            print(f"  skip    {fam} (the look has no {fam} folder)")
+            continue
+        blob = Image.new("RGBA", (32, 32 * 3 * bobs), CLEAR)
+        over = Image.new("RGBA", (32, 96), CLEAR)
+        for face, (base, top) in enumerate(faces):
+            for k in range(bobs):
+                # the front parts too, so nothing's missing where no player covers it
+                cell = base[k].copy()
+                if top:
+                    cell.alpha_composite(top[k])
+                blob.alpha_composite(cell, (0, (face * bobs + k) * 32))
+            if top:
+                over.alpha_composite(top[0], (0, face * 32))
+        offset = os.path.join(dst_dir, "surfBlob.json")
+        if moved and (force or not os.path.exists(offset)):
+            with open(offset, "w") as f:
+                json.dump({"player": [list(r) for r in riders]}, f)
+                f.write("\n")
+            print(f"  made    {fam}/surfBlob.json")
+        elif not moved and os.path.exists(offset) and force:
+            os.remove(offset)
+            print(f"  removed {fam}/surfBlob.json (no offset)")
+        for name, img in (("surfBlob.png", blob), ("surfOverlay.png", over if over.getbbox() else None)):
+            dst = os.path.join(dst_dir, name)
+            if img is None:
+                print(f"  skip    {fam}/{name} (the sheet has no front parts)")
+                continue
+            if os.path.exists(dst) and not force:
+                print(f"  skip    {fam}/{name} (already there; --force to replace it)")
+                continue
+            img.save(dst)
+            print(f"  made    {fam}/{name}")
+            made += 1
+    return made > 0
+
 def flybird(folder, kit, nudges=((0, 0), (0, 0)), out=None, force=False, bird=True, tilts=(None, None)):
     """flyBird.png (and the kit's bird.png) for a packed FR/LG look folder."""
     alone = os.path.join(kit, "bird.png")
@@ -1512,6 +1692,21 @@ if __name__ == "__main__":
     if len(a) >= 3 and a[0] == "blobs" and set(a[3:]) <= {"--surf", "--dive", "--force"}:
         kinds = [k for k in ("surf", "dive") if "--" + k in a] or ["surf", "dive"]
         sys.exit(0 if blobs(a[1], a[2], kinds, "--force" in a) else 1)
+    if len(a) >= 3 and a[0] == "surfmon":
+        opts, off, ok = a[3:], None, True
+        if "--off" in opts:
+            k = opts.index("--off")
+            try:
+                # dx,dy for every facing, or down/up/left: dx,dy/dx,dy/dx,dy -Elvie
+                off = [tuple(int(v) for v in part.split(",")) for part in opts[k + 1].split("/")]
+                if len(off) not in (1, 3) or any(len(o) != 2 for o in off):
+                    raise ValueError
+                opts = opts[:k] + opts[k + 2:]
+            except (IndexError, ValueError):
+                ok = False
+        if ok and set(opts) <= {"--force", "--half", "--middle"}:
+            fit = "half" if "--half" in opts else "middle" if "--middle" in opts else None
+            sys.exit(0 if surfmon(a[1], a[2], "--force" in opts, fit, off) else 1)
     if len(a) >= 3 and a[0] == "flybird":
         opts, nudge, out, force, bird, k = a[3:], [(0, 0), (0, 0)], None, False, True, 0
         tilts = [None, None]

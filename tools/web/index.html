@@ -239,6 +239,7 @@
     <p class="hint">A Game Boy look uses Crystal Lens's own files as they are, at the folder's top level, so the same folder works in both mods. Emerald Lens fits them into the Gen 3 frames when the game loads them: the front and back pics at their own size (a taller back keeps its top 64 rows), the walking, biking and surfing sprites laid out on the Gen 3 sheets, and the fishing pose built from the standing sprite. Anything the look doesn't have comes from the character's other looks.</p>
     <div class="row">
       <label class="btn">Add Crystal Lens files<input type="file" id="gb-files" accept=".png,image/png" multiple hidden></label>
+      <label class="btn">Add a Crystal Clear sheet<input type="file" id="gb-cc" accept=".png,image/png" hidden></label>
       <label>Sprites from your game
         <select id="gb-rom">
           <option value="">None (or my own overworldWalk.png)</option>
@@ -250,6 +251,9 @@
       </label>
     </div>
     <p class="hint" id="gb-rom-note" hidden>Walking, biking, surfing and fishing come from your own copy of that game when you play, so they aren't in the download and this page can't show them. If that game isn't imported, the look falls back to the character's other looks.</p>
+    <p class="hint">A Crystal Clear player sheet (front, back, trainer card, walking, surfing, fishing) is cut into those files for you, in its own colours. The sword isn't used.</p>
+    <label class="check-line"><input type="checkbox" id="gb-cc-colors" checked> Colour the overworld sprites with the sheet's Injecting palette too</label>
+    <pre class="log" id="gb-cc-log" hidden></pre>
     <div id="gb-list" class="files"></div>
     <div id="gb-preview" class="fly-frames" hidden>
       <figure><canvas id="gb-front" width="64" height="64"></canvas><figcaption>Front pic, in the Gen 3 frame</figcaption></figure>
@@ -291,6 +295,28 @@
       <label class="check-line"><input type="checkbox" id="blob-force"> Replace what's there</label>
     </div>
     <pre class="log" id="blob-log" hidden></pre>
+    <h3 class="sub">A surfing Pok&eacute;mon</h3>
+    <p class="hint">A Pok&eacute;mon to ride, from the dynamic surf overworlds hacks: it becomes the look's surf blob, and the parts in front of the player are drawn over them while surfing. Pick a ready-made one (custom drawn for those hacks, free to use with credit; its credit is added to the look's credits) or add your own sheet. 64x64 sheets are cut to the middle 32x32, where the rider sits. "Replace what's there" above applies here too.</p>
+    <div class="row">
+      <label>Pok&eacute;mon <select id="surfmon-kit"></select></label>
+      <button type="button" class="btn primary" id="surfmon-add">Ride this Pok&eacute;mon</button>
+      <label class="btn">Add my own sheet<input type="file" id="surfmon-file" accept=".png,image/png" hidden></label>
+      <label class="check-line"><input type="checkbox" id="surfmon-half"> Draw 64x64 sheets at half size instead</label>
+    </div>
+    <p class="hint" id="surfmon-credit"></p>
+    <div class="row" id="surfmon-nudge" hidden>
+      <label>Rider on the Pok&eacute;mon, facing <select id="surfmon-face"><option value="all">all</option><option value="0">down</option><option value="1">up</option><option value="2">left</option></select></label>
+      <div class="fly-nudge">
+        <button type="button" class="btn" data-dx="-1" data-dy="0" aria-label="Left">&larr;</button>
+        <button type="button" class="btn" data-dx="0" data-dy="-1" aria-label="Up">&uarr;</button>
+        <button type="button" class="btn" data-dx="0" data-dy="1" aria-label="Down">&darr;</button>
+        <button type="button" class="btn" data-dx="1" data-dy="0" aria-label="Right">&rarr;</button>
+        <output id="surfmon-pos">0, 0</output>
+      </div>
+      <button type="button" class="btn quiet" id="surfmon-reset">As the sheet drew it</button>
+    </div>
+    <p class="hint" id="surfmon-nudge-hint" hidden>Moves the player on the Pok&eacute;mon while surfing, saved as surfBlob.json. Watch it in "Watch it move" below (surf).</p>
+    <pre class="log" id="surfmon-log" hidden></pre>
   </div>
   <div id="look-fly" hidden>
     <h3 class="sub">No Fly bird?</h3>

@@ -22,6 +22,8 @@ local gen3 = {}
 
 local okGameboy, gameboy = pcall(require, "mods.emerald_lens.gameboy")
 if not okGameboy then gameboy = nil end
+local okCross, crossgame = pcall(require, "mods.emerald_lens.crossgame")
+if not okCross then crossgame = nil end
 
 -- Overworld states. FRLG names its player graphics with OW_PLAYER_*
 -- constants; RSE lists them in the avatar table by state instead, with
@@ -83,8 +85,8 @@ local ONLY_MALE, ONLY_FEMALE, NONE = { "male" }, { "female" }, {}
 -- one each. Sizes are the whole strip. RSE's bag is a PNG, swapped in the
 -- scene kit below. -Elvie
 local EXTRAS = {
-  frlg = { surfBlob = { 32, 192 }, bag = { 64, 256 } },
-  rse  = { surfBlob = { 32, 96 },  bird = { 32, 32 }, diveBlob = { 32, 96 } },
+  frlg = { surfBlob = { 32, 192 }, bag = { 64, 256 }, surfOverlay = { 32, 96 } },
+  rse  = { surfBlob = { 32, 96 },  bird = { 32, 32 }, diveBlob = { 32, 96 }, surfOverlay = { 32, 96 } },
 }
 
 local FRAME = 64 * 64 * 4 -- one 64x64 RGBA frame of the FRLG Fly sheet
@@ -112,6 +114,10 @@ function gen3.init(mod, ctx)
   -- has to replace them. -Elvie
   local slots = NONE
   local bases = {}
+  -- A ridden Pokemon picked on the LENS screen (ctx.surfKit, a folder in
+  -- assets/surfmons/<id>/<family>/): its blob, overlay and rider offsets
+  -- win over the look's, for whoever is the player, look or not. -Elvie
+  local surfKit
   local present = {} -- [file] = true if any folder in the chain has it
   local frontIdOf, isBackIndex = {}, {}
   -- The rival's chain, the same way; empty when the rival is OFF. -Elvie
@@ -206,6 +212,16 @@ function gen3.init(mod, ctx)
           end
           warnOnce(rel, "%s is %dx%d but this slot needs %dx%d%s; skipping it",
             rel, w, h, expectW, expectH, altW and (" or %dx%d"):format(altW, expectH) or "")
+        end
+      elseif crossgame and crossgame.isBase(base) then
+        -- a player from the other Gen 3 games, laid out for this one -Elvie
+        local data = crossgame.load(mod, base, file, layout)
+        local w, h
+        if data then w, h = data:getDimensions() end
+        if data and (w == expectW or (altW and w == altW)) and h == expectH then
+          local image = love.graphics.newImage(data)
+          image:setFilter("nearest", "nearest")
+          return image, data, rel, w
         end
       end
     end
@@ -318,6 +334,101 @@ function gen3.init(mod, ctx)
     return out
   end
 
+  -- A surf blob can come with surfOverlay.png (down, up, left, 32x32 like
+  -- the blob): the parts of the Pokemon in front of the player, from
+  -- surfing sheets made for the dynamic surf overworlds hacks. The game
+  -- draws the blob behind the player, so the overlay is drawn into the
+  -- player's own surf frames instead. surfBlob.json can move the player
+  -- on the blob: {"player": [dx, dy]}, or one pair each for down, up and
+  -- left, for a big Pokemon recentred in the blob's 32x32 (pack_gen3.py
+  -- surfmon). Both only from the folder the blob came from, and only
+  -- while that blob shows (isPlayer). -Elvie
+  local SURF_FACING = { [0] = 0, 1, 2, 0, 0, 1, 1, 2, 2, 0, 1, 2 }
+  -- { [facing] = { dx, dy } }, or nil for none -Elvie
+  local function riderOffsets(folder)
+    local ok, text = pcall(mod.read, mod, folder .. "surfBlob.json")
+    if not ok or type(text) ~= "string" then return nil end
+    local list = text:match('"player"%s*:%s*(%b[])')
+    if not list then return nil end
+    local n = {}
+    for v in list:gmatch("%-?%d+") do n[#n + 1] = tonumber(v) end
+    if #n == 2 then return { [0] = { n[1], n[2] }, { n[1], n[2] }, { n[1], n[2] } } end
+    if #n == 6 then return { [0] = { n[1], n[2] }, { n[3], n[4] }, { n[5], n[6] } } end
+    return nil
+  end
+  -- Returns the new frames, their width and height, and how many rows
+  -- were added below (drawn that much lower, like fishing's drop). Frames
+  -- grow to hold whatever the offsets and overlay reach: wider both ways
+  -- (the game centres them), taller above or below. -Elvie
+  local function surfOverlay(data, w, h, n)
+    if not extras.surfOverlay then return nil end
+    local folder
+    if surfKit then
+      folder = surfKit
+    else
+      if not (has("surfBlob.png") and isPlayer()) then return nil end
+      local _, _, rel = loadImage("surfBlob.png", extras.surfBlob[1], extras.surfBlob[2])
+      if not rel then return nil end
+      folder = rel:sub(1, #rel - #"surfBlob.png")
+    end
+    local over
+    if surfKit or has("surfOverlay.png") then
+      _, over = loadImage("surfOverlay.png", extras.surfOverlay[1], extras.surfOverlay[2], nil, folder)
+    end
+    local offsets = riderOffsets(folder)
+    if not over and not offsets then return nil end
+    -- in the frame as the game draws a 32-wide one: the blob sits at
+    -- (-8, -8) from the tile, the frame at ((16 - W) / 2, 16 - h), so blob
+    -- pixel (x, y) is (x, y + h - 24) and the player's (x + (W - w) / 2) -Elvie
+    local W = math.max(w, 32)
+    local sx = (W - w) / 2
+    local x0, y0, x1, y1 = 0, 0, W - 1, h - 1
+    local function reach(px, py)
+      x0, y0, x1, y1 = math.min(x0, px), math.min(y0, py), math.max(x1, px), math.max(y1, py)
+    end
+    local function offsetOf(fi)
+      local o = offsets and offsets[SURF_FACING[fi] or 0]
+      return o and o[1] or 0, o and o[2] or 0
+    end
+    for fi = 0, n - 1 do
+      local ox, oy = offsetOf(fi)
+      for y = 0, h - 1 do
+        for x = 0, w - 1 do
+          local _, _, _, a = data:getPixel(x, fi * h + y)
+          if a > 0 then reach(x + sx + ox, y + oy) end
+        end
+      end
+    end
+    if over then reach(0, h - 24); reach(31, h + 7) end
+    local side = math.max(0, -x0, x1 - (W - 1))
+    local top, below = math.max(0, -y0), math.max(0, y1 - (h - 1))
+    local FW, FH = W + 2 * side, h + top + below
+    local out = love.image.newImageData(FW, FH * n)
+    for fi = 0, n - 1 do
+      local ox, oy = offsetOf(fi)
+      local fy = fi * FH + top
+      -- the player, moved by the facing's offset -Elvie
+      for y = 0, h - 1 do
+        for x = 0, w - 1 do
+          local r, g, b, a = data:getPixel(x, fi * h + y)
+          if a > 0 then out:setPixel(side + x + sx + ox, fy + y + oy, r, g, b, a) end
+        end
+      end
+      -- then the Pokemon's front parts over them -Elvie
+      if over then
+        local facing = SURF_FACING[fi] or 0
+        for y = 0, 31 do
+          for x = 0, 31 do
+            local r, g, b, a = over:getPixel(x, facing * 32 + y)
+            local py = y + h - 24
+            if a > 0 and py < h + below then out:setPixel(side + x, fy + py, r, g, b, a) end
+          end
+        end
+      end
+    end
+    return out, FW, FH, below
+  end
+
   if okOw and type(OwSprites.get) == "function" then
     local originalGet = OwSprites.get
 
@@ -342,6 +453,17 @@ function gen3.init(mod, ctx)
         record.height = h
         record.drawOffY = (vanilla.drawOffY or 0) + drop
       end
+      if file == "surf.png" and not chain then
+        local withOverlay, newW, newH, below = surfOverlay(data, w, h, n)
+        if withOverlay then
+          image = love.graphics.newImage(withOverlay)
+          image:setFilter("nearest", "nearest")
+          data, w, h = withOverlay, newW, newH
+          record.height = h
+          -- rows added below draw lower, so the player stays put -Elvie
+          record.drawOffY = (record.drawOffY or vanilla.drawOffY or 0) + below
+        end
+      end
       if file == "underwater.png" and extras.diveBlob and has("diveBlob.png") then
         local withBlob = diveFrames(data, w, h, n, rel:sub(1, #rel - #file))
         if withBlob then
@@ -361,9 +483,48 @@ function gen3.init(mod, ctx)
       return record
     end
 
+    -- The player's surfing sheets, both genders, for a ridden Pokemon on
+    -- the game's own sprite (no look, or a look with no surf art). -Elvie
+    local surfGids
+    local function isPlayerSurf(gid)
+      if not surfGids then
+        surfGids = {}
+        local okVersions, Versions = pcall(require, "src.import.gba.versions")
+        local avatars = type(OwSprites.avatars) == "function" and OwSprites.avatars()
+        for _, row in ipairs(type(avatars) == "table" and avatars.player or {}) do
+          if row.state == "SURFING" then
+            surfGids[tonumber(row.male) or -1], surfGids[tonumber(row.female) or -1] = true, true
+          end
+        end
+        if okVersions then
+          for _, key in ipairs({ "OW_PLAYER_MALE_SURF", "OW_PLAYER_FEMALE_SURF" }) do
+            if tonumber(Versions[key]) then surfGids[tonumber(Versions[key])] = true end
+          end
+        end
+      end
+      return surfGids[tonumber(gid)] == true
+    end
+    local function surfFromVanilla(vanilla)
+      local w, h, n = vanilla.width, vanilla.height, vanilla.frameCount
+      if not (w and h and n and vanilla.imageData) then return nil end
+      local okClone, data = pcall(function() return vanilla.imageData:clone() end)
+      if not okClone then return nil end
+      local out, newW, newH, below = surfOverlay(data, w, h, n)
+      if not out then return nil end
+      local record = {}
+      for k, v in pairs(vanilla) do record[k] = v end
+      local image = love.graphics.newImage(out)
+      image:setFilter("nearest", "nearest")
+      record.image, record.imageData, record.width, record.height = image, out, newW, newH
+      record.drawOffY = (vanilla.drawOffY or 0) + below
+      record.quads = {}
+      for fi = 0, n - 1 do record.quads[fi] = love.graphics.newQuad(0, fi * newH, newW, newH, newW, newH * n) end
+      return record
+    end
+
     OwSprites.get = function(graphicsId)
       local vanilla = originalGet(graphicsId)
-      if not vanilla or (#slots == 0 and #rivalBases == 0) then return vanilla end
+      if not vanilla or (#slots == 0 and #rivalBases == 0 and not surfKit) then return vanilla end
       local record = owReplaced[vanilla]
       if record ~= nil then return record or vanilla end
       local rival = rivalOwFiles()[tonumber(graphicsId)]
@@ -375,8 +536,13 @@ function gen3.init(mod, ctx)
         for _, slot in ipairs(sharedSlots()) do
           file = file or (owFile[slot] and owFile[slot][tonumber(graphicsId)])
         end
-        if not file then return vanilla end
-        record = build(vanilla, file) or false
+        if file then
+          record = build(vanilla, file) or false
+        elseif surfKit and isPlayerSurf(graphicsId) then
+          record = surfFromVanilla(vanilla) or false
+        else
+          return vanilla
+        end
       end
       owReplaced[vanilla] = record
       return record or vanilla
@@ -552,7 +718,14 @@ function gen3.init(mod, ctx)
           return sheet ~= vanilla and sheet or nil
         end }
     end
-    if extras.surfBlob and has("surfBlob.png") then
+    if extras.surfBlob and surfKit then
+      -- a ridden Pokemon from the LENS screen: anyone's surf blob -Elvie
+      list[#list + 1] = { suffix = "field_effects/surf_blob.rgba",
+        load = function()
+          local _, data = loadImage("surfBlob.png", extras.surfBlob[1], extras.surfBlob[2], nil, surfKit)
+          return data and data:getString()
+        end }
+    elseif extras.surfBlob and has("surfBlob.png") then
       list[#list + 1] = { suffix = "field_effects/surf_blob.rgba", player = true,
         load = rgbaOf("surfBlob.png", extras.surfBlob[1], extras.surfBlob[2]) }
     end
@@ -745,7 +918,8 @@ function gen3.init(mod, ctx)
   end
   local function exists(base, file)
     if gameboy and gameboy.isBase(base) then return gameboy.has(mod, base, file) end
-    return mod.assets:info(base .. file) and true or false
+    if mod.assets:info(base .. file) then return true end
+    return crossgame ~= nil and crossgame.isBase(base) and crossgame.has(mod, base, file, layout)
   end
   local RIVAL_FILES = { "walk.png", "bike.png", "acroBike.png", "surf.png", "fieldMove.png",
     "front.png", "intro.png", "rivalEarly.png", "rivalLate.png", "rivalChampion.png" }
@@ -771,7 +945,8 @@ function gen3.init(mod, ctx)
     -- than on every draw. -Elvie
     present = {}
     if #slots > 0 then
-      local files = { frontRel, backRel, introRel, "mapIcon.png", "flyBird.png", "surfBlob.png", "bird.png", "bag.png", "diveBlob.png" }
+      local files = { frontRel, backRel, introRel, "mapIcon.png", "flyBird.png", "surfBlob.png", "bird.png", "bag.png", "diveBlob.png",
+        "surfOverlay.png" }
       for _, state in ipairs(OW_STATES) do files[#files + 1] = state.file end
       for _, file in ipairs(files) do
         for _, base in ipairs(bases) do
@@ -805,6 +980,7 @@ function gen3.init(mod, ctx)
       isBackIndex[BACK_INDEX[slot]] = true
     end
 
+    surfKit = newCtx and type(newCtx.surfKit) == "string" and newCtx.surfKit or nil
     owFile = nil
     owReplaced = setmetatable({}, { __mode = "k" })
     picReplaced = setmetatable({}, { __mode = "k" })

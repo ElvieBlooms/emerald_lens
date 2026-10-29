@@ -1,0 +1,32 @@
+{
+  "label": "SYGNA",
+  "character": "GREEN",
+  "genderMode": "girl",
+  "generation": 2,
+  "credit": [
+    "Art by Bani"
+  ],
+  "overworldColors": [
+    [
+      255,
+      255,
+      255
+    ],
+    [
+      206,
+      148,
+      99
+    ],
+    [
+      64,
+      136,
+      104
+    ],
+    [
+      0,
+      0,
+      0
+    ]
+  ],
+  "fishRod": "gen2"
+}

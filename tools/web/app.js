@@ -10,7 +10,7 @@ const CDN = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`;
 // A copy of Pyodide in web/pyodide/ is used instead of the CDN when present.
 const LOCAL = new URL("pyodide/", import.meta.url).href;
 const TOOLS = new URL("../sprite-templates/", import.meta.url).href;
-const TOOL_FILES = ["pack_gen3.py", "import_sheet.py"];
+const TOOL_FILES = ["pack_gen3.py", "import_sheet.py", "crystal_clear.py"];
 const BLANK = { frlg: "recipes/blank_frlg.json", rse: "recipes/blank_rse.json", gb: "recipes/blank_gb.json" };
 const FAMILY_NAMES = { frlg: "FireRed / LeafGreen", rse: "Ruby / Sapphire / Emerald", gb: "Game Boy" };
 
@@ -1056,6 +1056,95 @@ $("blob-save").addEventListener("click", (e) => busy(e.currentTarget, async () =
   showLook();
 }));
 
+// A dynamic surf overworld sheet: pack_gen3.py surfmon writes the surf
+// blobs and surfOverlay.png into the look's family folders. Ready-made
+// ones are in sprite-templates/surfmons/, listed with credits in
+// kits.json. -Elvie
+let surfmonKits = [];
+// the last sheet added, so the rider can be nudged on it -Elvie
+const surfmonState = { path: null, label: "", off: null };
+// surfBlob.json's player: one [dx, dy] or one each for down, up, left -Elvie
+function riderOffsets(path) {
+  try {
+    const p = exists(path) ? readJSON(path).player : null;
+    if (Array.isArray(p) && p.length === 3 && Array.isArray(p[0])) return p;
+    if (Array.isArray(p) && p.length === 2) return [p, p, p];
+  } catch {}
+  return [[0, 0], [0, 0], [0, 0]];
+}
+function surfmonOffset() {
+  for (const fam of ["rse", "frlg"]) {
+    const p = `look/gen3/${fam}/surfBlob.json`;
+    if (exists(p)) return riderOffsets(p);
+  }
+  return [[0, 0], [0, 0], [0, 0]];
+}
+function surfmonRun(path, label, off = null, force = false) {
+  const argv = ["surfmon", path, "look/gen3"];
+  if (force || $("blob-force").checked) argv.push("--force");
+  if ($("surfmon-half").checked) argv.push("--half");
+  if (off) argv.push("--off", off.map((o) => o.join(",")).join("/"));
+  const code = run("pack_gen3.py", argv, $("surfmon-log"));
+  if (code === 0) {
+    Object.assign(surfmonState, { path, label, off: surfmonOffset() });
+    $("surfmon-pos").textContent = surfmonState.off.map((o, i) => `${["down", "up", "left"][i]} ${o.join(",")}`).join("  ");
+  }
+  $("surfmon-nudge").hidden = $("surfmon-nudge-hint").hidden = !surfmonState.path;
+  showLook();
+  status(code === 0 ? `Added ${label} as the surf blob.` : "The sheet wasn't added; see the log.",
+    code === 0 ? "ready" : "failed");
+  return code === 0;
+}
+document.querySelectorAll("#surfmon-nudge .fly-nudge button").forEach((b) =>
+  b.addEventListener("click", (e) => busy(e.currentTarget, async () => {
+    if (!surfmonState.path) return;
+    const face = $("surfmon-face").value;
+    const off = (surfmonState.off || [[0, 0], [0, 0], [0, 0]]).map((o, i) =>
+      face === "all" || Number(face) === i ? [o[0] + Number(b.dataset.dx), o[1] + Number(b.dataset.dy)] : o);
+    surfmonRun(surfmonState.path, surfmonState.label, off, true);
+  })));
+$("surfmon-reset").addEventListener("click", (e) => busy(e.currentTarget, async () => {
+  if (surfmonState.path) surfmonRun(surfmonState.path, surfmonState.label, null, true);
+}));
+async function addSurfmon(items) {
+  const item = items.find(({ path }) => /\.png$/i.test(path));
+  if (!item) throw new Error("Pick the sheet as a PNG.");
+  W.clear("surfmon");
+  FS.mkdirTree(work("surfmon"));
+  writeFile("surfmon/sheet.png", new Uint8Array(await item.file.arrayBuffer()));
+  surfmonRun("surfmon/sheet.png", item.path.split("/").pop());
+}
+$("surfmon-file").addEventListener("change", (e) => upload(fromInput(e.target), addSurfmon, e.target));
+const surfmonKit = () => surfmonKits.find((k) => k.id === $("surfmon-kit").value);
+function surfmonCredit() {
+  const k = surfmonKit();
+  $("surfmon-credit").textContent = k ? `${k.name}: ${k.credit}.` : "";
+}
+fetchText(TOOLS + "surfmons/kits.json").then((text) => {
+  surfmonKits = JSON.parse(text).kits || [];
+  for (const k of surfmonKits) $("surfmon-kit").add(new Option(k.name, k.id));
+  surfmonCredit();
+}).catch((err) => log($("surfmon-log"), `No ready-made Pokemon: ${err.message}\n`));
+$("surfmon-kit").addEventListener("change", surfmonCredit);
+$("surfmon-add").addEventListener("click", (e) => busy(e.currentTarget, async () => {
+  const k = surfmonKit();
+  if (!k) return;
+  const r = await fetch(TOOLS + `surfmons/${k.id}.png`, { cache: "no-cache" });
+  if (!r.ok) throw new Error(`surfmons/${k.id}.png answered ${r.status}`);
+  FS.mkdirTree(work("surfmon"));
+  writeFile(`surfmon/${k.id}.png`, new Uint8Array(await r.arrayBuffer()));
+  if (surfmonRun(`surfmon/${k.id}.png`, k.name)) {
+    // the artist goes into the look's credits -Elvie
+    const box = $("m-credit");
+    const lines = box.value.split("\n").map((x) => x.trim()).filter(Boolean);
+    const line = `${k.name} ${k.credit.charAt(0).toLowerCase()}${k.credit.slice(1)}`;
+    if (!lines.includes(line)) {
+      box.value = [...lines, line].join("\n");
+      box.dispatchEvent(new Event("input"));
+    }
+  }
+}));
+
 // --------------------------------------------------- 4a. fly bird kits
 // Ready-made birds in sprite-templates/flybirds/. The rider is the look's
 // FR/LG surf frame; pack_gen3.py flybird does the layering, the page only
@@ -1138,7 +1227,7 @@ for (const i of [0, 1]) {
     flyShow();
   });
 }
-document.querySelectorAll(".fly-nudge").forEach((box) => {
+document.querySelectorAll(".fly-nudge[data-frame]").forEach((box) => {
   box.addEventListener("click", (e) => {
     const b = e.target.closest("button");
     if (!b) return;
@@ -1219,6 +1308,10 @@ function showLookPreview() {
     blob: fromSection("surf blob"),
     blobCount: (facing) => (blobSec && blobSec.facings[facing] ? blobSec.facings[facing].length : 0),
     diveBlob: (facing) => fromSection("dive blob")(facing, 0),
+    // surfOverlay.png (surfmon): down, up, left, drawn over the player;
+    // surfBlob.json moves the player on the blob -Elvie
+    overlay: (facing) => packedFrame(fam, "surfOverlay.png", { down: 0, up: 1, left: 2 }[facing] ?? 0, 32),
+    riderOffset: (facing) => riderOffsets(`look/gen3/${fam}/surfBlob.json`)[{ down: 0, up: 1, left: 2 }[facing] ?? 0],
     size: () => {
       const img = lookImages[`${fam}/${first}`];
       return [img && img.naturalWidth ? img.naturalWidth : lay.frames[first][0], lay.frames[first][1]];
@@ -1287,6 +1380,9 @@ const GB_FILES = ["front.png", "frontColor.png", "back.png", "backColor.png", "o
 const GB_FISH = [["left", "overworldFishSide.png", [-8, 4, 1]], ["up", "overworldFishBack.png", [4, -8, 0]],
   ["down", "overworldFishFront.png", [4, 15, 0]]];
 const GB_STAND = { down: 0, up: 1, left: 2 };
+// "fishRod": "gen2" (a Crystal Clear sheet's rod): Gen 2's offsets, its
+// left tile mirrored (gameboy.lua ROD[2]) -Elvie
+const GB_ROD2 = { left: [-8, 5, 1, true], up: [0, -8, 0], down: [0, 16, 0] };
 // Crystal Lens's own overworld colours, for overworldWalk.png -Elvie
 const CRYSTAL_COLORS = [[255, 255, 255], [255, 173, 99], [1, 99, 198], [0, 0, 0]];
 // gameboy.lua's WALK: Game Boy frame, mirrored, step (a row lower) -Elvie
@@ -1342,6 +1438,9 @@ function shadeWalk(img, colors) {
   }
   const ranked = [...seen.keys()].sort((a, b) => seen.get(b) - seen.get(a));
   const shade = new Map(ranked.map((k, i) => [k, Math.min(3, (clear ? 1 : 0) + i)]));
+  // plain greys keep their own shade, as gameboy.lua's greyShade -Elvie
+  const grey = ranked.length && ranked.every((k) => (k >> 16) === ((k >> 8) & 255) && (k & 255) === ((k >> 8) & 255));
+  if (grey) for (const k of ranked) { const r = (k >> 16) / 255; shade.set(k, r > 0.83 ? 0 : r > 0.5 ? 1 : r > 0.17 ? 2 : 3); }
   for (let i = 0; i < px.length; i += 4) {
     const s = px[i + 3] < 128 ? 0 : shade.get((px[i] << 16) | (px[i + 1] << 8) | px[i + 2]);
     if (!s) { px[i + 3] = 0; continue; }
@@ -1440,11 +1539,21 @@ async function gbPreview() {
   if (fishReady) {
     const ctx = fc.getContext("2d");
     ctx.clearRect(0, 0, fc.width, fc.height);
-    GB_FISH.forEach(([facing, file, [dx, dy, tile]], i) => {
+    const gen2 = keptMeta.fishRod === "gen2";
+    GB_FISH.forEach(([facing, file, rod], i) => {
+      const [dx, dy, tile, mirror] = gen2 ? GB_ROD2[facing] : rod;
       const x0 = i * 32 + 8, y0 = 30 - 15;
       ctx.drawImage(shaded["overworldWalk.png"], 0, GB_STAND[facing] * 16, 16, 8, x0, y0, 16, 8);
       ctx.drawImage(shaded[file], 0, 0, 16, 8, x0, y0 + 8, 16, 8);
-      ctx.drawImage(shaded["overworldFishRod.png"], 0, tile * 8, 8, 8, x0 + dx, y0 + dy, 8, 8);
+      ctx.save();
+      if (mirror) {
+        ctx.translate(x0 + dx + 8, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(shaded["overworldFishRod.png"], 0, tile * 8, 8, 8, 0, y0 + dy, 8, 8);
+      } else {
+        ctx.drawImage(shaded["overworldFishRod.png"], 0, tile * 8, 8, 8, x0 + dx, y0 + dy, 8, 8);
+      }
+      ctx.restore();
     });
   }
   const logEl = $("gb-log");
@@ -1524,6 +1633,33 @@ async function addGb(items) {
 }
 
 $("gb-files").addEventListener("change", (e) => upload(fromInput(e.target), addGb, e.target));
+
+// A Crystal Clear player sheet: crystal_clear.py cuts it into the Game Boy
+// files at the look's top level. Its meta keys (overworldColors from the
+// Injecting row, fishRod) are kept for the download. -Elvie
+async function addCrystalClear(items) {
+  const item = items.find(({ path }) => /\.png$/i.test(path));
+  if (!item) throw new Error("Pick the sheet as a PNG.");
+  W.clear("cc");
+  FS.mkdirTree(work("cc"));
+  writeFile("cc/sheet.png", new Uint8Array(await item.file.arrayBuffer()));
+  FS.mkdirTree(work("look"));
+  const argv = ["cc/sheet.png", "look", "--meta-out", "cc/keys.json"];
+  if (!$("gb-cc-colors").checked) argv.push("--keep-colors");
+  if (run("crystal_clear.py", argv, $("gb-cc-log")) !== 0) {
+    status("That doesn't look like a Crystal Clear player sheet; see the log.", "failed");
+    return;
+  }
+  if (exists("cc/keys.json")) Object.assign(keptMeta, readJSON("cc/keys.json"));
+  if (!isGb()) {
+    $("m-generation").value = "gb";
+    $("m-generation").dispatchEvent(new Event("change"));
+  } else {
+    showGb();
+  }
+  status(`Added the Crystal Clear sheet ${item.path.split("/").pop()}.`, "ready");
+}
+$("gb-cc").addEventListener("change", (e) => upload(fromInput(e.target), addCrystalClear, e.target));
 $("gb-rom").addEventListener("change", () => {
   showGb();
   refresh();
