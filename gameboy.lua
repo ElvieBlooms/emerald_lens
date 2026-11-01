@@ -705,6 +705,22 @@ end
 
 -- The Gen 3 file as ImageData, or nil if the folder has no art for it.
 -- layout ("frlg" or "rse") sets the frame counts. -Elvie
+-- Like crossgame.retry: forget the misses (a game that wasn't imported,
+-- fishing art that wasn't found) so a new setup asks again, and refresh
+-- the engine's avatar cache, which keeps misses too.
+function gameboy.retry()
+  local missed = false
+  for _, t in ipairs({ romCache, fishCacheOf, fishCache }) do
+    for key, value in pairs(t) do
+      if value == false then t[key], missed = nil, true end
+    end
+  end
+  if missed then
+    local Avatars = engine("src.online.union.Avatars")
+    if Avatars and type(Avatars.refresh) == "function" then pcall(Avatars.refresh) end
+  end
+end
+
 function gameboy.load(mod, base, file, layout)
   if not (love and love.image) then return nil end
   if OW_FILES[file] then return sheet(mod, base, file:sub(1, 4), layout) end

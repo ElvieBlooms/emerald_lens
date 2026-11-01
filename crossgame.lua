@@ -157,6 +157,22 @@ local function plan(mod, base, file, layout)
   return nil
 end
 
+-- A miss is kept so a game that isn't there is asked about once, not on
+-- every draw. gen3.lua calls this when it sets up again (an options
+-- change, a save loaded), so a game imported since then is found. If
+-- anything had missed, the engine's own avatar cache is refreshed too,
+-- since it keeps misses as well.
+function crossgame.retry()
+  local missed = false
+  for key, value in pairs(cache) do
+    if value == false then cache[key], missed = nil, true end
+  end
+  if missed then
+    local Avatars = engine("src.online.union.Avatars")
+    if Avatars and type(Avatars.refresh) == "function" then pcall(Avatars.refresh) end
+  end
+end
+
 function crossgame.has(mod, base, file, layout)
   return plan(mod, base, file, layout) ~= nil
 end
