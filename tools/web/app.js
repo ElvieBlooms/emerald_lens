@@ -13,6 +13,7 @@ const TOOLS = new URL("../sprite-templates/", import.meta.url).href;
 const TOOL_FILES = ["pack_gen3.py", "import_sheet.py", "crystal_clear.py"];
 const BLANK = { frlg: "recipes/blank_frlg.json", rse: "recipes/blank_rse.json", gb: "recipes/blank_gb.json" };
 const FAMILY_NAMES = { frlg: "FireRed / LeafGreen", rse: "Ruby / Sapphire / Emerald", gb: "Game Boy" };
+const KNOWN_FAMILIES = ["frlg", "rse"]; // the folders under a look's gen3/
 
 const $ = (id) => document.getElementById(id);
 let py = null, FS = null, W = null;
@@ -313,7 +314,10 @@ function backdrop() {
   const mode = $("o-bgmode").value;
   if (mode !== "colour") return mode;
   const c = $("o-bg").value.trim();
-  return /^#?[0-9a-fA-F]{6}$/.test(c) ? (c.startsWith("#") ? c : "#" + c) : "";
+  if (!/^#?[0-9a-fA-F]{6}$/.test(c)) {
+    throw new Error(`The backdrop colour "${c}" isn't a colour; give six hex digits, like #ff7f27.`);
+  }
+  return c.startsWith("#") ? c : "#" + c;
 }
 
 function sliceArgs() {
@@ -660,12 +664,20 @@ function packOne(fam, path, logEl, picks = [], box = null) {
   if (!$("pack-keep").checked || !lookHas(fam)) {
     return run("pack_gen3.py", ["pack", fam, path, dst], logEl) === 0;
   }
+  // The look as it was before this merge, so choices applied later are made
+  // from it, and a choice can be changed back. A Game Boy look's files sit
+  // at the top of look/, next to gen3/, which isn't part of it.
+  const skip = baseFamily(fam) === "gb" ? "gen3,meta.json" : "";
+  const base = box ? box.base : `merge/pack-base-${mergeRuns + 1}`;
+  if (box) W.restore_dir(base, dst, skip);
+  else W.snapshot_dir(dst, base, skip);
   const argv = ["pack", fam, path, dst, "--merge", ...picks.flatMap((p) => ["--pick", p])];
   const got = runMerge("pack_gen3.py", argv, logEl, "pack");
   if (!got) return false;
   if (!box) {
     box = document.createElement("div");
     box.id = `pack-clash-${mergeRuns}`;
+    box.base = base;
     $("pack-clashes").append(box);
     box.picker = createClashPicker(box, pickerApi);
   }
@@ -673,9 +685,10 @@ function packOne(fam, path, logEl, picks = [], box = null) {
     ...got,
     names: ["the look", path.split("/").pop()],
     apply: async (chosen) => {
-      packOne(fam, path, logEl, chosen, box);
+      const ok = packOne(fam, path, logEl, chosen, box);
       showLook();
-      status("Applied your choices to the look.", "ready");
+      if (ok) status("Applied your choices to the look.", "ready");
+      else status("Your choices couldn't be applied; see the log.", "failed");
     },
   });
   $("pack-clashes").hidden = !$("pack-clashes").querySelector(".clash");
@@ -698,8 +711,13 @@ function packInto(fam, paths, logEl) {
 $("do-pack").addEventListener("click", (e) =>
   busy(e.currentTarget, async () => {
     const [fam, paths] = packSource();
+    // the last pack's clashes go: free their pictures and working folders
+    for (const box of $("pack-clashes").children) freeURLs(box.id);
     $("pack-clashes").replaceChildren();
     $("pack-clashes").hidden = true;
+    for (const name of list("merge").map((f) => f.split("/")[0])) {
+      if (name.startsWith("pack-")) W.clear(`merge/${name}`);
+    }
     packInto(fam, paths, $("pack-log"));
     showLook();
   })
@@ -905,7 +923,9 @@ function showLook() {
       const div = document.createElement("div");
       div.className = "fam";
       const h = document.createElement("h4");
-      h.textContent = `${FAMILY_NAMES[fam] || fam} (gen3/${fam})`;
+      h.textContent = KNOWN_FAMILIES.includes(fam)
+        ? `${FAMILY_NAMES[fam]} (gen3/${fam})`
+        : `gen3/${fam} (not a game folder; the mod doesn't read it)`;
       const rm = document.createElement("button");
       rm.type = "button";
       rm.className = "btn quiet";
@@ -926,10 +946,18 @@ function showLook() {
         fig.style.margin = "0";
         const frame = document.createElement("div");
         frame.className = "frame";
-        const img = new Image();
-        img.alt = name;
-        img.src = imageURL(path, "look-files");
-        frame.append(img);
+        if (/\.png$/i.test(name)) {
+          const img = new Image();
+          img.alt = name;
+          img.src = imageURL(path, "look-files");
+          frame.append(img);
+        } else {
+          // surfBlob.json and the like: not a picture
+          const tag = document.createElement("span");
+          tag.className = "hint";
+          tag.textContent = (name.split(".").pop() || "file").toUpperCase();
+          frame.append(tag);
+        }
         const cap = document.createElement("figcaption");
         cap.textContent = name;
         fig.append(frame, cap);
@@ -939,7 +967,9 @@ function showLook() {
       return div;
     })
   );
-  refreshLookPreview(groups);
+  // only the game folders can be previewed
+  const known = Object.fromEntries(Object.entries(groups).filter(([fam]) => KNOWN_FAMILIES.includes(fam)));
+  refreshLookPreview(known).catch((err) => console.error(err));
   checkFeet();
   refresh();
 }
@@ -1023,20 +1053,33 @@ async function blobKit() {
   return `blobs/${id}`;
 }
 
+// Each preview run has its own URLs, freed when it's done (even if a
+// picture fails to decode), and only the newest run draws, so two quick
+// changes can't free each other's pictures.
+let blobRuns = 0;
 async function blobPreview() {
-  const kit = await blobKit();
-  const c = $("blob-c"), g = c.getContext("2d"), z = 3;
-  g.imageSmoothingEnabled = false;
-  g.clearRect(0, 0, c.width, c.height);
-  // [file, frames, row, first column]
-  const rows = [["frlg/surfBlob.png", 6, 0, 0], ["rse/surfBlob.png", 3, 1, 0], ["rse/diveBlob.png", 3, 1, 3]];
-  for (const [f, n, row, col] of rows) {
-    const img = new Image();
-    img.src = imageURL(`${kit}/${f}`, "blob");
-    await img.decode();
-    for (let i = 0; i < n; i++) g.drawImage(img, 0, i * 32, 32, 32, (col + i) * 32 * z, row * 32 * z, 32 * z, 32 * z);
+  const run = ++blobRuns, owner = `blob-${run}`;
+  try {
+    const kit = await blobKit();
+    // [file, frames, row, first column]
+    const rows = [["frlg/surfBlob.png", 6, 0, 0], ["rse/surfBlob.png", 3, 1, 0], ["rse/diveBlob.png", 3, 1, 3]];
+    const imgs = [];
+    for (const [f] of rows) {
+      const img = new Image();
+      img.src = imageURL(`${kit}/${f}`, owner);
+      await img.decode();
+      imgs.push(img);
+    }
+    if (run !== blobRuns) return;
+    const c = $("blob-c"), g = c.getContext("2d"), z = 3;
+    g.imageSmoothingEnabled = false;
+    g.clearRect(0, 0, c.width, c.height);
+    rows.forEach(([, n, row, col], k) => {
+      for (let i = 0; i < n; i++) g.drawImage(imgs[k], 0, i * 32, 32, 32, (col + i) * 32 * z, row * 32 * z, 32 * z, 32 * z);
+    });
+  } finally {
+    freeURLs(owner);
   }
-  freeURLs("blob");
 }
 
 for (const k of BLOB_KITS) $("blob-kit").add(new Option(k.name, k.id));
@@ -1181,40 +1224,49 @@ function flyArgs(kit, out) {
     "--off-tilt", String(fly.tilt[0]), "--in-tilt", String(fly.tilt[1]), "--out", out, "--force"];
 }
 
+let flyRuns = 0;
 async function flyPreview() {
   if (!exists("look/gen3/frlg/surf.png")) return;
-  const kit = await flyKit();
-  const res = W.run("pack_gen3.py", py.toPy([...flyArgs(kit, "fly/preview.png"), "--no-bird"]));
-  const [code, out] = res.toJs();
-  res.destroy();
-  if (code !== 0) {
-    log($("fly-log"), out);
-    return;
+  const run = ++flyRuns, owner = `fly-${run}`;
+  try {
+    const kit = await flyKit();
+    const res = W.run("pack_gen3.py", py.toPy([...flyArgs(kit, "fly/preview.png"), "--no-bird"]));
+    const [code, out] = res.toJs();
+    res.destroy();
+    if (code !== 0) {
+      log($("fly-log"), out);
+      return;
+    }
+    const img = new Image();
+    img.src = imageURL("fly/preview.png", owner);
+    await img.decode();
+    const alone = exists(`${kit}/bird.png`);
+    let bird = null;
+    if (alone) {
+      bird = new Image();
+      bird.src = imageURL(`${kit}/bird.png`, owner);
+      await bird.decode();
+    }
+    if (run !== flyRuns) return;
+    for (const i of [0, 1]) {
+      const c = $(`fly-c-${i}`), g = c.getContext("2d");
+      g.imageSmoothingEnabled = false;
+      g.clearRect(0, 0, c.width, c.height);
+      g.drawImage(img, 0, i * 64, 64, 64, 0, 0, c.width, c.height);
+      $(`fly-pos-${i}`).textContent = fly.nudge[i].join(", ");
+      $(`fly-tilt-${i}`).value = fly.tilt[i];
+    }
+    $("fly-alone").hidden = !alone;
+    $("fly-bird").disabled = !alone;
+    if (bird) {
+      const c = $("fly-c-2"), g = c.getContext("2d");
+      g.imageSmoothingEnabled = false;
+      g.clearRect(0, 0, c.width, c.height);
+      g.drawImage(bird, 0, 0, c.width, c.height);
+    }
+  } finally {
+    freeURLs(owner);
   }
-  const img = new Image();
-  img.src = imageURL("fly/preview.png", "fly");
-  await img.decode();
-  for (const i of [0, 1]) {
-    const c = $(`fly-c-${i}`), g = c.getContext("2d");
-    g.imageSmoothingEnabled = false;
-    g.clearRect(0, 0, c.width, c.height);
-    g.drawImage(img, 0, i * 64, 64, 64, 0, 0, c.width, c.height);
-    $(`fly-pos-${i}`).textContent = fly.nudge[i].join(", ");
-    $(`fly-tilt-${i}`).value = fly.tilt[i];
-  }
-  const alone = exists(`${kit}/bird.png`);
-  $("fly-alone").hidden = !alone;
-  $("fly-bird").disabled = !alone;
-  if (alone) {
-    const b = new Image();
-    b.src = imageURL(`${kit}/bird.png`, "fly");
-    await b.decode();
-    const c = $("fly-c-2"), g = c.getContext("2d");
-    g.imageSmoothingEnabled = false;
-    g.clearRect(0, 0, c.width, c.height);
-    g.drawImage(b, 0, 0, c.width, c.height);
-  }
-  freeURLs("fly");
 }
 
 for (const k of FLY_KITS) $("fly-kit").add(new Option(k.name, k.id));
@@ -1650,6 +1702,8 @@ async function addCrystalClear(items) {
     status("That doesn't look like a Crystal Clear player sheet; see the log.", "failed");
     return;
   }
+  // this sheet's keys replace the last sheet's, including ones it doesn't set
+  for (const k of ["overworldColors", "fishRod"]) delete keptMeta[k];
   if (exists("cc/keys.json")) Object.assign(keptMeta, readJSON("cc/keys.json"));
   if (!isGb()) {
     $("m-generation").value = "gb";
@@ -1747,7 +1801,12 @@ $("pack-files").addEventListener("change", (e) => upload(fromInput(e.target), se
 $("pack-folder").addEventListener("change", (e) => upload(fromInput(e.target), setOwn, e.target));
 
 async function upload(items, fn, input) {
-  if (!W) return;
+  if (!W) {
+    // clear the input so picking the same file again once loaded still works
+    if (input) input.value = "";
+    status("Python is still loading; add the files again once it's ready.", "failed");
+    return;
+  }
   try {
     await fn(items);
   } catch (err) {
@@ -1756,6 +1815,14 @@ async function upload(items, fn, input) {
   }
   if (input) input.value = "";
   refresh();
+}
+
+// A file dropped anywhere but a drop zone would make the browser open it
+// and leave the page, losing everything; drop zones handle their own.
+for (const type of ["dragover", "drop"]) {
+  window.addEventListener(type, (e) => {
+    if (!e.target.closest || !e.target.closest(".drop")) e.preventDefault();
+  });
 }
 
 document.querySelectorAll(".drop").forEach((zone) => {

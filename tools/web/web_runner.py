@@ -84,6 +84,34 @@ def replace_dir(src, dst):
     clear(dst)
     shutil.copytree(os.path.join(WORK, src), os.path.join(WORK, dst))
 
+def snapshot_dir(src, snap, skip=""):
+    """Copy WORK/src to WORK/snap, leaving out the top-level names in skip
+    (comma-separated). A missing src gives an empty snapshot."""
+    clear(snap)
+    s, names = os.path.join(WORK, src), set(filter(None, skip.split(",")))
+    os.makedirs(os.path.join(WORK, snap), exist_ok=True)
+    if not os.path.isdir(s):
+        return
+    for n in os.listdir(s):
+        if n in names:
+            continue
+        a, b = os.path.join(s, n), os.path.join(WORK, snap, n)
+        shutil.copytree(a, b) if os.path.isdir(a) else shutil.copy2(a, b)
+
+def restore_dir(snap, dst, skip=""):
+    """Put WORK/dst back as snapshot_dir saw it; the top-level names in skip
+    are left as they are now."""
+    names = set(filter(None, skip.split(",")))
+    d = os.path.join(WORK, dst)
+    os.makedirs(d, exist_ok=True)
+    for n in os.listdir(d):
+        if n not in names:
+            clear(os.path.join(dst, n))
+    s = os.path.join(WORK, snap)
+    for n in os.listdir(s) if os.path.isdir(s) else []:
+        a, b = os.path.join(s, n), os.path.join(d, n)
+        shutil.copytree(a, b) if os.path.isdir(a) else shutil.copy2(a, b)
+
 def sheet_family(path, family):
     """The family to hand transfer: the extras family when the sheet is
     extras-sized, as pack works it out. -Elvie"""
@@ -255,9 +283,22 @@ def make_gif(raw, width, height, count, delays_json, out):
     flat += [0] * (256 * 3 - len(flat))
     pal = Image.new("P", (1, 1))
     pal.putpalette(flat)
+    real = [tuple(flat[i * 3:i * 3 + 3]) for i in range(255)]
     out_frames = []
     for f in frames:
-        p = f.convert("RGB").quantize(palette=pal, dither=Image.Dither.NONE)
+        rgb = f.convert("RGB")
+        p = rgb.quantize(palette=pal, dither=Image.Dither.NONE)
+        # Index 255 is the transparent one (its palette slot is padding,
+        # black). A very dark pixel can still land on it; give those the
+        # nearest real colour, so they don't turn see-through.
+        if any(i == 255 for _, i in p.getcolors(256) or []):
+            px, src = p.load(), rgb.load()
+            for y in range(height):
+                for x in range(width):
+                    if px[x, y] == 255:
+                        r, g, b = src[x, y]
+                        px[x, y] = min(range(255), key=lambda i: (real[i][0] - r) ** 2 + (real[i][1] - g) ** 2
+                                       + (real[i][2] - b) ** 2)
         clear = f.getchannel("A").point(lambda a: 255 if a < 128 else 0)
         p.paste(255, mask=clear)
         out_frames.append(p)

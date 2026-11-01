@@ -159,7 +159,14 @@ export function createBuilder(api) {
     }
     // The builder numbers the sheet the way build will, so the slicing
     // options from step 1 go into the recipe. -Elvie
-    Object.assign(r, api.sliceOptions(r));
+    // step 1 is where these are set: options cleared there leave the recipe
+    for (const k of ["scale", "background", "reach", "lossy", "colors"]) delete r[k];
+    try {
+      Object.assign(r, api.sliceOptions(r));
+    } catch (e) {
+      api.status(e.message, "failed");
+      return;
+    }
     if (!["frlg", "rse", "frlg_wide", "rse_wide", "gb"].includes(r.family)) r.family = el.family.value;
     r.sections ||= {};
     data = null; // reload below, not from write()
@@ -168,6 +175,7 @@ export function createBuilder(api) {
   }
 
   let loading = 0; // reloads in flight; redraws wait for them
+  let pendingChange = false; // a recipe edit came in while loading
 
   async function reload(force) {
     const r = recipe();
@@ -206,10 +214,17 @@ export function createBuilder(api) {
       notes = freshNotes;
       tightCache.clear();
     } catch (e) {
+      // forget the key, so the same recipe tries again next time
+      if (sheetKey === key) sheetKey = null;
       api.status(`The builder couldn't show the sheet: ${e.message}`, "failed");
       return;
     } finally {
       loading--;
+      // recipe edits made while this was loading
+      if (!loading && pendingChange) {
+        pendingChange = false;
+        setTimeout(afterRecipeChange);
+      }
     }
     el.log.hidden = !data.log.trim();
     el.log.textContent = data.log.trim();
@@ -304,7 +319,7 @@ export function createBuilder(api) {
     for (const b of boxes) sx.drawImage(sheet, b[0], b[1], b[2] - b[0], b[3] - b[1], b[0] - x0, b[1] - y0, b[2] - b[0], b[3] - b[1]);
     let src = spr, shrunk = false;
     const r = recipe() || {};
-    const shrinkKeys = (r.shrink || []).map((k) => String(k).toLowerCase());
+    const shrinkKeys = (Array.isArray(r.shrink) ? r.shrink : []).map((k) => String(k).toLowerCase());
     // strip frames shrink too, whole cell and all, as build's shrink() does -Elvie
     if (shrinkKeys.includes(sectionKey)) {
       const k = Math.min(1, w / sw, bottom / sh);
@@ -373,7 +388,7 @@ export function createBuilder(api) {
         p.textContent = note;
         det.append(p);
       }
-      const shrinkKeys = (r.shrink || []).map((k) => String(k).toLowerCase());
+      const shrinkKeys = (Array.isArray(r.shrink) ? r.shrink : []).map((k) => String(k).toLowerCase());
       const shrinkBox = document.createElement("label");
       shrinkBox.className = "b-shrink";
       const cb = document.createElement("input");
@@ -622,8 +637,17 @@ export function createBuilder(api) {
 
   // --------------------------------------------------------------- sheet
 
+  // The canvas is the page at this zoom. Browsers stop drawing a canvas
+  // past a size (Firefox 32767 pixels a side, Safari about 16.7 million
+  // pixels), so the zoom is held under that.
+  const MAX_SIDE = 32767, MAX_AREA = 16777216;
   function zoom() {
-    return Number(el.zoom.value) || 1;
+    const z = Number(el.zoom.value) || 1;
+    if (!data) return z;
+    const { top, bottom } = pageBox();
+    const w = data.width, h = Math.max(1, bottom - top);
+    const most = Math.floor(Math.min(MAX_SIDE / w, MAX_SIDE / h, Math.sqrt(MAX_AREA / (w * h))));
+    return Math.max(1, Math.min(z, most));
   }
 
   function usedPieces() {
@@ -685,6 +709,10 @@ export function createBuilder(api) {
     const z = zoom();
     const c = el.canvas;
     const { top, bottom } = pageBox();
+    if (bottom - top > 32767) {
+      api.status(`This sheet is ${bottom - top} pixels tall, more than a browser draws in one go; `
+        + "cut it into a folder of smaller sheets.", "failed");
+    }
     c.width = data.width * z;
     c.height = (bottom - top) * z;
     const g = c.getContext("2d");
@@ -786,7 +814,11 @@ export function createBuilder(api) {
   // ----------------------------------------------------------- the rest
 
   function afterRecipeChange() {
-    if (!data || loading) return;
+    if (loading) {
+      pendingChange = true;
+      return;
+    }
+    if (!data) return;
     const r = recipe();
     if (!r) return;
     if (keyOf(r) !== sheetKey) {
