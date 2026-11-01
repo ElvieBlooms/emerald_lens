@@ -34,31 +34,47 @@ elsif ($^O eq 'MSWin32') { system('start', '', $url); }
 else { system("xdg-open '$url' >/dev/null 2>&1 &"); }
 
 $SIG{PIPE} = 'IGNORE';
-while (my $c = $server->accept) {
+# Each connection is handled in its own process. Browsers open spare
+# connections they may never send anything on; handled one at a time, the
+# server would wait on such a connection and answer nothing else.
+$SIG{CHLD} = 'IGNORE';
+while (1) {
+  my $c = $server->accept or next;
+  my $pid = fork;
+  if (!defined $pid) { handle($c); next; }   # no fork: serve it here
+  if ($pid) { close $c; next; }
+  close $server;
+  # a connection that never sends a request goes away after a while
+  local $SIG{ALRM} = sub { exit 0 };
+  alarm 30;
+  handle($c);
+  exit 0;
+}
+
+sub handle {
+  my ($c) = @_;
   binmode $c;
   my $line = <$c>;
-  next unless defined $line;
+  return close $c unless defined $line;
   # read the headers to the blank line; nothing in them is needed
   while (my $h = <$c>) { last if $h =~ /^\r?\n$/; }
   my ($method, $target) = $line =~ m{^(GET|HEAD) (\S+)};
-  unless ($method) { reply($c, 405, 'text/plain', 'Method not allowed'); next; }
+  return reply($c, 405, 'text/plain', 'Method not allowed') unless $method;
   my $path = (split /\?/, $target)[0];
   $path =~ s/%([0-9A-Fa-f]{2})/chr(hex($1))/ge;
   my @parts = grep { length } split m{/}, $path;
-  if (grep { $_ eq '..' || /^\./ || /[\\:]/ } @parts) { reply($c, 404, 'text/plain', 'Not found'); next; }
+  return reply($c, 404, 'text/plain', 'Not found') if grep { $_ eq '..' || /^\./ || /[\\:]/ } @parts;
   my $full = File::Spec->catfile($root, @parts);
   if (-d $full) {
-    if ($path !~ m{/$}) { redirect($c, "$path/"); next; }
+    return redirect($c, "$path/") if $path !~ m{/$};
     $full = File::Spec->catfile($full, 'index.html');
   }
-  unless (-f $full && open(my $fh, '<:raw', $full)) { reply($c, 404, 'text/plain', 'Not found'); next; }
-  else {
-    local $/;
-    my $body = <$fh> // '';
-    close $fh;
-    my ($ext) = $full =~ /\.([^.\/]+)$/;
-    reply($c, 200, $types{lc($ext // '')} // 'application/octet-stream', $method eq 'HEAD' ? undef : $body, length $body);
-  }
+  return reply($c, 404, 'text/plain', 'Not found') unless -f $full && open(my $fh, '<:raw', $full);
+  local $/;
+  my $body = <$fh> // '';
+  close $fh;
+  my ($ext) = $full =~ /\.([^.\/]+)$/;
+  reply($c, 200, $types{lc($ext // '')} // 'application/octet-stream', $method eq 'HEAD' ? undef : $body, length $body);
 }
 
 sub reply {
