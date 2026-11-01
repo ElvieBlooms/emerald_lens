@@ -798,6 +798,14 @@ function lens.init(mod)
         textHandle.configure(textChoice())
       end
     end)
+    -- A new or loaded save can change which slot the look takes (MY SAVE,
+    -- enby, the Hoenn rival), and pics built for the last save or before
+    -- any save stay in the engine's caches, so the sprites start over.
+    if handle then
+      local function restart() handle.configure(resolve()) end
+      mod.events:on("save.loaded", restart)
+      mod.events:on("save.created", restart)
+    end
     -- The player's wording follows the gender picked in the save. -Elvie
     if textHandle then
       mod.events:on("save.loaded", textHandle.refresh)
