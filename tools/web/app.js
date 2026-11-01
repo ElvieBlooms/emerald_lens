@@ -140,11 +140,25 @@ async function fromDrop(dt) {
 }
 
 // Write uploads under dir. Returns {path, isFolder}: one plain file stays a
-// file, a zip is unpacked, anything else becomes a folder.
+// file, a zip is unpacked, anything else becomes a folder. The upload is
+// written to a staging folder first and only replaces dir once that worked,
+// so an empty folder or a bad zip leaves the last good upload in place.
 async function store(items, dir, fallbackName) {
-  W.clear(dir);
   items = items.filter((i) => !i.path.split("/").some((p) => p.startsWith(".")));
   if (!items.length) throw new Error("No files found there.");
+  const stage = `${dir}~new`;
+  W.clear(stage);
+  try {
+    const s = await storeInto(items, stage, fallbackName);
+    W.replace_dir(stage, dir);
+    s.path = dir + s.path.slice(stage.length);
+    return s;
+  } finally {
+    W.clear(stage);
+  }
+}
+
+async function storeInto(items, dir, fallbackName) {
   if (items.length === 1 && !items[0].path.includes("/")) {
     const { file } = items[0];
     const bytes = new Uint8Array(await file.arrayBuffer());
@@ -1696,12 +1710,26 @@ $("do-download").addEventListener("click", () => {
   zip.destroy();
 });
 
+// Anything in the look that opening a zip would throw away: packed files, or
+// what's been typed into the look's details.
+function lookHasWork() {
+  return list("look").some((f) => f !== "meta.json")
+    || ["m-label", "m-character", "m-credit"].some((id) => $(id).value.trim() !== "");
+}
+
 $("look-zip").addEventListener("change", async (e) => {
   const f = e.target.files[0];
   e.target.value = "";
   if (!f || !W) return;
+  if (!/\.zip$/i.test(f.name)) {
+    status(`${f.name} isn't a .zip; pick a look folder you downloaded from here.`, "failed");
+    return;
+  }
+  if (lookHasWork() && !confirm("Opening this zip replaces the look you're assembling. "
+      + "Download it first if you want to keep it. Open the zip anyway?")) return;
   try {
     const s = await store([{ file: f, path: f.name }], "lookzip", "look");
+    if (!s.isFolder) throw new Error("it isn't a look folder");
     W.replace_dir(s.path, "look");
     W.clear("lookzip");
     const meta = JSON.parse(W.read_meta("look/meta.json"));
