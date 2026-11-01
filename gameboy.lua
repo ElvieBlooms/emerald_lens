@@ -540,6 +540,13 @@ local function fishing(mod, base)
   if not art then return nil end
   local walk = frames(mod, base, "walk")
   if not walk then return nil end
+  -- the same size check the walk sheet gets: a shorter own sheet would
+  -- read past its bottom edge below
+  local ww, wh = walk:getDimensions()
+  if ww ~= 16 or wh < 16 * 6 then
+    note(mod, base .. "fish", "%s's Game Boy walk sprite is %dx%d; fishing needs 16x96", base, ww, wh)
+    return nil
+  end
   -- the walk's colours, and the folder's own shades for its own tiles -Elvie
   local ownWalk = mod.assets:info(base .. OWN_OF.walk)
   local colors
