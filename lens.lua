@@ -197,6 +197,30 @@ function lens.init(mod)
   end
   for _, entries in pairs(allFolders) do table.sort(entries, byLabel) end
 
+  -- Option keys per character. sanitizeKey turns "A-B" and "A_B" into the
+  -- same key, so a clash gets _2, _3... A name that is already a clean key
+  -- keeps it, then the rest go in name order, so keys don't move around
+  -- between runs and existing settings stay where they are.
+  local optionKeyOf = {}
+  do
+    local names, used = {}, {}
+    for character in pairs(allFolders) do names[#names + 1] = character end
+    table.sort(names, function(a, b)
+      local ca, cb = sanitizeKey(a) == a, sanitizeKey(b) == b
+      if ca ~= cb then return ca end
+      return a < b
+    end)
+    for _, character in ipairs(names) do
+      local base = sanitizeKey(character)
+      local key, n = base, 1
+      while used[key] do n = n + 1; key = base .. "_" .. n end
+      used[key], optionKeyOf[character] = true, key
+    end
+  end
+  local function characterKey(character)
+    return optionKeyOf[character] or sanitizeKey(character)
+  end
+
   local choicesFor, any = {}, false
   for _, family in ipairs(FAMILIES) do
     local choices = {}
@@ -269,13 +293,13 @@ function lens.init(mod)
   end
 
   local function lookKey(family, character)
-    return "look" .. family.suffix .. "_" .. sanitizeKey(character)
+    return "look" .. family.suffix .. "_" .. characterKey(character)
   end
 
   -- The rival's rows have keys of their own, so the rival can be any
   -- character, the player's too, in any look. -Elvie
   local function rivalLookKey(family, character)
-    return "rivalLook" .. family.suffix .. "_" .. sanitizeKey(character)
+    return "rivalLook" .. family.suffix .. "_" .. characterKey(character)
   end
 
   -- The look a character would use in this family right now (as the

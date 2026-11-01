@@ -350,10 +350,17 @@ function gen3.init(mod, ctx)
     if not ok or type(text) ~= "string" then return nil end
     local list = text:match('"player"%s*:%s*(%b[])')
     if not list then return nil end
+    -- whole JSON numbers (1.5, -2.0, 1e1 too), rounded to pixels; the
+    -- pairs may be nested or flat
     local n = {}
-    for v in list:gmatch("%-?%d+") do n[#n + 1] = tonumber(v) end
-    if #n == 2 then return { [0] = { n[1], n[2] }, { n[1], n[2] }, { n[1], n[2] } } end
-    if #n == 6 then return { [0] = { n[1], n[2] }, { n[3], n[4] }, { n[5], n[6] } } end
+    for v in list:gmatch("[^,%s%[%]]+") do
+      local num = tonumber(v)
+      if not num then n = nil; break end
+      n[#n + 1] = math.floor(num + 0.5)
+    end
+    if n and #n == 2 then return { [0] = { n[1], n[2] }, { n[1], n[2] }, { n[1], n[2] } } end
+    if n and #n == 6 then return { [0] = { n[1], n[2] }, { n[3], n[4] }, { n[5], n[6] } } end
+    warnOnce(folder .. "surfBlob.json", "%ssurfBlob.json: \"player\" needs 2 or 6 numbers; ignoring it", folder)
     return nil
   end
   -- Returns the new frames, their width and height, and how many rows
@@ -863,7 +870,6 @@ function gen3.init(mod, ctx)
       local who = slot == "female" and "may" or "brendan"
       if has(frontRel) then
         list[#list + 1] = { suffix = "birch/" .. who .. ".png", file = frontRel, w = 64, h = 64 }
-        list[#list + 1] = { suffix = "rse/trainer_card/" .. slot .. ".png", file = frontRel, w = 64, h = 64 }
       end
       if has("mapIcon.png") then
         list[#list + 1] = { suffix = "rse/region_map/" .. who .. "_icon.png", file = "mapIcon.png", w = 16, h = 16 }
