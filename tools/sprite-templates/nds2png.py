@@ -64,7 +64,8 @@ def render(px, w, h, pal, tiled, transparent=True):
             x, y = i % w, i // w
         if y >= h: break
         c = pal[v] if v < len(pal) else (255, 0, 255)
-        put[x, y] = c + ((0,) if (transparent and v % 16 == 0) else (255,))
+        # 4bpp: index 0 of the 16; 8bpp: index 0 of the 256
+        put[x, y] = c + ((0,) if (transparent and v == 0) else (255,))
     return im
 
 def ncgr_png(path, pal, out, chunk=None):
@@ -87,9 +88,12 @@ def ncgr_png(path, pal, out, chunk=None):
     if g["tw"] == 0xFFFF or w * h != n:
         w = 64; h = n // w
     shape = [(w, h, not g["scanned"])]
-    if g["scanned"] and n % (80 * 80) == 0:
+    if g["scanned"] and n % (2 * 80 * 80) == 0:
         # trainer and Pokemon pics: 80x80 frames stored side by side as 160x80
         shape = [(160, n // 160, False)]
+    elif g["scanned"] and n == 80 * 80:
+        # a single 80x80 frame
+        shape = [(80, 80, False)]
     for w, h, tiled in shape:
         im = render(px, w, h, pal, tiled)
         im.save(out)
@@ -199,7 +203,10 @@ def main(src, dst):
                     sub = os.path.join(od, stem)
                     os.makedirs(sub, exist_ok=True)
                     res, pn = tex0_pngs(raw, raw.find(b"TEX0"), os.path.join(sub, stem))
-                    res.sort(key=lambda r: r[0])
+                    # skipped textures come back as a note (a string), the rest as (name, image)
+                    for note in (r for r in res if isinstance(r, str)):
+                        print(f"{label}/{stem}: {note}")
+                    res = sorted((r for r in res if not isinstance(r, str)), key=lambda r: r[0])
                     ims = [im for _, im in res]
                     if ims and all(im.size == ims[0].size for im in ims):
                         strip = Image.new("RGBA", (ims[0].width, ims[0].height * len(ims)))

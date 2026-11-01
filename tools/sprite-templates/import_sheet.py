@@ -496,6 +496,8 @@ def folder_options(opts):
     opts = dict(zip(opts[::2], opts[1::2]))
     fo = {"reach": int(opts.get("--reach", 1)), "background": opts.get("--bg", "auto")}
     if "--scale" in opts: fo["scale"] = int(opts["--scale"])
+    if "--lossy" in opts: fo["lossy"] = {"yes": True, "no": False}.get(opts["--lossy"], "auto")
+    if "--colors" in opts: fo["colors"] = int(opts["--colors"])
     return fo
 
 def piece_image(im, pieces, ref):
@@ -775,6 +777,9 @@ def build(src, recipe_path, out_dir):
             # A plain list is fine for one-row sections (front, back, field
             # move...); sections with facings need them named. -Elvie
             known = {**targets[family], **targets[extras]}
+            if key not in known and key != "surf with blob":
+                warn.append(f"unknown section '{key}'")
+                continue
             if "frames" in known.get(key, {}):
                 facings = {"frames": facings}
             else:
@@ -851,7 +856,17 @@ def main(a):
               f"{len(pieces)} pieces -> {a[2]}")
         return 0
     if len(a) == 4 and a[0] == "build":
-        return 0 if build(a[1], a[2], a[3]) else 1
+        try:
+            return 0 if build(a[1], a[2], a[3]) else 1
+        except json.JSONDecodeError as e:
+            print(f"  ERROR   {os.path.basename(a[2])} isn't valid JSON: {e}")
+            return 1
+        except (KeyError, TypeError, ValueError, IndexError, AttributeError) as e:
+            # a recipe value of the wrong kind; say what, without a traceback
+            what = f"{e} is missing or not a known name" if isinstance(e, KeyError) else str(e)
+            print(f"  ERROR   the recipe has a mistake ({type(e).__name__}: {what}); "
+                  "check it against the README's recipe section")
+            return 1
     if a and a[0] in ("pack", "convert", "reference", "blank", "surf", "transfer"):
         # Those live in pack_gen3.py; run it there rather than fail. -Elvie
         import subprocess
