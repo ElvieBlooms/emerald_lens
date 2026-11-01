@@ -924,6 +924,9 @@ function gen3.init(mod, ctx)
   local RIVAL_FILES = { "walk.png", "bike.png", "acroBike.png", "surf.png", "fieldMove.png",
     "front.png", "intro.png", "rivalEarly.png", "rivalLate.png", "rivalChampion.png" }
   local function configure(newCtx)
+    -- ask again for other games' sprites that weren't there last time
+    if crossgame and crossgame.retry then crossgame.retry() end
+    if gameboy and gameboy.retry then gameboy.retry() end
     -- fitSave (GENDER set to MY SAVE): both slots, as for enby; with a
     -- save, sharedSlots keeps only the picked one -Elvie
     slots = newCtx and SLOTS_FOR_GENDER_MODE[newCtx.fitSave and "enby" or newCtx.genderMode] or NONE
