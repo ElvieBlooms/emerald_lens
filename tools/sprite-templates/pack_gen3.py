@@ -1519,26 +1519,32 @@ def surfmon(path, gen3, force=False, fit=None, off=None):
                 blob.alpha_composite(cell, (0, (face * bobs + k) * 32))
             if top:
                 over.alpha_composite(top[0], (0, face * 32))
+        # surfBlob.png, surfOverlay.png and surfBlob.json go together: the
+        # overlay and the rider offsets belong to the blob they were made
+        # with, so all three are written (or removed) at once, or none are.
+        blob_dst = os.path.join(dst_dir, "surfBlob.png")
+        if os.path.exists(blob_dst) and not force:
+            print(f"  skip    {fam} (surfBlob.png already there; --force to replace it)")
+            continue
+        blob.save(blob_dst)
+        print(f"  made    {fam}/surfBlob.png")
+        made += 1
+        over_dst = os.path.join(dst_dir, "surfOverlay.png")
+        if over.getbbox():
+            over.save(over_dst)
+            print(f"  made    {fam}/surfOverlay.png")
+        elif os.path.exists(over_dst):
+            os.remove(over_dst)
+            print(f"  removed {fam}/surfOverlay.png (this sheet has no front parts)")
         offset = os.path.join(dst_dir, "surfBlob.json")
-        if moved and (force or not os.path.exists(offset)):
+        if moved:
             with open(offset, "w") as f:
                 json.dump({"player": [list(r) for r in riders]}, f)
                 f.write("\n")
             print(f"  made    {fam}/surfBlob.json")
-        elif not moved and os.path.exists(offset) and force:
+        elif os.path.exists(offset):
             os.remove(offset)
             print(f"  removed {fam}/surfBlob.json (no offset)")
-        for name, img in (("surfBlob.png", blob), ("surfOverlay.png", over if over.getbbox() else None)):
-            dst = os.path.join(dst_dir, name)
-            if img is None:
-                print(f"  skip    {fam}/{name} (the sheet has no front parts)")
-                continue
-            if os.path.exists(dst) and not force:
-                print(f"  skip    {fam}/{name} (already there; --force to replace it)")
-                continue
-            img.save(dst)
-            print(f"  made    {fam}/{name}")
-            made += 1
     return made > 0
 
 def flybird(folder, kit, nudges=((0, 0), (0, 0)), out=None, force=False, bird=True, tilts=(None, None)):
