@@ -352,6 +352,11 @@ do
   check(genderRow and #genderRow.choices == 2 and genderRow.choices[2][1] == "MY SAVE" and genderRow.default == "look",
     "GENDER row: the look's gender or MY SAVE")
   check(got.family == "frlg", "text set up for the running family")
+  local byKey = {}
+  for _, row in ipairs(rows) do byKey[row.key] = row end
+  check(byKey.characterGb1 and byKey.characterGb2 and byKey.genderGb2 and not byKey.genderGb1
+    and not byKey.rivalGb1 and not byKey.textGb2,
+    "R/B/Y and G/S/C rows: CHARACTER for both, GENDER only for G/S/C, no rival or text")
 
   options.characterFrlg, options.rivalFrlg = "KRIS", "SAGE"
   handlers["mod.options_changed"]({ mod = "emerald_lens", key = "rivalFrlg" })
@@ -513,6 +518,52 @@ do
   check(gb.has(mod, "assets/sprites/arale/", "surf.png") and gb.has(mod, "assets/sprites/arale/", "surfBlob.png")
     and gb.has(mod, "assets/sprites/arale/", "underwater.png") and not gb.has(mod, "assets/sprites/arale/", "walk.png"),
     "a folder's own overworldSurf.png: surf, dive and the left-out blob, with no game installed")
+
+  -- Red/Blue/Yellow: Gen 3 looks only, through gen12.lua -Elvie
+  local gbCtx, gbFamily
+  package.loaded["mods.emerald_lens.gen12"] = { init = function(_, c, f)
+    gbCtx, gbFamily = c, f
+    return { configure = function(c2) gbCtx = c2 end }
+  end }
+  local GV = package.loaded["src.core.GameVersion"]
+  local GENERATION = { red = 1 }
+  GV.generation = function(v) return GENERATION[v] or 3 end
+  version = "red"
+  dofile("lens.lua").init(mod)
+  check(gbCtx == nil, "R/B/Y starts OFF, so Crystal Lens's player stays")
+  options.characterGb1 = "KRIS"
+  handlers["mod.options_changed"]({ mod = "emerald_lens", key = "characterGb1" })
+  check(gbFamily and gbFamily.id == "gb1" and gbFamily.art[1] == "frlg",
+    "Red runs gen12.lua with FR/LG art first")
+  check(gbCtx and table.concat(gbCtx.folderKeys, ",") == "kris,zeta,arale",
+    "R/B/Y chain: " .. tostring(gbCtx and table.concat(gbCtx.folderKeys, ",")))
+  options.lookGb1_KRIS = "arale"
+  handlers["mod.options_changed"]({ mod = "emerald_lens", key = "lookGb1_KRIS" })
+  check(gbCtx.folderKeys[1] == "kris", "a Game Boy look isn't offered in R/B/Y (Crystal Lens's art)")
+  options.surfGb1 = "lapras"
+
+  -- With Crystal Lens: it keeps the choices; these looks join its lists -Elvie
+  local added
+  local installed = { crystal = { exports = { lens = { addLooks = function(p) added = p return true end } } } }
+  mod.find = function(a, b) return installed[b == nil and a or b] end
+  gbCtx = "unset"
+  dofile("lens.lua").init(mod)
+  local keys = {}
+  for _, look in ipairs(added and added.looks or {}) do keys[#keys + 1] = look.key end
+  check(added and table.concat(keys, ",") == "emerald_lens:kris,emerald_lens:zeta",
+    "Gen 3 looks handed to Crystal Lens: " .. table.concat(keys, ","))
+  check(gbCtx == nil, "nothing drawn until Crystal Lens picks one")
+  added.configure("emerald_lens:zeta")
+  check(gbCtx and gbCtx.folderKeys[1] == "zeta" and gbCtx.fitSave == true,
+    "Crystal Lens picks a look: drawn, for either save (its GENDER decides)")
+  gbCtx = nil
+  handlers["save.loaded"]()
+  check(gbCtx and gbCtx.folderKeys[1] == "zeta", "loading a save keeps Crystal Lens's pick")
+  added.configure(nil)
+  check(gbCtx == nil, "Crystal Lens's own look: this mod steps back")
+  mod.find = nil
+  GV.generation = nil
+  version = "firered"
 end
 
 print(("%d passed, %d failed"):format(passed, failed))

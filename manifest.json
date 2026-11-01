@@ -9,7 +9,9 @@
   "category": "GRAPHICS",
   "priority": 100,
   "dependencies": [],
-  "optional_dependencies": [],
+  "optional_dependencies": [
+    "crystal"
+  ],
   "conflicts": [],
   "incompatible": [],
   "experimental": false,
@@ -18,5 +20,9 @@
   ],
   "description": "Player sprite replacement for FireRed, LeafGreen, Ruby, Sapphire and Emerald, using the same character folder format as Crystal Lens.",
   "github": "ElvieBlooms/emerald_lens",
-  "games": ["gen3"]
+  "games": [
+    "gen1",
+    "gen2",
+    "gen3"
+  ]
 }
