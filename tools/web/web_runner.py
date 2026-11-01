@@ -274,7 +274,7 @@ def make_gif(raw, width, height, count, delays_json, out):
 def read_meta(path):
     """A look's meta.json, or {} when missing or unreadable."""
     try:
-        with open(os.path.join(WORK, path)) as f:
+        with open(os.path.join(WORK, path), encoding="utf-8-sig") as f:
             return json.dumps(json.load(f))
     except Exception:
         return "{}"
