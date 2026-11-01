@@ -184,9 +184,12 @@ local function colorsOf(meta, fallback)
   return fallback
 end
 
+local romPic -- below, with the battle pics -Elvie
 function gameboy.has(mod, base, file)
-  if SOURCES[file] then return sourceOf(mod, base, file) ~= nil end
   local which = romOf(registered[base])
+  if SOURCES[file] and sourceOf(mod, base, file) then return true end
+  if (SOURCES[file] or file:find("^rival%u")) and which then return romPic(mod, which, file) ~= nil end
+  if SOURCES[file] then return false end
   -- surf art and the left-out blob only with something to surf on -Elvie
   if MOUNT[file] or file == "surfBlob.png" then
     if mod.assets:info(base .. OWN_OF.surf) then return true end
@@ -582,6 +585,117 @@ local function fishing(mod, base)
   return out
 end
 
+-- Battle pics from the games
+-- A romOverworld trainer with no pics of its own takes them from the
+-- player's own Game Boy games, through mod.datasets (nothing shipped).
+-- modkit lint wants each cache path written out where it's read, so
+-- every pic has its own read. -Elvie
+local PIC_READ = {
+  redBack = function(view) return view.assets:path("assets/generated/battle/redb.png") end,
+  rival1 = function(view) return view.assets:path("assets/generated/battle/trainers/rival1.png") end,
+  rival2 = function(view) return view.assets:path("assets/generated/battle/trainers/rival2.png") end,
+  rival3 = function(view) return view.assets:path("assets/generated/battle/trainers/rival3.png") end,
+  red = function(view) return view.assets:path("assets/generated/battle/trainers/red.png") end,
+  blue = function(view) return view.assets:path("assets/generated/battle/trainers/blue.png") end,
+  chris = function(view) return view.assets:path("assets/generated/battle/trainers/chris.png") end,
+  playerBack = function(view) return view.assets:path("assets/generated/battle/player_back.png") end,
+}
+-- Each pic's colours: pokecrystal's trainer palettes (RED, BLUE, PLAYER),
+-- white and black around them, as the games draw them. Gen 1 pics get
+-- Gen 2's, like the overworld sprites. -Elvie
+local PIC_COLORS = {
+  RED = { { 255, 255, 255 }, { 230, 148, 140 }, { 181, 58, 66 }, { 0, 0, 0 } },
+  BLUE = { { 255, 255, 255 }, { 255, 197, 66 }, { 99, 74, 156 }, { 0, 0, 0 } },
+  PLAYER = { { 255, 255, 255 }, { 206, 148, 99 }, { 181, 74, 41 }, { 0, 0, 0 } },
+}
+-- Per trainer and Gen 3 file: { games, read, colours, scale } in order;
+-- Gen 1 backs are 32x32, drawn twice the size. intro.png is the front
+-- pic. Red's front is Gen 2's (Gen 1 has no battle pic of him). -Elvie
+local ROM_PICS = {
+  red = { ["front.png"] = { { GEN2, "red", "RED" } }, ["back.png"] = { { GEN1, "redBack", "RED", 2 } } },
+  blue = { ["front.png"] = { { GEN1, "rival1", "BLUE" }, { GEN2, "blue", "BLUE" } },
+    ["rivalEarly.png"] = { { GEN1, "rival1", "BLUE" } }, ["rivalLate.png"] = { { GEN1, "rival2", "BLUE" } },
+    ["rivalChampion.png"] = { { GEN1, "rival3", "BLUE" } } },
+  gold = { ["front.png"] = { { { "crystal" }, "chris", "PLAYER" } }, ["back.png"] = { { GEN2, "playerBack", "PLAYER" } } },
+}
+for _, pics in pairs(ROM_PICS) do pics["intro.png"] = pics["front.png"] end
+local PIC_SIZE = { ["rivalEarly.png"] = { 64, 64 }, ["rivalLate.png"] = { 64, 64 }, ["rivalChampion.png"] = { 64, 64 } }
+
+local views = {} -- [game] = view or false -Elvie
+local function viewOf(mod, game)
+  if views[game] ~= nil then return views[game] or nil end
+  local datasets = type(mod.datasets) == "table" and mod.datasets
+  local view
+  if datasets and type(datasets.open) == "function" then
+    local ok, v = pcall(datasets.open, datasets, game)
+    if ok and type(v) == "table" then view = v end
+  end
+  views[game] = view or false
+  return view
+end
+
+-- White joined to the edge is the pic's backdrop: see-through. -Elvie
+local function clearBackdrop(data)
+  local w, h = data:getDimensions()
+  local seen, queue = {}, {}
+  local function push(x, y)
+    if x < 0 or y < 0 or x >= w or y >= h or seen[y * w + x] then return end
+    local r, _, _, a = data:getPixel(x, y)
+    if a > 0 and r < 0.83 then return end
+    seen[y * w + x] = true
+    queue[#queue + 1] = { x, y }
+  end
+  for x = 0, w - 1 do push(x, 0); push(x, h - 1) end
+  for y = 0, h - 1 do push(0, y); push(w - 1, y) end
+  local i = 1
+  while queue[i] do
+    local x, y = queue[i][1], queue[i][2]
+    data:setPixel(x, y, 0, 0, 0, 0)
+    push(x + 1, y); push(x - 1, y); push(x, y + 1); push(x, y - 1)
+    i = i + 1
+  end
+  return data
+end
+
+local picCache = {} -- ["red|back.png"] = ImageData or false -Elvie
+function romPic(mod, which, file)
+  local list = which and ROM_PICS[which] and ROM_PICS[which][file]
+  if not list then return nil end
+  local key = which .. "|" .. file
+  if picCache[key] ~= nil then return picCache[key] or nil end
+  local pic
+  for _, source in ipairs(list) do
+    local games, read, colors, scale = unpack(source)
+    for _, game in ipairs(games) do
+      local view = viewOf(mod, game)
+      local ok, full = false, nil
+      if view then ok, full = pcall(PIC_READ[read], view) end
+      local okData, data = false, nil
+      if ok and type(full) == "string" then okData, data = pcall(love.image.newImageData, full) end
+      if okData and data then
+        if scale and scale > 1 then
+          local w, h = data:getDimensions()
+          local big = love.image.newImageData(w * scale, h * scale)
+          big:mapPixel(function(x, y) return data:getPixel(math.floor(x / scale), math.floor(y / scale)) end)
+          data = big
+        end
+        local colors4 = PIC_COLORS[colors]
+        clearBackdrop(data)
+        data:mapPixel(function(_, _, r, g, b, a)
+          if a == 0 then return r, g, b, a end
+          local c = colors4[greyShade(r) + 1]
+          return c[1] / 255, c[2] / 255, c[3] / 255, a
+        end)
+        pic = data
+        break
+      end
+    end
+    if pic then break end
+  end
+  picCache[key] = pic or false
+  return pic
+end
+
 -- The Gen 3 file as ImageData, or nil if the folder has no art for it.
 -- layout ("frlg" or "rse") sets the frame counts. -Elvie
 function gameboy.load(mod, base, file, layout)
@@ -595,13 +709,20 @@ function gameboy.load(mod, base, file, layout)
     return love.image.newImageData(32, 32 * BLOB[layout])
   end
   local rel = sourceOf(mod, base, file)
-  if not rel then return nil end
-  local ok, src = pcall(love.image.newImageData, mod.assets:path(rel))
-  if not ok or not src then
-    note(mod, rel, "could not load %s; skipping it", rel)
-    return nil
+  local src
+  if rel then
+    local ok
+    ok, src = pcall(love.image.newImageData, mod.assets:path(rel))
+    if not ok or not src then
+      note(mod, rel, "could not load %s; skipping it", rel)
+      return nil
+    end
+  else
+    src = romPic(mod, romOf(registered[base]), file)
+    if not src then return nil end
+    rel = base .. file
   end
-  local size = SIZE[file]
+  local size = SIZE[file] or PIC_SIZE[file]
   local pic = fit(mod, src, rel, size[1], size[2])
   if file ~= "back.png" then return pic end
   local n = BACK_FRAMES[layout] or 1

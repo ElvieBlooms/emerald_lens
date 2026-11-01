@@ -471,6 +471,8 @@ do
   check(gb.isBase("assets/sprites/arale/") and not gb.isBase("assets/sprites/kris/gen3/frlg/"),
     "Game Boy bases are told apart")
   check(not gb.isBase("assets/surfmons/lapras/rse/"), "a SURF row folder isn't a Game Boy look")
+  check(not gb.has(mod, "assets/sprites/red_gb/", "front.png") and not gb.has(mod, "assets/sprites/blue_gb/", "rivalEarly.png"),
+    "no installed game, no battle pics for a romOverworld look")
   check(gb.has(mod, "assets/sprites/arale/", "back.png") and not gb.has(mod, "assets/sprites/arale/", "front.png"),
     "back.png from backColor.png; no front art, no front.png")
   check(not gb.has(mod, "assets/sprites/arale/", "walk.png") and not gb.has(mod, "assets/sprites/arale/", "surf.png")
