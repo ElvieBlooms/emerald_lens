@@ -21,8 +21,9 @@ Run everything from the repo root.
   `.love` (`pokemon-love2d/updates/gen1recomp-<version>.love` is a zip).
 
 ## Adding a line
-1. Dump pret's strings (the `.out.lua` file holds game text; it's
-   git-ignored):
+1. Dump pret's strings: the `.string` labels under `data/` and the
+   `u8 X[] = _("...")` strings in `src/` and `include/` (the `.out.lua` file
+   holds game text; it's git-ignored):
 
    ```
    python3 tools/wording/pret_strings.py ~/pret/pokefirered frlg.out.lua
