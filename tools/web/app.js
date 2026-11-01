@@ -1644,7 +1644,8 @@ async function addCrystalClear(items) {
   FS.mkdirTree(work("cc"));
   writeFile("cc/sheet.png", new Uint8Array(await item.file.arrayBuffer()));
   FS.mkdirTree(work("look"));
-  const argv = ["cc/sheet.png", "look", "--meta-out", "cc/keys.json"];
+  // replacing the look's Game Boy files is the point of adding a sheet here
+  const argv = ["cc/sheet.png", "look", "--meta-out", "cc/keys.json", "--force"];
   if (!$("gb-cc-colors").checked) argv.push("--keep-colors");
   if (run("crystal_clear.py", argv, $("gb-cc-log")) !== 0) {
     status("That doesn't look like a Crystal Clear player sheet; see the log.", "failed");

@@ -26,10 +26,11 @@ sword isn't used. meta.json (created if the folder has none) gets:
   python3 crystal_clear.py sheet.png ../../assets/sprites/mylook
   python3 crystal_clear.py sheet.png ./out --no-meta
   python3 crystal_clear.py sheet.png ./out --meta-out keys.json
---meta-out writes only the keys to add, to its own file.
+--meta-out writes only the keys to add, to its own file. If the folder
+already has any of the files above it stops; --force replaces them.
 
 Needs Pillow. -Elvie"""
-import json, os, sys
+import json, os, re, sys
 from collections import deque
 from PIL import Image
 
@@ -178,7 +179,26 @@ def paint(grid, colors, clear):
     return im
 
 
-def convert(src, dst, meta=True, colors_too=True, meta_out=None):
+# Every file convert() can write into the look folder.
+OUTPUTS = ("front.png", "frontColor.png", "back.png", "backColor.png", "trainerCard.png", "trainerCardColor.png",
+           "overworldWalk.png", "overworldSurf.png", "overworldFishFront.png", "overworldFishBack.png",
+           "overworldFishSide.png", "overworldFishRod.png")
+
+
+def dump_meta(data, f):
+    """meta.json as people write it: two-space indent, but a list of plain
+    numbers (an overworldColors row) kept on one line."""
+    text = json.dumps(data, indent=2, ensure_ascii=False)
+    text = re.sub(r"\[\s*(-?\d+(?:\s*,\s*-?\d+)*)\s*\]",
+                  lambda m: "[" + ", ".join(n.strip() for n in m.group(1).split(",")) + "]", text)
+    f.write(text + "\n")
+
+
+def convert(src, dst, meta=True, colors_too=True, meta_out=None, force=False):
+    there = [n for n in OUTPUTS if os.path.exists(os.path.join(dst, n))]
+    if there and not force:
+        print(f"  ERROR   {dst} already has " + ", ".join(there) + "; --force to replace them")
+        return None
     im = Image.open(src).convert("RGBA")
     scale, found = find(im)
     missing = [n for n in ("front", "back", "card", "walk", "surf", "fishing") if n not in found]
@@ -243,11 +263,13 @@ def convert(src, dst, meta=True, colors_too=True, meta_out=None):
         else:
             data = {"label": os.path.basename(os.path.normpath(dst)).upper()[:12], "genderMode": "girl",
                     "generation": 2}
+        new = not os.path.isfile(path)
         data.update(keys)
         with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-            f.write("\n")
+            dump_meta(data, f)
         print("  meta    meta.json: " + ", ".join(keys))
+        if new:
+            print('  note    made a new meta.json; add a "credit" if the art is someone else\'s')
     return wrote
 
 
@@ -257,4 +279,6 @@ if __name__ == "__main__":
     args = [a for a in flags if not a.startswith("--") and a != out]
     if len(args) != 2:
         sys.exit(__doc__)
-    convert(args[0], args[1], meta="--no-meta" not in flags, colors_too="--keep-colors" not in flags, meta_out=out)
+    wrote = convert(args[0], args[1], meta="--no-meta" not in flags, colors_too="--keep-colors" not in flags,
+                    meta_out=out, force="--force" in flags)
+    sys.exit(0 if wrote is not None else 1)

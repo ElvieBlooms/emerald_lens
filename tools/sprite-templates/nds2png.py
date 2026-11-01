@@ -171,21 +171,30 @@ def tex0_pngs(d, base, out_prefix):
     return results, pnames
 
 def main(src, dst):
+    used = set()
     for folder in sorted(glob.glob(os.path.join(src, "*"))):
         if not os.path.isdir(folder): continue
         label = os.path.basename(folder).split("-")[0].strip()
-        od = os.path.join(dst, label)
+        # Foo-1 and Foo-2 both have the label Foo; the second keeps its full
+        # folder name for its output, so it doesn't write over the first's.
+        out_name = label if label not in used else os.path.basename(folder)
+        used.add(out_name)
+        od = os.path.join(dst, out_name)
         os.makedirs(od, exist_ok=True)
-        files = sorted(glob.glob(os.path.join(folder, "*")))
+        files = [f for f in sorted(glob.glob(os.path.join(folder, "*"))) if os.path.isfile(f)]
         pals = []
         for f in files:
-            d = open(f, "rb").read(4)
-            if d == b"RLCN":
-                pals.append(f)
+            try:
+                with open(f, "rb") as fh:
+                    if fh.read(4) == b"RLCN":
+                        pals.append(f)
+            except OSError:
+                pass
         for f in files:
-            raw = open(f, "rb").read()
             stem = os.path.splitext(os.path.basename(f))[0]
             try:
+                with open(f, "rb") as fh:
+                    raw = fh.read()
                 if raw[:4] == b"RGCN":
                     # palette: the RLCN right after it in number order, else the first
                     num = int(stem.split("_")[1].split("-")[0])
@@ -194,7 +203,7 @@ def main(src, dst):
                     pal, _ = read_nclr(cand[0]) if cand else ([(i * 17,) * 3 for i in range(16)], 16)
                     chunk = (16, 16) if label == "MapIcon" else None
                     info = ncgr_png(f, pal, os.path.join(od, stem + ".png"), chunk)
-                    print(f"{label}/{stem}.png  {info}  pal {os.path.basename(cand[0]) if cand else 'grey'}")
+                    print(f"{out_name}/{stem}.png  {info}  pal {os.path.basename(cand[0]) if cand else 'grey'}")
                 elif b"TEX0" in raw:
                     sub = os.path.join(od, stem)
                     os.makedirs(sub, exist_ok=True)
@@ -205,9 +214,9 @@ def main(src, dst):
                         strip = Image.new("RGBA", (ims[0].width, ims[0].height * len(ims)))
                         for k, im in enumerate(ims): strip.paste(im, (0, k * im.height))
                         strip.save(os.path.join(od, stem + "_strip.png"))
-                    print(f"{label}/{stem}: {len(res)} textures {ims[0].size if ims else ''}, palettes {pn}")
+                    print(f"{out_name}/{stem}: {len(res)} textures {ims[0].size if ims else ''}, palettes {pn}")
             except Exception as e:
-                print(f"{label}/{stem}: failed ({e})")
+                print(f"{out_name}/{stem}: failed ({e})")
 
 if __name__ == "__main__":
     main(sys.argv[1], sys.argv[2])

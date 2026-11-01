@@ -32,6 +32,7 @@ blank      Write a fresh blank combined sheet:
 transfer   Start the other game's sheet from this one: every section that has
            a counterpart (walk, run, Mach Bike to bike, fishing, surf, back...)
            is copied over, frame by frame, if it fits; the rest stays blank.
+           An existing output sheet is only replaced with --force.
              python3 pack_gen3.py transfer rse rse_sheet.png frlg frlg_sheet.png
              python3 pack_gen3.py transfer frlg_extras frlg_extras.png rse_extras rse_extras.png
 
@@ -829,7 +830,7 @@ BACK_FRAMES = {("frlg", "rse"): {1: 0, 2: 1, 4: 2, 0: 3},
                ("rse", "frlg"): {3: 0, 0: 1, 1: 2, 2: 4}}
 BACK_EXTRA = {("rse", "frlg"): {3: 1}}  # FRLG's second quick frame reuses RSE's
 
-def transfer(src_family, src, dst_family, dst):
+def transfer(src_family, src, dst_family, dst, force=False):
     """Fill the other game's sheet from this one: each section goes to its
     counterpart (Mach Bike to bike, and so on), frame by frame in order.
     The game draws every frame centred and standing on its bottom edge, so a
@@ -838,6 +839,9 @@ def transfer(src_family, src, dst_family, dst):
     counterpart stays blank. -Elvie"""
     if (src_family in EXTRAS_OF.values()) != (dst_family in EXTRAS_OF.values()):
         print("  ERROR   transfer a main sheet to a main sheet, or extras to extras")
+        return False
+    if os.path.exists(dst) and not force:
+        print(f"  ERROR   {dst} is already there; --force to replace it")
         return False
     strips, ok = read_any(src_family, src)
     if not ok:
@@ -879,6 +883,7 @@ def transfer(src_family, src, dst_family, dst):
                 got += 1
         if total:
             moved.append(f"{key} -> {to}: {got} of {total} frames")
+    os.makedirs(os.path.dirname(os.path.abspath(dst)), exist_ok=True)
     sheet_from_strips(dst_family, out).save(dst)
     for m in moved:
         print(f"  moved   {m}")
@@ -1685,8 +1690,8 @@ if __name__ == "__main__":
         im.save(a[3])
         print(f"  wrote   {a[3]}")
         sys.exit(0)
-    if len(a) == 5 and a[0] == "transfer" and a[1] in SPECS and a[3] in SPECS:
-        sys.exit(0 if transfer(a[1], a[2], a[3], a[4]) else 1)
+    if len(a) in (5, 6) and a[0] == "transfer" and a[1] in SPECS and a[3] in SPECS and a[5:] in ([], ["--force"]):
+        sys.exit(0 if transfer(a[1], a[2], a[3], a[4], a[5:] == ["--force"]) else 1)
     if len(a) in (3, 4) and a[0] == "feet" and a[1] in SPECS and a[3:] in ([], ["--match"]):
         sys.exit(0 if feet(a[1], a[2], a[3:] == ["--match"]) else 1)
     if len(a) >= 3 and a[0] == "blobs" and set(a[3:]) <= {"--surf", "--dive", "--force"}:

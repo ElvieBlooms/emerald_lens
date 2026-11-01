@@ -56,8 +56,9 @@ way Gen 2 places it, so the script adds `"fishRod": "gen2"` to `meta.json`,
 and the Injecting row as `overworldColors`, so the overworld sprites wear
 the sheet's colours too (`--keep-colors` leaves those out). It makes a
 `meta.json` if the folder has none; `--no-meta` leaves it alone, and
-`--meta-out keys.json` writes just the keys to their own file. The sword is
-skipped.
+`--meta-out keys.json` writes just the keys to their own file. If the folder
+already has any of those files it stops; `--force` replaces them. The sword
+is skipped.
 
 Two formats, usable interchangeably -- draw in either, convert between them
 at any point, and pack from either or both:
@@ -102,6 +103,8 @@ start from your RSE work (or the other way round):
     python3 pack_gen3.py transfer frlg_wide frlg_wide_sheet.png rse_wide rse_wide_sheet.png
     python3 pack_gen3.py transfer rse_extras rse_extras.png frlg_extras frlg_extras.png
 
+- If the output sheet is already there, `transfer` stops rather than write
+  over it; add `--force` to replace it.
 - Every section with a counterpart moves over frame by frame: walk, run,
   fishing, surf, front, back, map icon, Mach Bike and bike, field move, and
   the surf blob and Fly bird on the extras sheet.
