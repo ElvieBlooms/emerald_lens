@@ -97,6 +97,13 @@ function lens.init(mod)
     return {}
   end
 
+  -- A label is sorted and turned into an option key, so it has to be text;
+  -- anything else in meta.json (a number, true) falls back to the folder name.
+  local function labelOf(meta, key)
+    if type(meta.label) == "string" and meta.label ~= "" then return meta.label end
+    return key:upper()
+  end
+
   local function isDirectory(rel)
     local info = mod.assets:info(rel)
     return info and info.type == "directory"
@@ -136,7 +143,10 @@ function lens.init(mod)
     if isDirectory(SPRITES_DIR .. "/" .. key) then
       local meta = readMeta(key)
       metaFor[key] = meta
-      local label = meta.label or key:upper()
+      local label = labelOf(meta, key)
+      if meta.label ~= nil and meta.label ~= false and type(meta.label) ~= "string" then
+        mod.log:warn("%s/meta.json: \"label\" should be text, using %s", key, label)
+      end
       local character = (type(meta.character) == "string" and meta.character ~= "")
         and meta.character or label
       local entry = { label = label, key = key }
@@ -431,7 +441,7 @@ function lens.init(mod)
       for _, family in ipairs(FAMILIES) do
         if mod.assets:info(SURF_DIR .. "/" .. id .. "/" .. family.id .. "/surfBlob.png") then
           surfKits[family.id] = surfKits[family.id] or {}
-          table.insert(surfKits[family.id], { key = id, label = meta.label or id:upper(), credit = meta.credit })
+          table.insert(surfKits[family.id], { key = id, label = labelOf(meta, id), credit = meta.credit })
         end
       end
     end
@@ -698,7 +708,7 @@ function lens.init(mod)
   -- The credits page: the player's and the rival's looks, every other
   -- look this family offers, then the mod itself. -Elvie
   local function lookName(character, key)
-    local label = (metaFor[key] or {}).label or key:upper()
+    local label = labelOf(metaFor[key] or {}, key)
     return label == character and character or (character .. ": " .. label)
   end
 
