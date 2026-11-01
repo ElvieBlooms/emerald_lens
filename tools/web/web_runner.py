@@ -81,8 +81,16 @@ def single_dir(path):
     return path
 
 def replace_dir(src, dst):
+    """Replace WORK/dst with a copy of WORK/src. The copy is made first, so
+    if src isn't a folder or copying fails, dst is left as it was."""
+    s = os.path.join(WORK, src)
+    if not os.path.isdir(s):
+        raise NotADirectoryError(f"{src} is not a folder")
+    tmp = os.path.join(WORK, dst + "~copy")
+    clear(dst + "~copy")
+    shutil.copytree(s, tmp)
     clear(dst)
-    shutil.copytree(os.path.join(WORK, src), os.path.join(WORK, dst))
+    os.rename(tmp, os.path.join(WORK, dst))
 
 def sheet_family(path, family):
     """The family to hand transfer: the extras family when the sheet is
