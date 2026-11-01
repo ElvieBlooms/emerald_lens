@@ -9,8 +9,23 @@ local VALID_GENDER_MODES = { boy = true, girl = true, enby = true }
 -- src.link, which would make this mod ask for the network permission just
 -- to read a file. Errors on anything malformed; callers pcall it. -Elvie
 -- --------------------------------------------------
+-- \u escapes become UTF-8, the same as the characters written out.
+local function utf8Char(code)
+  if code < 0x80 then return string.char(code) end
+  if code < 0x800 then
+    return string.char(0xC0 + math.floor(code / 0x40), 0x80 + code % 0x40)
+  end
+  if code < 0x10000 then
+    return string.char(0xE0 + math.floor(code / 0x1000), 0x80 + math.floor(code / 0x40) % 0x40, 0x80 + code % 0x40)
+  end
+  return string.char(0xF0 + math.floor(code / 0x40000), 0x80 + math.floor(code / 0x1000) % 0x40,
+    0x80 + math.floor(code / 0x40) % 0x40, 0x80 + code % 0x40)
+end
+
 local function decodeJson(text)
   local pos = 1
+  -- Notepad and some other Windows editors start the file with a UTF-8 BOM.
+  if text:sub(1, 3) == "\239\187\191" then pos = 4 end
   local function fail(what) error(("meta.json: %s at character %d"):format(what, pos), 0) end
   local function skip() pos = text:find("[^ \t\r\n]", pos) or #text + 1 end
   local value
@@ -26,8 +41,16 @@ local function decodeJson(text)
         local e = text:sub(pos + 1, pos + 1)
         if e == "u" then
           local code = tonumber(text:sub(pos + 2, pos + 5), 16) or fail("bad \\u escape")
-          out[#out + 1] = code < 128 and string.char(code) or "?"
           pos = pos + 6
+          if code >= 0xD800 and code <= 0xDBFF and text:sub(pos, pos + 1) == "\\u" then
+            -- a surrogate pair: one character outside the BMP
+            local low = tonumber(text:sub(pos + 2, pos + 5), 16)
+            if low and low >= 0xDC00 and low <= 0xDFFF then
+              code = 0x10000 + (code - 0xD800) * 0x400 + (low - 0xDC00)
+              pos = pos + 6
+            end
+          end
+          out[#out + 1] = (code >= 0xD800 and code <= 0xDFFF) and "?" or utf8Char(code)
         else
           out[#out + 1] = ESCAPES[e] or fail("bad escape")
           pos = pos + 2

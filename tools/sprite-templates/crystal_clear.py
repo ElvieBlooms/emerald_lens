@@ -238,7 +238,7 @@ def convert(src, dst, meta=True, colors_too=True, meta_out=None):
         path = os.path.join(dst, "meta.json")
         data = {}
         if os.path.isfile(path):
-            with open(path, encoding="utf-8") as f:
+            with open(path, encoding="utf-8-sig") as f:
                 data = json.load(f)
         else:
             data = {"label": os.path.basename(os.path.normpath(dst)).upper()[:12], "genderMode": "girl",
