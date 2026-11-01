@@ -48,9 +48,17 @@ try {
     try {
       $head = $req.HttpMethod -eq 'HEAD'
       $notFound = [Text.Encoding]::UTF8.GetBytes('Not found')
+      # GET and HEAD only, as serve.py and serve.pl
+      if ($req.HttpMethod -ne 'GET' -and -not $head) {
+        Send $res 405 'text/plain' ([Text.Encoding]::UTF8.GetBytes('Method not allowed')) $false
+        continue
+      }
       $path = [Uri]::UnescapeDataString($req.Url.AbsolutePath)
+      # Url.AbsolutePath has ".." already folded away; check what was asked
+      $asked = [Uri]::UnescapeDataString(($req.RawUrl -split '\?')[0])
       $parts = @($path.Split('/') | Where-Object { $_ -ne '' })
-      if (@($parts | Where-Object { $_ -eq '..' -or $_.StartsWith('.') -or $_ -match '[\\:]' }).Count -gt 0) {
+      $askedParts = @($asked.Split('/') | Where-Object { $_ -ne '' })
+      if (@($askedParts + $parts | Where-Object { $_ -eq '..' -or $_.StartsWith('.') -or $_ -match '[\\:]' }).Count -gt 0) {
         Send $res 404 'text/plain' $notFound $head
         continue
       }
@@ -75,7 +83,9 @@ try {
     } catch {
       try { $res.StatusCode = 500 } catch { }
     } finally {
-      $res.Close()
+      # a browser that gave up on the request can make Close throw; that
+      # mustn't stop the server
+      try { $res.Close() } catch { }
     }
   }
 } finally {
