@@ -459,6 +459,9 @@ def split_sheet(family, im):
     size, sections = layout(family)
     warnings = []
     if im.size != size:
+        extras = EXTRAS_OF.get(family)
+        if extras and extras != family and im.size == layout(extras)[0]:
+            return None, [f"this is the {extras} sheet ({im.size[0]}x{im.size[1]}); give it as {extras}"]
         # A sheet from before newer blocks were added: same width, shorter.
         # Earlier blocks haven't moved, so pad it and read the new ones blank.
         if im.width == size[0] and im.height < size[1]:
@@ -1605,7 +1608,9 @@ def flybird(folder, kit, nudges=((0, 0), (0, 0)), out=None, force=False, bird=Tr
         y = f["y"] + dy - rider.height // 2
         frame = layers["back.png"].crop((0, i * 64, 64, i * 64 + 64))
         layer = Image.new("RGBA", (64, 64), CLEAR)
-        layer.paste(rider, (x, y), rider)
+        # a plain paste onto the clear layer keeps the rider's alpha as it
+        # is (pasting with itself as the mask would square it)
+        layer.paste(rider, (x, y))
         frame.alpha_composite(layer)
         frame.alpha_composite(layers["front.png"].crop((0, i * 64, 64, i * 64 + 64)))
         sheet.paste(frame, (0, i * 64))
@@ -1684,6 +1689,9 @@ if __name__ == "__main__":
         sys.exit(0 if merge(a[1], a[2], rest, picks, report, clash_dir) else 1)
     if len(a) == 4 and a[0] == "convert" and a[1] in SPECS:
         sys.exit(0 if convert(a[1], a[2], a[3]) else 1)
+    if len(a) in (5, 6) and a[0] == "reference" and a[1] in SPECS and base_of(a[1]) not in SOURCES:
+        sys.exit(f"  ERROR   reference exports the Gen 3 games' own sprites; {a[1]} has none "
+                 "(Game Boy art comes from crystal_clear.py or your own drawing)")
     if len(a) in (5, 6) and a[0] == "reference" and a[1] in SPECS and a[2] in ("male", "female", "boy", "girl"):
         formats = FORMAT_FLAGS.get(a[5], None) if len(a) == 6 else FORMAT_FLAGS["--both"]
         if formats:
@@ -1723,11 +1731,17 @@ if __name__ == "__main__":
         tilts = [None, None]
         while k < len(opts):
             if opts[k] in ("--off", "--in") and k + 1 < len(opts):
-                x, y = (int(v) for v in opts[k + 1].split(","))
+                try:
+                    x, y = (int(v) for v in opts[k + 1].split(","))
+                except ValueError:
+                    sys.exit(f"  ERROR   {opts[k]} takes dx,dy in whole pixels, like {opts[k]} 2,-1")
                 nudge[opts[k] == "--in"] = (x, y)
                 k += 2
             elif opts[k] in ("--off-tilt", "--in-tilt") and k + 1 < len(opts):
-                tilts[opts[k] == "--in-tilt"] = float(opts[k + 1])
+                try:
+                    tilts[opts[k] == "--in-tilt"] = float(opts[k + 1])
+                except ValueError:
+                    sys.exit(f"  ERROR   {opts[k]} takes an angle in degrees, like {opts[k]} 15")
                 k += 2
             elif opts[k] == "--out" and k + 1 < len(opts):
                 out = opts[k + 1]
