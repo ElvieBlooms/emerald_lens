@@ -52,11 +52,21 @@ def find_background(im):
     """A flat colour used to fill the space around the sprites, if there is
     one: the most common solid colour, when it covers a big share of the
     sheet (sprites are many colours, a backdrop is one). Fully transparent
-    pixels always count as background too."""
-    counts = Counter(p[:3] for p in pixels(im) if p[3] > 0)
+    pixels always count as background too, and when they outnumber that
+    colour the sheet already has its backdrop cleared: the colour is then
+    part of the sprites (a body or outline on a few-shade sheet), not a
+    backdrop, so nothing is picked."""
+    counts, clear = Counter(), 0
+    for p in pixels(im):
+        if p[3] > 0:
+            counts[p[:3]] += 1
+        else:
+            clear += 1
     if not counts:
         return None
     color, count = counts.most_common(1)[0]
+    if clear > count:
+        return None
     return color if count > sum(counts.values()) * 0.3 else None
 
 def find_scale(im):
