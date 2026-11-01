@@ -116,6 +116,7 @@ do
   lines.TestC = TextIR.fromAscii("Nothing to swap here.")
   lines.TestD = TextIR.fromAscii("It's a drag, man. Manly.")
   local A, B = "Thanks, son! This is his.\\pGood lad.", "Hey, chap!"
+  local gameA = lines.TestA -- the game's own line, to check it's put back
   package.loaded["mods.emerald_lens.wording_frlg"] = {
     { label = "TestA", hash = lineHash(A), who = "player",
       girl = { { "son", "lass" }, { "his", "hers" }, { "lad", "lass" } },
@@ -141,7 +142,7 @@ do
 
   session.gender = 0 -- a boy save: the look's girl doesn't apply
   h.refresh()
-  check(lines.TestA == cache.TestA or wording.canonical(lines.TestA) == A, "boy save: the game's own line")
+  check(lines.TestA == gameA and wording.canonical(lines.TestA) == A, "boy save: the game's own line")
 
   session.gender = 1
   h.refresh()
@@ -192,21 +193,49 @@ for _, case in ipairs({ { env = "RSE_TEXT", game = "emerald" }, { env = "RS_TEXT
     local h = wording.init(mod, "rse")
     h.configure({ player = "enby" })
     check(#mod.logs == 0, case.game .. ": no warnings: " .. table.concat(mod.logs, "; "))
-    local changed = 0
-    for k, v in pairs(t) do if before[k] ~= v then changed = changed + 1 end end
-    local want = 0
-    for _, e in ipairs(entries) do
-      local mine = e.games == nil
-      for _, g in ipairs(e.games or {}) do mine = mine or g == case.game end
-      if mine and e.enby and (e.who or "player") == "player" then want = want + 1 end
+    -- Exactly the lines whose text one of this game's player entries for
+    -- the mode matches (an entry can match more than one line with the
+    -- same text) change, and no others.
+    local function expected(mode)
+      local hashes = {}
+      for _, e in ipairs(entries) do
+        local mine = e.games == nil
+        for _, g in ipairs(e.games or {}) do mine = mine or g == case.game end
+        if mine and e[mode] and (e.who or "player") == "player" then hashes[e.hash] = true end
+      end
+      local keys = {}
+      for k, v in pairs(before) do
+        if type(v) == "table" and hashes[wording.hash(wording.canonical(v))] then keys[k] = true end
+      end
+      return keys
     end
-    check(changed >= want, ("%s: %d lines changed for %d entries"):format(case.game, changed, want))
+    local function sameChanges(mode)
+      local want, extra, missing = expected(mode), {}, {}
+      for k, v in pairs(t) do
+        if before[k] ~= v and not want[k] then extra[#extra + 1] = tostring(k) end
+      end
+      for k in pairs(want) do
+        if t[k] == before[k] then missing[#missing + 1] = tostring(k) end
+      end
+      check(#extra == 0 and #missing == 0, ("%s %s: only the matched lines change (extra: %s; unchanged: %s)")
+        :format(case.game, mode, table.concat(extra, ","), table.concat(missing, ",")))
+    end
+    sameChanges("enby")
     h.configure({ player = "girl" })
-    local chap = 0
+    sameChanges("girl")
+    local chap, dewford = 0, 0
+    for _, e in ipairs(entries) do
+      if e.label == "DewfordTown_Hall_Text_WorkOnYourSinging" then
+        for k, v in pairs(before) do
+          if type(v) == "table" and wording.hash(wording.canonical(v)) == e.hash then dewford = dewford + 1 end
+        end
+      end
+    end
     for k, v in pairs(t) do
       if before[k] ~= v and TextIR.toPlain(v, {}):find("I dare say, friend", 1, true) then chap = chap + 1 end
     end
-    check(chap >= 1, case.game .. ": a girl save gets the Dewford line")
+    check(chap == dewford and chap >= 1, ("%s: a girl save gets the Dewford line (%d of %d)")
+      :format(case.game, chap, dewford))
     -- the rival's name, with the enby wording on the same line -Elvie
     TrainersStub.get = plainGet
     local h2mod = fakeMod({ gender = 1 })
