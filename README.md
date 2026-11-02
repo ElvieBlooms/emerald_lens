@@ -1,11 +1,11 @@
 # Emerald Lens
-A player sprite mod for the Gen 3 games in gen1recomp: FireRed, LeafGreen, Ruby, Sapphire and Emerald, and for Gen 3 and 4 looks in Red, Blue, Yellow, Gold, Silver and Crystal. Needs gen1recomp 0.3.98 or newer.
+A player sprite mod for gen1recomp: FireRed, LeafGreen, Ruby, Sapphire and Emerald, and Red, Blue, Yellow, Gold, Silver and Crystal. Needs gen1recomp 0.3.98 or newer.
 
 <img width="960" height="641" alt="Kris" src="https://github.com/user-attachments/assets/ed42d94d-aaf5-41b7-b022-cbf9bb71f996" />
 <img width="1022" height="676" alt="krisfrlgow1" src="https://github.com/user-attachments/assets/fc2a50e5-a031-4e75-b665-75286d963de0" />
 <img width="989" height="657" alt="krisfrlgtc" src="https://github.com/user-attachments/assets/ad6a854c-98f5-4937-8445-572a1665de4d" />
 
-Emerald Lens is the Gen 3 companion to [Crystal Lens](https://github.com/dburton95/crystal) and uses the same character folder format. Each mod reads only its own `assets/sprites` folder, but a character folder can be copied between them unchanged: Crystal Lens uses its Game Boy art and Emerald Lens uses its `gen3` art, so one folder can carry both and be copied into each mod. A folder with only Game Boy art works here too, as a Game Boy look (see **Game Boy looks** below). You can keep both mods enabled: in the Game Boy games Crystal Lens (version with the LENS screen) stays in charge, and this mod's Gen 3 and 4 looks join its **FRONT SPRITE** lists; pick one there and Emerald Lens draws your player. With an older Crystal Lens, or without it, Emerald Lens has its own **R/B/Y** and **G/S/C** rows, which start **OFF**.
+Emerald Lens is the Gen 3 companion to [Crystal Lens](https://github.com/dburton95/crystal) and uses the same character folder format. Each mod reads only its own `assets/sprites` folder, but a character folder can be copied between them unchanged: Crystal Lens uses its Game Boy art and Emerald Lens uses its `gen3` art, so one folder can carry both and be copied into each mod. A folder with only Game Boy art works here too, as a Game Boy look (see **Game Boy looks** below). You can keep both mods enabled: in the Game Boy games Crystal Lens (version with the LENS screen) stays in charge, and this mod's looks join its **FRONT SPRITE** lists (the Game Boy ones it doesn't have already); pick one there and Emerald Lens draws your player. With an older Crystal Lens, or without it, Emerald Lens has its own **R/B/Y** and **G/S/C** rows, which start **OFF**.
 
 ## Features
 * Replaces the player everywhere Gen 3 draws them: walking, running, biking, surfing, fishing and other overworld poses, the battle back pic and throw, the front pic (Hall of Fame, battle intro), the trainer card, the new-game intro, the map icon, and riding the bird in FRLG's Fly. The cable car up Mt. Chimney shows your look too. That scene draws with the GBA's 15 colours a sprite, so a look with more is cut down to 15 there.
@@ -18,7 +18,7 @@ Emerald Lens is the Gen 3 companion to [Crystal Lens](https://github.com/dburton
 * The other Gen 3 games' players: RED and LEAF from FireRed/LeafGreen in Ruby/Sapphire/Emerald, and Emerald's BRENDAN and MAY in FireRed/LeafGreen, all four in the Game Boy games too, read from your own copies of those games (see **Players from the other Gen 3 games** below).
 * Game Boy looks: drop in a folder from Crystal Lens and its battle art is used as it is; Red's, Gold's and Kris's Game Boy walking and biking sprites come from your own copies of those games (see **Game Boy looks** below).
 * Falls back sheet by sheet: the selected look, then the same character's other looks of the same generation, then its other looks, closest generation first, then the game's own sprite. Draw as much or as little as you like.
-* Gen 3 and 4 looks in the Game Boy games: your character walks, bikes, surfs and fishes in Red/Blue/Yellow and Gold/Silver/Crystal too, in full colour, with their battle pics and trainer card, and Blue or Silver can wear a look as your rival (see **Gen 3 looks in the Game Boy games** below).
+* Your looks in the Game Boy games: Gen 3, Gen 4 and Game Boy looks walk, bike, surf and fish in Red/Blue/Yellow and Gold/Silver/Crystal too, in full colour, with their battle pics and trainer card, and Blue or Silver can wear a look as your rival (see **Looks in the Game Boy games** below).
 * Sprite tools to draw from the game's own sprites and pack your art (`tools/sprite-templates`).
 
 ## Adding a character
@@ -93,7 +93,7 @@ FireRed/LeafGreen is covered: Oak's intro, Daisy and Lance on the rival; Mom, th
 
 Every folder of a character is still used as a fallback, in this order: the selected look, the character's other looks of the same `generation`, then its other looks (Gen 3 and Gen 4 looks before Game Boy ones, and the other way round for a Game Boy look, then the closest generation first, menu order within each), then the game's own sprite.
 
-### Gen 3 looks in the Game Boy games
+### Looks in the Game Boy games
 In Red, Blue and Yellow (**R/B/Y** in the mod options) and Gold, Silver and Crystal (**G/S/C**), any look with `gen3` art can be your player too. Each has its own **CHARACTER** and **LOOK** rows, **RIVAL** and **RIVAL LOOK**, **SURF**, and G/S/C a **GENDER** row (Crystal has Kris; in the others there's only one player to replace). With Crystal Lens installed, these looks are picked on its **FRONT SPRITE** and **RIVAL LOOK** rows and LENS screen instead, and its **GENDER** row decides who they replace; only **SURF** stays in this mod's options. R/B/Y uses a look's `gen3/frlg` sheets first and G/S/C its `gen3/rse` ones, each falling back to the other family's, then to the character's other looks, sheet by sheet, then the game's own sprite. Game Boy looks are offered there too (the GBC looks, RED, GOLD's and GARY's GAME BOY looks and the rest), drawn from their own Crystal Lens files the same way as in the Gen 3 games, with their own front and back pics at Game Boy size. With Crystal Lens installed, a Game Boy look it already has itself (the KRIS ones copied from it) isn't listed twice.
 
 * **Walking and biking** from `walk.png` and `bike.png`. The Game Boy games have one step per facing and mirror it every other step; Gen 3 art isn't symmetrical, so both of Gen 3's steps are used instead and nothing flips sides. 32-wide sheets work too.
@@ -138,9 +138,7 @@ A Game Boy look is never a character's default look when the character has Gen 3
 
 Changing a character or look applies straight away, no restart needed: the player changes as soon as you're back in the game. The one exception is the FireRed/LeafGreen trainer card, which keeps the portrait it first loaded until the game restarts. Adding or editing files in a character folder still needs a restart.
 
-Updating from 0.1.5 or earlier, your old character choice carries over to both families, wherever that character has art.
-
-Updating from 0.3.0, copy the new files over the old `emerald_lens` folder; no looks moved. The new **RIVAL** rows start **OFF** and **TEXT** starts **ON**, so nothing changes until you pick a rival, apart from the wording for your own character.
+Updating to 1.0.0, copy the new files over the old `emerald_lens` folder; no looks moved and your choices carry over. The new **R/B/Y** and **G/S/C** rows start **OFF**, so the Game Boy games don't change until you pick a look there. From 0.1.5 or earlier, your old character choice carries over to both Gen 3 families, wherever that character has art.
 
 ## Sheet sizes
 Every file is optional. Each one is looked for in the selected look's folder, then the character's other folders (in menu order), then the game's own sprite. A file that isn't exactly the right size is skipped and logged to the console, and the next folder is tried.
@@ -208,6 +206,7 @@ The surf blob and bird have no boy or girl version, so they're only used when yo
 ## Not covered yet
 * New-game name choices.
 * In link battles, an opponent who picked a replaced gender also shows your character, since front pics are replaced by picture number.
+* Gold/Silver/Crystal's rival naming screen: with **RIVAL** on, its little icon is the top corner of the look's walking sheet.
 
 ## Credits
 * Built on the Crystal Lens framework by Dgray66, used with permission. The gendered text follows Crystal Lens's girl and enby text modes.
