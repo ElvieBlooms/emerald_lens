@@ -76,6 +76,11 @@ local ROM = {
   gold = { walk = { { GEN2, "SPRITE_CHRIS", "red" } }, bike = { { GEN2, "SPRITE_CHRIS_BIKE", "red" } },
            surf = { { GEN2, "SPRITE_SURF", "blue" } },
            dive = { { GEN1, "SPRITE_SEEL", "blue" }, { GEN2, "SPRITE_SURF", "blue" } } },
+  -- the bike half a look without a bike sprite borrows (see bikeFrames):
+  -- Kris's for a girl, Chris's otherwise, Red's without Gold/Silver/Crystal
+  bikegirl = { bike = { { { "crystal" }, "SPRITE_KRIS_BIKE", "blue" }, { GEN2, "SPRITE_CHRIS_BIKE", "red" },
+    { GEN1, "SPRITE_RED_BIKE", "red" } } },
+  bikeboy = { bike = { { GEN2, "SPRITE_CHRIS_BIKE", "red" }, { GEN1, "SPRITE_RED_BIKE", "red" } } },
   kris = { walk = { { { "crystal" }, "SPRITE_KRIS", "blue" } }, bike = { { { "crystal" }, "SPRITE_KRIS_BIKE", "blue" } },
            surf = { { GEN2, "SPRITE_SURF", "blue" } },
            dive = { { GEN1, "SPRITE_SEEL", "blue" }, { GEN2, "SPRITE_SURF", "blue" } } },
@@ -124,6 +129,8 @@ local registered = {} -- [base] = meta -Elvie
 local warned = {}
 local romCache = {} -- ["kris|walk"] = { grey ImageData, the game's colours } or false -Elvie
 local fromRom -- below; gameboy.has asks it whether a game has a sprite -Elvie
+-- which game bike a look without one borrows the bottom half of
+local function bikeOf(meta) return meta.genderMode == "girl" and "bikegirl" or "bikeboy" end
 -- The player's installed games, read through mod.datasets -Elvie
 local views = {} -- [game] = view or false -Elvie
 local function viewOf(mod, game)
@@ -215,7 +222,13 @@ function gameboy.has(mod, base, file)
   local own = OW_FILES[file]
   if not own then return false end
   if mod.assets:info(base .. own) then return true end
-  return which ~= nil and fromRom(mod, which, file:sub(1, 4)) ~= nil
+  if which ~= nil and fromRom(mod, which, file:sub(1, 4)) ~= nil then return true end
+  -- no bike of its own: borrowed from the game's, with a walk to go on top
+  if file == "bike.png" then
+    local walk = mod.assets:info(base .. OWN_OF.walk) or (which ~= nil and fromRom(mod, which, "walk") ~= nil)
+    return walk and fromRom(mod, bikeOf(registered[base] or {}), "bike") ~= nil or false
+  end
+  return false
 end
 
 -- The pic in a w x h box: centred across, feet on the bottom edge. A
@@ -361,8 +374,39 @@ local function frames(mod, base, kind)
   return colourise(grey:clone(), colors, false)
 end
 
+-- A bike sprite for a look with none: the look's own walking frames down
+-- to row 10 (head and shoulders, which the games' bike sprites share
+-- with their walking ones), and below that the game's own bike sprite
+-- (arms, handlebars, wheel), both in the look's colours. Read from the
+-- player's own game, never shipped. A look's own overworldBike.png, or a
+-- romOverworld trainer's bike, always wins.
+local BIKE_CUT = 10
+local function bikeFrames(mod, base)
+  local meta = registered[base] or {}
+  local walk = frames(mod, base, "walk")
+  if not walk then return nil end
+  local grey = fromRom(mod, bikeOf(meta), "bike")
+  if not grey then return nil end
+  -- the walk's own colours, so both halves match
+  local fallback = CRYSTAL_COLORS
+  if not mod.assets:info(base .. OWN_OF.walk) and romOf(meta) then
+    local _, romColors = fromRom(mod, romOf(meta), "walk")
+    fallback = romColors or fallback
+  end
+  local bike = colourise(grey:clone(), colorsOf(meta, fallback), false)
+  local w, h = walk:getDimensions()
+  local out = love.image.newImageData(w, h)
+  for f = 0, math.floor(h / 16) - 1 do
+    out:paste(walk, 0, f * 16, 0, f * 16, w, BIKE_CUT)
+    out:paste(bike, 0, f * 16 + BIKE_CUT, 0, f * 16 + BIKE_CUT, w, 16 - BIKE_CUT)
+  end
+  return out
+end
+gameboy.BIKE_CUT = BIKE_CUT
+
 local function sheet(mod, base, kind, layout)
   local src = frames(mod, base, kind)
+  if not src and kind == "bike" then src = bikeFrames(mod, base) end
   if not src then return nil end
   local sw, sh = src:getDimensions()
   if sw ~= 16 or sh < 16 * 6 then
