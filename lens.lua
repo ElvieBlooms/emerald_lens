@@ -990,6 +990,7 @@ function lens.init(mod)
     local entry = { id = "emerald_lens", label = "EMERALD LENS", short = "LENS",
       about = "The look of you and your rival.",
       colour = { 24, 140, 72 }, -- emerald -Elvie
+      order = 10, -- the lens first, Facets under it
       draw = function(area, clock)
         lensScreen.drawLook(screenPreview("player", liveGame()), {
           frontX = area.x0 + 16, frontY = area.y1 - 64, walkX = area.x1 - 18, walkBottom = area.y1,
@@ -1103,6 +1104,7 @@ function lens.init(mod)
       local entry = { id = "emerald_lens", label = "EMERALD LENS", short = "LENS",
         about = "The look of you and your rival.",
         colour = { 24, 140, 72 }, -- emerald
+        order = 10, -- the lens first, Facets under it
         value = function() return currentCharacter(running) or "OFF" end,
         open = function(g) gbScreen.open(liveGame(g)) end,
       }
