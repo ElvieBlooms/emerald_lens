@@ -149,8 +149,9 @@ function lens.init(mod)
   -- --------------------------------------------------
   -- The Game Boy games (gb = true) show a look's gen3/ sheets through
   -- gen12.lua, from the art families in order: FR/LG's first in Kanto,
-  -- R/S/E's first in Johto. Game Boy looks aren't offered there, since
-  -- that's Crystal Lens's art. -Elvie
+  -- R/S/E's first in Johto. Game Boy looks are offered there too, drawn
+  -- from their own Crystal Lens files (with Crystal Lens installed, only
+  -- the ones it doesn't have itself).
   local FAMILIES = {
     { id = "frlg", suffix = "Frlg", label = "FR/LG" },
     { id = "rse",  suffix = "Rse",  label = "R/S/E" },
@@ -201,8 +202,8 @@ function lens.init(mod)
           crossgame.register(SPRITES_DIR .. "/" .. key .. "/gen3/" .. family.id .. "/", meta)
           crossFor[family.id][key] = true
         end
-        if not own and gameBoy and not family.gb then gameBoyFor[family.id][key] = true end
-        if own or (gameBoy and not family.gb) or cross then
+        if not own and gameBoy then gameBoyFor[family.id][key] = true end
+        if own or gameBoy or cross then
           local looks = lookFolders[family.id]
           looks[character] = looks[character] or {}
           table.insert(looks[character], entry)
@@ -647,11 +648,51 @@ function lens.init(mod)
     }
   end
 
+  -- What the Game Boy LENS screens show of a look, through its chain:
+  -- the front pic (rivalEarly.png first for the rival), and the walking
+  -- sprite, a Gen 3 walk.png (walk) or a Game Boy overworldWalk.png in
+  -- the look's overworldColors (walkGb, colors). Used by this mod's screen
+  -- and Crystal Lens's.
+  local CRYSTAL_COLORS = { { 255, 255, 255 }, { 255, 173, 99 }, { 1, 99, 198 }, { 0, 0, 0 } }
+  local function gbPreviewOf(character, look, rival)
+    local out = {}
+    local gb = running and gameBoyFor[running.id] or {}
+    local names = rival and { "rivalEarly", "front" } or { "front" }
+    for _, name in ipairs(names) do
+      for _, key in ipairs(chainFor(character, look)) do
+        local files = gb[key] and { SPRITES_DIR .. "/" .. key .. "/" .. name .. "Color.png", SPRITES_DIR .. "/" .. key .. "/" .. name .. ".png" } or {}
+        if not gb[key] then
+          for _, art in ipairs(running.art) do files[#files + 1] = SPRITES_DIR .. "/" .. key .. "/gen3/" .. art .. "/" .. name .. ".png" end
+        end
+        for _, rel in ipairs(files) do
+          if not out.pic and mod.assets:info(rel) then out.pic = mod.assets:path(rel) end
+        end
+      end
+    end
+    for _, key in ipairs(chainFor(character, look)) do
+      if out.walk or out.walkGb then break end
+      if gb[key] then
+        local rel = SPRITES_DIR .. "/" .. key .. "/overworldWalk.png"
+        if mod.assets:info(rel) then
+          local c = (metaFor[key] or {}).overworldColors
+          out.walkGb, out.colors = mod.assets:path(rel), (type(c) == "table" and #c == 4) and c or CRYSTAL_COLORS
+        end
+      else
+        for _, art in ipairs(running.art) do
+          local rel = SPRITES_DIR .. "/" .. key .. "/gen3/" .. art .. "/walk.png"
+          if not out.walk and mod.assets:info(rel) then out.walk = mod.assets:path(rel) end
+        end
+      end
+    end
+    return out
+  end
+
   -- The rival in the Game Boy games, from this mod's own rows (nil for OFF)
   local function gbRival()
     local rival = currentRival(running)
     if not rival then return nil end
-    return { folderKeys = chainFor(rival, selectedLook(running, rival, true)), spritesDir = SPRITES_DIR }
+    return { folderKeys = chainFor(rival, selectedLook(running, rival, true)), spritesDir = SPRITES_DIR,
+      gameBoy = gameBoyFor[running.id] }
   end
 
   if running and defaults[running.id] and running.gb then
@@ -668,7 +709,8 @@ function lens.init(mod)
     local first = not crystalLens and resolve() or nil
     if first then first.rival = gbRival() end
     handle = require("mods.emerald_lens.gen12").init(mod, first, running,
-      { lookKeys = lookKeys, pikachuKit = pikachu, ownCard = not crystalLens })
+      { lookKeys = lookKeys, gameBoy = gameBoyFor[running.id], spritesDir = SPRITES_DIR,
+        pikachuKit = pikachu, ownCard = not crystalLens })
     if handle and crystalLens then
       -- Hand Crystal Lens every look with gen3/ art. While one is its
       -- front sprite, it calls configure with that look's key and this
@@ -681,23 +723,13 @@ function lens.init(mod)
         for _, entry in ipairs(lookFolders[running.id][choice.key]) do
           characterOf[entry.key] = choice.key
           local meta = metaFor[entry.key] or {}
+          -- folder: Crystal Lens leaves out a Game Boy look it has itself
           looks[#looks + 1] = { key = PREFIX .. entry.key, character = choice.key, label = entry.label,
-            credit = meta.credit }
+            credit = meta.credit, folder = entry.key }
         end
       end
       local function folderOf(key)
         return type(key) == "string" and key:sub(1, #PREFIX) == PREFIX and key:sub(#PREFIX + 1) or nil
-      end
-      -- the first front.png through the chain, for the LENS preview and
-      -- the trainer card
-      local function frontOf(character, folder)
-        for _, look in ipairs(chainFor(character, folder)) do
-          for _, art in ipairs(running.art) do
-            local rel = SPRITES_DIR .. "/" .. look .. "/gen3/" .. art .. "/front.png"
-            if mod.assets:info(rel) then return mod.assets:path(rel) end
-          end
-        end
-        return nil
       end
       local pickedFolder
       crystalLens.addLooks({
@@ -716,22 +748,27 @@ function lens.init(mod)
           crystalPick = function()
             local kit = surfKitOf(running)
             return { folderKeys = chainFor(character, folder), lookKey = folder, genderMode = genderModeOf(folder),
-              fitSave = true, spritesDir = SPRITES_DIR, surfKit = kit and (SURF_DIR .. "/" .. kit .. "/") or nil }
+              fitSave = true, spritesDir = SPRITES_DIR, surfKit = kit and (SURF_DIR .. "/" .. kit .. "/") or nil,
+              gameBoy = gameBoyFor[running.id] }
           end
           handle.configure(crystalPick())
         end,
         configureRival = function(key)
           local folder = folderOf(key)
           local character = folder and characterOf[folder]
-          handle.configureRival(character and { folderKeys = chainFor(character, folder), spritesDir = SPRITES_DIR } or nil)
+          handle.configureRival(character and { folderKeys = chainFor(character, folder), spritesDir = SPRITES_DIR,
+            gameBoy = gameBoyFor[running.id] } or nil)
         end,
         preview = function(key)
           local folder = folderOf(key)
           local character = folder and characterOf[folder]
           if not character then return nil end
           -- the card while this look is the player's: the one being drawn
-          local card = folder == pickedFolder and handle.card() or nil
-          return { pic = frontOf(character, folder), card = card }
+          -- Crystal Lens's names: walk is a Game Boy sheet coloured with
+          -- colors, walkFull a Gen 3 one drawn as it is
+          local p = gbPreviewOf(character, folder)
+          return { pic = p.pic, walk = p.walkGb, colors = p.colors, walkFull = p.walk,
+            card = folder == pickedFolder and handle.card() or nil }
         end,
       })
     end
@@ -1063,32 +1100,16 @@ function lens.init(mod)
     return rows
   end
 
-  -- The first copy of a file through a look's chain, in the art order
-  local function firstFile(character, look, names)
-    for _, name in ipairs(names) do
-      for _, key in ipairs(chainFor(character, look)) do
-        for _, art in ipairs(running.art) do
-          local rel = SPRITES_DIR .. "/" .. key .. "/gen3/" .. art .. "/" .. name
-          if mod.assets:info(rel) then return mod.assets:path(rel) end
-        end
-      end
-    end
-    return nil
-  end
-
   local function gbPreview(who)
     local f = running
     if who == "rival" then
       local rival = currentRival(f)
       if not rival then return { line = "THE GAME'S OWN" } end
-      local look = selectedLook(f, rival, true)
-      return { pic = firstFile(rival, look, { "rivalEarly.png", "front.png" }),
-        walk = firstFile(rival, look, { "walk.png" }) }
+      return gbPreviewOf(rival, selectedLook(f, rival, true), true)
     end
     local character = currentCharacter(f)
     if not character then return { line = "THE GAME'S OWN" } end
-    local look = selectedLook(f, character)
-    return { pic = firstFile(character, look, { "front.png" }), walk = firstFile(character, look, { "walk.png" }) }
+    return gbPreviewOf(character, selectedLook(f, character))
   end
 
   if running and defaults[running.id] and running.gb and not crystalLens then

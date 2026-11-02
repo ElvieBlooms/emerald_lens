@@ -66,12 +66,19 @@ function gen12.backPath(modId, key)
   return ("mods/%s/live/back/%s.png"):format(modId or "emerald_lens", cleanKey(key))
 end
 
+-- Game Boy looks' battle pics are their own files (Crystal Lens's), colour
+-- first; the grey ones take the game's palette
+local GB_PICS = { front = { "frontColor.png", "front.png" }, back = { "backColor.png", "back.png" } }
+
 -- opts: lookKeys (every look this family offers, for the back scales),
+-- gameBoy ([key] = true for the Game Boy looks among them) and spritesDir,
 -- pikachuKit (a surf kit folder for Yellow's surfing Pikachu), ownCard
 -- (draw the Gen 2 trainer card portrait; off while Crystal Lens leads,
 -- since it draws the card itself)
 function gen12.init(mod, ctx, family, opts)
   opts = opts or {}
+  local okGb, gameboy = pcall(require, "mods.emerald_lens.gameboy")
+  if not okGb then gameboy = nil end
   if not (love and love.graphics and love.image) then return nil end
   local GameVersion = engine("src.core.GameVersion")
   local Assets = engine("src.render.Assets")
@@ -99,28 +106,48 @@ function gen12.init(mod, ctx, family, opts)
   local live -- built renderers and pic paths, or nil for none
   local serial = 0
 
+  -- A Game Boy look (Crystal Lens's files) is its folder itself, laid out
+  -- for each art family by gameboy.lua, the same as in the Gen 3 games
   local function basesOf(newCtx)
     local list = {}
+    local gb = type(newCtx.gameBoy) == "table" and newCtx.gameBoy or {}
     for _, key in ipairs(newCtx.folderKeys or {}) do
+      local top = newCtx.spritesDir .. "/" .. key .. "/"
       for _, layout in ipairs(family.art) do
-        list[#list + 1] = { dir = newCtx.spritesDir .. "/" .. key .. "/gen3/" .. layout .. "/", layout = layout,
-          top = newCtx.spritesDir .. "/" .. key .. "/" }
+        if gb[key] then
+          list[#list + 1] = { dir = top, layout = layout, top = top, gameBoy = true }
+        else
+          list[#list + 1] = { dir = top .. "gen3/" .. layout .. "/", layout = layout, top = top }
+        end
       end
     end
     return list
   end
 
-  -- First folder whose copy of file is the right size, sheet by sheet -Elvie
+  -- First folder whose copy of file is the right size, sheet by sheet;
+  -- the sixth value is how many rows hang below the feet (Game Boy
+  -- fishing frames) -Elvie
   local function loadSheet(name, list)
     for _, base in ipairs(list or bases) do
       local size = SHEETS[base.layout][name]
       local rel = base.dir .. name .. ".png"
-      if size and mod.assets:info(rel) then
+      if size and base.gameBoy then
+        local file = name .. ".png"
+        local ok, data = false, nil
+        if gameboy and gameboy.has(mod, base.dir, file) then ok, data = pcall(gameboy.load, mod, base.dir, file, base.layout) end
+        if ok and data then
+          local drop = gameboy.DROP and gameboy.DROP[file] or 0
+          local w, h = data:getDimensions()
+          if (w == size[1] or (size[1] == 16 and w == 32)) and h == (size[2] + drop) * size[3] then
+            return data, base.layout, w, size[2] + drop, base.dir, drop
+          end
+        end
+      elseif size and mod.assets:info(rel) then
         local ok, data = pcall(love.image.newImageData, mod.assets:path(rel))
         if ok and data then
           local w, h = data:getDimensions()
           if (w == size[1] or (size[1] == 16 and w == 32)) and h == size[2] * size[3] then
-            return data, base.layout, w, size[2], base.dir
+            return data, base.layout, w, size[2], base.dir, 0
           end
           warnOnce(rel, "%s is %dx%d but needs %dx%d; skipping it", rel, w, h, size[1], size[2] * size[3])
         else
@@ -276,13 +303,25 @@ function gen12.init(mod, ctx, family, opts)
   -- Oak's intro and the Hall of Fame open the path as a file. The back is
   -- one frame of a strip, so it's built (battles load through Assets), at
   -- the look's fixed path.
+  -- A Game Boy look's pics are its own files, at their own size, as
+  -- Crystal Lens shows them. Returns the path and whether it's in colour.
   local function picOf(name)
-    local src, layout, _, _, dir = loadSheet(name)
-    if not src then return nil end
-    if name == "front" then return mod.assets:path(dir .. "front.png") end
-    local out = love.image.newImageData(64, 64)
-    out:paste(src, 0, 0, 0, BACK_IDLE[layout] * 64, 64, 64)
-    return publish(name, out, lookKey and gen12.backPath(mod.id, lookKey) or nil)
+    for _, base in ipairs(bases) do
+      if base.gameBoy then
+        for _, file in ipairs(GB_PICS[name]) do
+          if mod.assets:info(base.dir .. file) then return mod.assets:path(base.dir .. file), file:find("Color") ~= nil end
+        end
+      else
+        local src, layout, _, _, dir = loadSheet(name, { base })
+        if src then
+          if name == "front" then return mod.assets:path(dir .. "front.png"), true end
+          local out = love.image.newImageData(64, 64)
+          out:paste(src, 0, 0, 0, BACK_IDLE[layout] * 64, 64, 64)
+          return publish(name, out, lookKey and gen12.backPath(mod.id, lookKey) or nil), true
+        end
+      end
+    end
+    return nil
   end
 
   -- The Gen 2 trainer card portrait: a folder's own Crystal Lens
@@ -312,12 +351,13 @@ function gen12.init(mod, ctx, family, opts)
     if bike then out.bike = walker("bike", bike, bw, bh) end
     out.surf = surfSheet("surf", surfFolders)
     if #pikaFolders > 0 then out.surfPika = surfSheet("surfPika", pikaFolders) end
-    local fish = loadSheet("fishing")
+    local fish, _, _, fh, _, drop = loadSheet("fishing")
     if fish then
-      out.fish = renderer("fishing", pick(fish, 32, 32, { FISH_FRAME.down, FISH_FRAME.up, FISH_FRAME.left }),
-        32, 32, 3, { frameFor = function(facing) return STAND[facing] end })
+      out.fish = renderer("fishing", pick(fish, 32, fh, { FISH_FRAME.down, FISH_FRAME.up, FISH_FRAME.left }),
+        32, fh, 3, { anchorY = fh - (drop or 0), frameFor = function(facing) return STAND[facing] end })
     end
-    out.front, out.back = picOf("front"), picOf("back")
+    out.front, out.frontColour = picOf("front")
+    out.back, out.backColour = picOf("back")
     local card = cardOf()
     if card then
       local ok, img = pcall(love.graphics.newImage, card)
@@ -362,9 +402,20 @@ function gen12.init(mod, ctx, family, opts)
   -- says otherwise, so each look's back is registered at 1x while the mod
   -- loads, at its fixed path (Gen 2 backs are 1x already)
   if gen == 1 and mod.content and mod.content.battle_sprite_scales then
+    local scales = mod.content.battle_sprite_scales
     for _, key in ipairs(opts.lookKeys or {}) do
-      pcall(mod.content.battle_sprite_scales.register, mod.content.battle_sprite_scales,
-        "emerald_lens_back_" .. cleanKey(key), { path = gen12.backPath(mod.id, key), scale = 1 })
+      if opts.gameBoy and opts.gameBoy[key] then
+        -- a Game Boy look's own back files, 1x as Crystal Lens has them
+        for _, file in ipairs(GB_PICS.back) do
+          local rel = (opts.spritesDir or "assets/sprites") .. "/" .. key .. "/" .. file
+          if mod.assets:info(rel) then
+            pcall(scales.register, scales, "emerald_lens_back_" .. cleanKey(key .. "_" .. file),
+              { path = mod.assets:path(rel), scale = 1 })
+          end
+        end
+      else
+        pcall(scales.register, scales, "emerald_lens_back_" .. cleanKey(key), { path = gen12.backPath(mod.id, key), scale = 1 })
+      end
     end
   end
 
@@ -511,9 +562,10 @@ function gen12.init(mod, ctx, family, opts)
       path = nextFn(path, hookCtx)
       if not live or type(hookCtx) ~= "table" or hookCtx.demo or hookCtx.oakDemo then return path end
       if not replaces(saveFemale()) then return path end
-      local mine = hookCtx.side == "back" and live.back or (hookCtx.side == "front" and live.front)
+      local back = hookCtx.side == "back"
+      local mine = back and live.back or (hookCtx.side == "front" and live.front)
       if mine then
-        hookCtx.trueColor = true
+        hookCtx.trueColor = (back and live.backColour or (not back and live.frontColour)) and true or false
         return mine
       end
       return path

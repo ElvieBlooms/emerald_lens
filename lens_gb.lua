@@ -92,6 +92,32 @@ function lensGb.new(mod, api)
     return images[key] or nil
   end
 
+  -- A Game Boy sheet's four greys in the look's colours, white clear, as
+  -- Crystal Lens colours it
+  local walks = {}
+  local function gbWalk(path, colors)
+    if not (path and type(colors) == "table") then return nil end
+    local key = path .. "|" .. table.concat(colors[2] or {}, ",") .. "|" .. table.concat(colors[3] or {}, ",")
+    if walks[key] == nil then
+      local ok, data = pcall(love.image.newImageData, path)
+      if ok and data then
+        data:mapPixel(function(_, _, r, g, b, a)
+          if a == 0 then return r, g, b, a end
+          local shade = r > 0.83 and 1 or r > 0.5 and 2 or r > 0.17 and 3 or 4
+          if shade == 1 then return 0, 0, 0, 0 end
+          local c = colors[shade]
+          return c[1] / 255, c[2] / 255, c[3] / 255, a
+        end)
+        local img = love.graphics.newImage(data)
+        img:setFilter("nearest", "nearest")
+        walks[key] = img
+      else
+        walks[key] = false
+      end
+    end
+    return walks[key] or nil
+  end
+
   local function trueColor(x, y, w, h)
     if PaletteFX and type(PaletteFX.markTrueColor) == "function" then pcall(PaletteFX.markTrueColor, x, y, w, h) end
   end
@@ -168,7 +194,7 @@ function lensGb.new(mod, api)
         local row = rows[self.cursor] or {}
         local preview = api.preview(row.who or "player")
         love.graphics.setColor(1, 1, 1, 1)
-        if preview and (preview.pic or preview.walk) then
+        if preview and (preview.pic or preview.walk or preview.walkGb) then
           local pic = image(preview.pic, true)
           if pic then
             trueColor(PIC_X, PIC_Y, PIC_BOX, PIC_BOX)
@@ -185,6 +211,16 @@ function lensGb.new(mod, api)
             local x = WALK_X - math.floor((fw - 16) / 2)
             trueColor(x, WALK_Y, fw, 32)
             love.graphics.draw(walk, quad, x, WALK_Y)
+          end
+          local gb = gbWalk(preview.walkGb, preview.colors)
+          if gb then
+            -- a Game Boy look: standing, then a step (frames 0 and 3), feet
+            -- where a Gen 3 sprite's would be
+            local w, h = gb:getDimensions()
+            local frame = math.floor(self.clock * 2) % 2 == 0 and 0 or 3
+            local quad = love.graphics.newQuad(0, frame * 16, 16, 16, w, h)
+            trueColor(WALK_X, WALK_Y + 15, 16, 16)
+            love.graphics.draw(gb, quad, WALK_X, WALK_Y + 15)
           end
         else
           Font.draw(preview and preview.line or "OFF", LABEL_X, WALK_Y + 16)
