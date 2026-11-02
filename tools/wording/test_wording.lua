@@ -543,8 +543,8 @@ do
   mod.ui = { Font = {}, push = function() end }
   mod.hooks = { wrap = function(_, name, fn) handlers[name] = fn end }
   dofile("lens.lua").init(mod)
-  check(screens.emerald_lens_lens and screens.emerald_lens_lens_credits,
-    "the Game Boy LENS and credits screens are registered")
+  check(screens.emerald_lens_lens and screens.emerald_lens_lens_credits and screens.emerald_lens_prism,
+    "the Game Boy LENS, credits and PRISM screens are registered")
   check(gbCtx == nil, "R/B/Y starts OFF, so Crystal Lens's player stays")
   options.characterGb1 = "KRIS"
   handlers["mod.options_changed"]({ mod = "emerald_lens", key = "characterGb1" })
@@ -570,14 +570,21 @@ do
   gbRival = "unset"
   handlers["save.loaded"]()
   check(type(gbRival) == "table" and gbRival.folderKeys[1] == "zeta", "loading a save puts the rival back")
-  -- the LENS screen on the Game Boy START and OPTION menus
+  -- the LENS screen on the Game Boy START and OPTION menus, through PRISM
   local items = handlers["ui.start_menu.items"](function(_, list) return list end, nil,
     { { label = "OPTION" }, { label = "MODS" }, { label = "QUIT" } })
-  check(items[2] and items[2].label == "LENS" and items[3].label == "MODS",
+  check(items[2] and items[2].label == "LENS" and items[2].id == "prism" and items[3].label == "MODS",
     "LENS goes just above MODS on the Game Boy START menu")
-  local optRows = handlers["ui.options.rows"](function(_, list) return list end, nil, { { id = "text" } })
-  check(optRows[2] and optRows[2].label == "EMERALD LENS" and optRows[2].value() == "KRIS" and optRows[2].activate,
-    "EMERALD LENS row on the Game Boy OPTION menu, showing the character")
+  local optRows = handlers["ui.options.rows"](function(_, list) return list end, nil, { { id = "text" }, { id = "cancel", cancel = true } })
+  check(optRows[2] and optRows[2].label == "EMERALD LENS" and optRows[2].value() == "KRIS" and optRows[2].activate
+    and optRows[3].cancel, "EMERALD LENS row on the Game Boy OPTION menu, before BACK, showing the character")
+  -- with Facets there too, one PRISM item for both
+  local prism = dofile("prism.lua")
+  local facetsEntry = { id = "facets", label = "FACETS", short = "FACETS", value = function() return "HGSS" end, open = function() end }
+  local both = prism.addStartGb(mod, handlers["ui.start_menu.items"](function(_, list) return list end, nil,
+    { { label = "OPTION" }, { label = "MODS" }, { label = "QUIT" } }), facetsEntry, nil, "facets_prism")
+  check(both[2].label == "PRISM" and #both[2].entries == 2 and both[2].entries[1].id == "emerald_lens"
+    and both[2].screen == "emerald_lens_prism" and #both == 4, "with Facets, one PRISM item lists both, sorted by name")
   options.rivalGb1, options.rivalLookGb1_KRIS = nil, nil
   options.surfGb1 = "lapras"
 

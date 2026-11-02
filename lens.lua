@@ -1014,8 +1014,8 @@ function lens.init(mod)
   end
 
   -- The Game Boy games: the LENS screen drawn their way (lens_gb.lua),
-  -- on the START and OPTION menus. Crystal Lens has its own LENS screen,
-  -- so with it installed its rows pick the looks.
+  -- on the START and OPTION menus through PRISM. Crystal Lens has its own
+  -- LENS screen, so with it installed its rows pick the looks.
   -- --------------------------------------------------
   local function hasKris()
     local game = liveGame()
@@ -1094,30 +1094,27 @@ function lens.init(mod)
     local gbScreen = require("mods.emerald_lens.lens_gb").new(mod, {
       rows = gbRows, set = setOption, preview = gbPreview, credits = screenCredits,
     })
+    -- START and OPTION menus through prism.lua, as in the Gen 3 games: on
+    -- its own it's LENS on START and EMERALD LENS on OPTION; with Facets
+    -- (or another visuals mod) they share one PRISM item.
+    local prism = require("mods.emerald_lens.prism")
+    local prismScreen = prism.registerGb(mod)
     if gbScreen and mod.hooks and type(mod.hooks.wrap) == "function" then
-      -- LENS just above MODS (or QUIT), and an EMERALD LENS row at the end
-      -- of OPTION showing the character. PRISM comes here once it's ready
-      -- for the Game Boy games.
+      local entry = { id = "emerald_lens", label = "EMERALD LENS", short = "LENS",
+        about = "The look of you and your rival.",
+        colour = { 24, 140, 72 }, -- emerald
+        value = function() return currentCharacter(running) or "OFF" end,
+        open = function(g) gbScreen.open(liveGame(g)) end,
+      }
       mod.hooks:wrap("ui.start_menu.items", function(nextFn, game, items)
         local out = nextFn(game, items)
         if type(out) ~= "table" then return out end
-        local at
-        for _, anchor in ipairs({ "MODS", "QUIT" }) do
-          for i, item in ipairs(out) do
-            if not at and type(item) == "table" and item.label == anchor then at = i end
-          end
-        end
-        table.insert(out, at or (#out + 1), { id = "emerald_lens", label = "LENS",
-          onSelect = function() gbScreen.open(liveGame(game)) end })
-        return out
+        return prism.addStartGb(mod, out, entry, liveGame(game), prismScreen)
       end)
       mod.hooks:wrap("ui.options.rows", function(nextFn, game, rows)
         local out = nextFn(game, rows)
         if type(out) ~= "table" then return out end
-        out[#out + 1] = { id = "emerald_lens", label = "EMERALD LENS",
-          value = function() return currentCharacter(running) or "OFF" end,
-          activate = function(g) gbScreen.open(liveGame(g or game)) end }
-        return out
+        return prism.addOptionGb(mod, out, entry, liveGame(game), prismScreen)
       end)
     end
   end
