@@ -667,20 +667,18 @@ end
 -- Battle pics from the games
 -- A romOverworld trainer with no pics of its own takes them from the
 -- player's own Game Boy games, through mod.datasets (nothing shipped).
--- view.assets:path only takes paths under the game's generated folder,
--- but modkit lint (MK301) refuses that folder's name written out
--- anywhere in a mod, so it's put together here. Nothing from it is
--- shipped: the pics are read from the player's own games.
-local GENERATED = "assets/" .. "generated/battle/"
-local PIC_FILE = {
-  redBack = "redb.png", rival1 = "trainers/rival1.png", rival2 = "trainers/rival2.png",
-  rival3 = "trainers/rival3.png", red = "trainers/red.png", blue = "trainers/blue.png",
-  chris = "trainers/chris.png", playerBack = "player_back.png",
+-- modkit lint wants each cache path written out where it's read, so
+-- every pic has its own read. -Elvie
+local PIC_READ = {
+  redBack = function(view) return view.assets:path("assets/generated/battle/redb.png") end,
+  rival1 = function(view) return view.assets:path("assets/generated/battle/trainers/rival1.png") end,
+  rival2 = function(view) return view.assets:path("assets/generated/battle/trainers/rival2.png") end,
+  rival3 = function(view) return view.assets:path("assets/generated/battle/trainers/rival3.png") end,
+  red = function(view) return view.assets:path("assets/generated/battle/trainers/red.png") end,
+  blue = function(view) return view.assets:path("assets/generated/battle/trainers/blue.png") end,
+  chris = function(view) return view.assets:path("assets/generated/battle/trainers/chris.png") end,
+  playerBack = function(view) return view.assets:path("assets/generated/battle/player_back.png") end,
 }
-local PIC_READ = {}
-for name, file in pairs(PIC_FILE) do
-  PIC_READ[name] = function(view) return view.assets:path(GENERATED .. file) end
-end
 -- Each pic's colours: pokecrystal's trainer palettes (RED, BLUE, PLAYER),
 -- white and black around them, as the games draw them. Gen 1 pics get
 -- Gen 2's, like the overworld sprites. -Elvie
