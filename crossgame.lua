@@ -31,12 +31,10 @@ local PLAYERS = {
               gid = { walk = 7, bike = 8, surf = 9, fieldMove = 10, fishing = 11, vsSeekerBike = 13 } },
   brendan = { family = "rse", games = RSE,
               gid = { walk = 0, bike = 1, acroBike = 63, surf = 2, fieldMove = 3, fishing = 137,
-                      underwater = 111, watering = 191, decorating = 193 },
-              raw = { fieldMove = { 32, 32, 5 } } },
+                      underwater = 111, watering = 191, decorating = 193 } },
   may     = { family = "rse", games = RSE,
               gid = { walk = 89, bike = 90, acroBike = 91, surf = 92, fieldMove = 93, fishing = 138,
-                      underwater = 112, watering = 192, decorating = 194 },
-              raw = { fieldMove = { 32, 32, 5 } } },
+                      underwater = 112, watering = 192, decorating = 194 } },
 }
 crossgame.PLAYERS = PLAYERS
 
@@ -56,6 +54,10 @@ local ACRO = { [9] = 0, [10] = 0, [11] = 0, [12] = 0, [13] = 1, [14] = 1, [15] =
   [17] = 2, [18] = 2, [19] = 2, [20] = 2, [21] = 3, [22] = 4, [23] = 5, [24] = 6, [25] = 7, [26] = 8 }
 -- FR/LG's field move plays frames 0-4, the same five R/S/E has; the
 -- other four are kept as the standing frame rather than left empty.
+-- The engine's avatar reader only hands out sheets of 9 frames or more,
+-- so R/S/E's 5-frame field move isn't readable yet and the standing
+-- frame (alt) is used; reading the cache file directly would put a
+-- data/generated path in the mod, which modkit lint refuses (MK301).
 local FIELD_MOVE_TO_FRLG = { [5] = 0, [6] = 0, [7] = 0, [8] = 0 }
 -- Every frame of the sheet from frame 0 of the source -Elvie
 local ALL_FIRST = setmetatable({}, { __index = function() return 0 end })
@@ -119,23 +121,6 @@ function crossgame.isBase(base)
   return registered[base] ~= nil
 end
 
--- A sheet straight from the other game's cache, for the ones the engine's
--- avatar reader won't hand out: it only takes sheets of 9 frames or more,
--- and R/S/E's field move has 5. size = { w, h, frames }; the file has to
--- be exactly that big.
-local function rawSheet(game, gid, size)
-  local GameVersion, CacheFs = engine("src.core.GameVersion"), engine("src.import.CacheFs")
-  if not (size and GameVersion and CacheFs and type(CacheFs.readAt) == "function") then return nil end
-  local okPrefix, prefix = pcall(GameVersion.cachePrefix, game)
-  if not okPrefix or type(prefix) ~= "string" then return nil end
-  local w, h, n = size[1], size[2], size[3]
-  local ok, bytes = pcall(CacheFs.readAt, prefix .. "data/generated/gba/ow/" .. gid .. ".rgba")
-  if not ok or type(bytes) ~= "string" or #bytes ~= w * h * n * 4 then return nil end
-  local okImage, image = pcall(love.image.newImageData, w, h * n, "rgba8", bytes)
-  if not okImage or not image then return nil end
-  return { image = image, w = w, h = h, n = n }
-end
-
 -- The other game's sheet, from the first installed game that has it. -Elvie
 local function source(mod, which, kind, quiet)
   local key = which .. "|" .. kind
@@ -154,8 +139,6 @@ local function source(mod, which, kind, quiet)
           break
         end
       end
-      data = data or rawSheet(game, gid, player.raw and player.raw[kind])
-      if data then break end
     end
   end
   if not data and gid and not quiet and not warned[key] then
