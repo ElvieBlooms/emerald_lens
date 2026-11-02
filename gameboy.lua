@@ -10,15 +10,15 @@
 --
 -- Overworld: the folder's own overworldWalk.png / overworldBike.png
 -- (Crystal Lens's files), or with "romOverworld" in meta.json ("red",
--- "blue", "gold" or "kris"), that trainer's sprites from the player's own
--- installed Gen 1 or Gen 2 game, through mod.datasets (the game's own
--- sprite records and, for Gen 2, its overworld colours). Nintendo's art is
--- never shipped. -Elvie
+-- "blue", "gold", "kris" or "silver"), that trainer's sprites from the
+-- player's own installed Gen 1 or Gen 2 game, through mod.datasets (the
+-- game's own sprite records and, for Gen 2, its overworld colours).
+-- Nintendo's art is never shipped. -Elvie
 --
 -- Surfing: the Game Boy games show only the Pokémon (Gen 1's Seel, Gen
 -- 2's Lapras), so with romOverworld that's surf.png, and the Gen 3 surf
 -- blob under it is left out. R/S/E diving (underwater.png) uses the same
--- Pokémon, except Gold and Kris dive on Gen 1's Seel. A folder's own
+-- Pokémon, except Gold, Kris and Silver dive on Gen 1's Seel. A folder's own
 -- overworldSurf.png (16x96, like overworldWalk.png; Emerald Lens only)
 -- wins over the game's, for surfing and diving. -Elvie
 --
@@ -82,6 +82,11 @@ local ROM = {
     { GEN1, "SPRITE_RED_BIKE", "red" } } },
   bikeboy = { bike = { { GEN2, "SPRITE_CHRIS_BIKE", "red" }, { GEN1, "SPRITE_RED_BIKE", "red" } } },
   kris = { walk = { { { "crystal" }, "SPRITE_KRIS", "blue" } }, bike = { { { "crystal" }, "SPRITE_KRIS_BIKE", "blue" } },
+           surf = { { GEN2, "SPRITE_SURF", "blue" } },
+           dive = { { GEN1, "SPRITE_SEEL", "blue" }, { GEN2, "SPRITE_SURF", "blue" } } },
+  -- the Gold/Silver/Crystal rival; no bike, so he borrows Chris's like
+  -- the GBC looks, and surfs and dives like Gold
+  silver = { walk = { { GEN2, "SPRITE_RIVAL", "red" } },
            surf = { { GEN2, "SPRITE_SURF", "blue" } },
            dive = { { GEN1, "SPRITE_SEEL", "blue" }, { GEN2, "SPRITE_SURF", "blue" } } },
 }
@@ -469,7 +474,7 @@ end
 -- --------------------------------------------------
 FISH = {
   red = { gen = 1, games = GEN1 }, blue = { gen = 1, games = GEN1 },
-  gold = { gen = 2, games = GEN2, key = "fishing" },
+  gold = { gen = 2, games = GEN2, key = "fishing" }, silver = { gen = 2, games = GEN2, key = "fishing" },
   kris = { gen = 2, games = { "crystal" }, key = "fishingFemale" },
 }
 -- The rod tile, from the sprite's top-left: { dx, dy, tile, mirrored }.
@@ -679,13 +684,14 @@ local PIC_READ = {
   chris = function(view) return view.assets:path("assets/generated/battle/trainers/chris.png") end,
   playerBack = function(view) return view.assets:path("assets/generated/battle/player_back.png") end,
 }
--- Each pic's colours: pokecrystal's trainer palettes (RED, BLUE, PLAYER),
+-- Each pic's colours: pokecrystal's trainer palettes (RED, BLUE, PLAYER, RIVAL),
 -- white and black around them, as the games draw them. Gen 1 pics get
 -- Gen 2's, like the overworld sprites. -Elvie
 local PIC_COLORS = {
   RED = { { 255, 255, 255 }, { 230, 148, 140 }, { 181, 58, 66 }, { 0, 0, 0 } },
   BLUE = { { 255, 255, 255 }, { 255, 197, 66 }, { 99, 74, 156 }, { 0, 0, 0 } },
   PLAYER = { { 255, 255, 255 }, { 206, 148, 99 }, { 181, 74, 41 }, { 0, 0, 0 } },
+  RIVAL = { { 255, 255, 255 }, { 222, 148, 58 }, { 214, 33, 74 }, { 0, 0, 0 } },
 }
 -- Per trainer and Gen 3 file: { games, read, colours, scale } in order;
 -- Gen 1 backs are 32x32, drawn twice the size. intro.png is the front
@@ -696,6 +702,10 @@ local ROM_PICS = {
     ["rivalEarly.png"] = { { GEN1, "rival1", "BLUE" } }, ["rivalLate.png"] = { { GEN1, "rival2", "BLUE" } },
     ["rivalChampion.png"] = { { GEN1, "rival3", "BLUE" } } },
   gold = { ["front.png"] = { { { "crystal" }, "chris", "PLAYER" } }, ["back.png"] = { { GEN2, "playerBack", "PLAYER" } } },
+  -- Gen 2's rival1/rival2 are Silver (Gen 1's are Blue). He has no back
+  -- pic in any game, so that falls back as usual.
+  silver = { ["front.png"] = { { GEN2, "rival1", "RIVAL" } }, ["rivalEarly.png"] = { { GEN2, "rival1", "RIVAL" } },
+    ["rivalLate.png"] = { { GEN2, "rival2", "RIVAL" } } },
 }
 for _, pics in pairs(ROM_PICS) do pics["intro.png"] = pics["front.png"] end
 local PIC_SIZE = { ["rivalEarly.png"] = { 64, 64 }, ["rivalLate.png"] = { 64, 64 }, ["rivalChampion.png"] = { 64, 64 } }
