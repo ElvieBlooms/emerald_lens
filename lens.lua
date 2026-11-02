@@ -399,6 +399,7 @@ function lens.init(mod)
     and type(crystal.exports.lens) == "table" and type(crystal.exports.lens.addLooks) == "function"
     and crystal.exports.lens or nil
 
+  local COLOR_CHOICES = { { "FULL", "full" }, { "DMG", "dmg" } }
   local function buildRows()
     local rows = {}
     for _, family in ipairs(FAMILIES) do
@@ -465,6 +466,10 @@ function lens.init(mod)
             table.insert(rows, { key = "surf" .. family.suffix, type = "choice", label = "  SURF",
               choices = kits, default = OFF })
           end
+          -- COLOR: FULL keeps the art's own colours; DMG turns it into the
+          -- game's shades, coloured by the game's palette like its own sprites
+          table.insert(rows, { key = "color" .. family.suffix, type = "choice", label = "  COLOR",
+            choices = COLOR_CHOICES, default = "full" })
           goto nextFamily
         end
         genderRows[family.id] = genderRow("gender" .. family.suffix)
@@ -593,7 +598,7 @@ function lens.init(mod)
   local crystalPick
   local function resolve()
     local ctx = { folderKeys = {}, genderMode = DEFAULT_GENDER_MODE, spritesDir = SPRITES_DIR,
-      gameBoy = gameBoyFor[running.id] }
+      gameBoy = gameBoyFor[running.id], dmg = running.gb and mod.options:get("color" .. running.suffix) == "dmg" or nil }
     local character = currentCharacter(running)
     local kit = surfKitOf(running)
     if kit then
@@ -692,7 +697,7 @@ function lens.init(mod)
     local rival = currentRival(running)
     if not rival then return nil end
     return { folderKeys = chainFor(rival, selectedLook(running, rival, true)), spritesDir = SPRITES_DIR,
-      gameBoy = gameBoyFor[running.id] }
+      gameBoy = gameBoyFor[running.id], dmg = mod.options:get("color" .. running.suffix) == "dmg" or nil }
   end
 
   if running and defaults[running.id] and running.gb then
@@ -735,8 +740,10 @@ function lens.init(mod)
       crystalLens.addLooks({
         id = mod.id,
         looks = looks,
-        configure = function(key)
+        -- info.colorMode: Crystal Lens's COLOR PALETTE, "dmg" or "fullColor"
+        configure = function(key, info)
           local folder = folderOf(key)
+          local dmg = type(info) == "table" and info.colorMode == "dmg" or nil
           local character = folder and characterOf[folder]
           pickedFolder = character and folder or nil
           if not character then
@@ -749,15 +756,15 @@ function lens.init(mod)
             local kit = surfKitOf(running)
             return { folderKeys = chainFor(character, folder), lookKey = folder, genderMode = genderModeOf(folder),
               fitSave = true, spritesDir = SPRITES_DIR, surfKit = kit and (SURF_DIR .. "/" .. kit .. "/") or nil,
-              gameBoy = gameBoyFor[running.id] }
+              gameBoy = gameBoyFor[running.id], dmg = dmg }
           end
           handle.configure(crystalPick())
         end,
-        configureRival = function(key)
+        configureRival = function(key, info)
           local folder = folderOf(key)
           local character = folder and characterOf[folder]
           handle.configureRival(character and { folderKeys = chainFor(character, folder), spritesDir = SPRITES_DIR,
-            gameBoy = gameBoyFor[running.id] } or nil)
+            gameBoy = gameBoyFor[running.id], dmg = type(info) == "table" and info.colorMode == "dmg" or nil } or nil)
         end,
         preview = function(key)
           local folder = folderOf(key)
@@ -1103,6 +1110,8 @@ function lens.init(mod)
       table.insert(kits, 1, { "OFF", OFF })
       add({ key = "surf" .. f.suffix, label = "SURF", who = "player", choices = kits, value = surfKitOf(f) or OFF })
     end
+    add({ key = "color" .. f.suffix, label = "COLOR", who = "player", choices = COLOR_CHOICES,
+      value = mod.options:get("color" .. f.suffix) == "dmg" and "dmg" or "full" })
     add({ key = "credits", label = "CREDITS", who = "player", page = true, valueLabel = "SEE ALL" })
     return rows
   end
@@ -1160,6 +1169,7 @@ function lens.init(mod)
       local key = change.key
       if key:sub(1, 9) == "character" or key:sub(1, 4) == "look" then updateGender() end
       local rivalKey = key == "rival" .. running.suffix or key:sub(1, #rivalPrefix) == rivalPrefix
+        or (running.gb and key == "color" .. running.suffix)
       if handle and (key == "character" .. running.suffix or key:sub(1, #lookPrefix) == lookPrefix
           or key == "gender" .. running.suffix or key == "surf" .. running.suffix or rivalKey) then
         handle.configure(crystalPick and crystalPick() or resolve())

@@ -103,6 +103,7 @@ function gen12.init(mod, ctx, family, opts)
   local pikaFolders = {} -- Yellow's surfing Pikachu
   local slots = {} -- [gender] = true for the save genders this look replaces
   local lookKey -- the selected look, for the back pic's fixed path
+  local dmg = false -- COLOR on DMG: the game's shades and palettes, not the art's own colours
   local live -- built renderers and pic paths, or nil for none
   local serial = 0
 
@@ -173,10 +174,60 @@ function gen12.init(mod, ctx, family, opts)
     return path
   end
 
+  -- DMG: a picture in the Game Boy's four greys, so the game colours it
+  -- like its own. Each colour takes its place in the picture's brightness
+  -- order, counted by pixels, and the shades are shared out the way the
+  -- games share out their own (SPRITE_SPLIT, PIC_SPLIT); near-black stays
+  -- black. A sprite has three shades and see-through (the Game Boy's
+  -- sprite colour 0 is see-through), a pic all four.
+  local GREYS = { 1, 2 / 3, 1 / 3, 0 }
+  -- How the games' own art splits its shades, lightest first, as shares of
+  -- the drawing: Red, Blue, Chris and Kris's sprites are about a fifth
+  -- light, a quarter dark and half black; their trainer pics about an
+  -- eighth white, an eighth light, a third dark and the rest black
+  local SPRITE_SPLIT = { 0.22, 0.5 }
+  local PIC_SPLIT = { 0.13, 0.25, 0.6 }
+  local function greyed(data, pic)
+    local w, h = data:getDimensions()
+    local lums, count = {}, {}
+    data:mapPixel(function(_, _, r, g, b, a)
+      if a > 0.5 then
+        local l = 0.299 * r + 0.587 * g + 0.114 * b
+        local k = math.floor(l * 1000 + 0.5)
+        if not count[k] then lums[#lums + 1] = k; count[k] = 0 end
+        count[k] = count[k] + 1
+      end
+      return r, g, b, a
+    end)
+    table.sort(lums)
+    local total, below, shareOf = 0, 0, {}
+    for _, k in ipairs(lums) do total = total + count[k] end
+    -- the share of pixels brighter than this one, middle of its own run
+    for _, k in ipairs(lums) do
+      shareOf[k] = 1 - (below + count[k] / 2) / math.max(1, total)
+      below = below + count[k]
+    end
+    local out = love.image.newImageData(w, h)
+    out:paste(data, 0, 0, 0, 0, w, h)
+    out:mapPixel(function(_, _, r, g, b, a)
+      if a <= 0.5 then return 0, 0, 0, 0 end
+      local l = 0.299 * r + 0.587 * g + 0.114 * b
+      local t = shareOf[math.floor(l * 1000 + 0.5)] or 1
+      local shade = 3
+      for i, cut in ipairs(pic and PIC_SPLIT or SPRITE_SPLIT) do
+        if l >= 0.16 and t < cut then shade = (pic and 0 or 1) + i - 1; break end
+      end
+      local v = GREYS[shade + 1]
+      return v, v, v, 1
+    end)
+    return out
+  end
+
   local function renderer(name, data, w, h, n, rOpts)
     rOpts = rOpts or {}
+    if dmg then data = greyed(data) end
     local def = { id = "EMERALD_LENS_" .. name:upper(), image = publish(name, data), frames = n, walker = true,
-      frameWidth = w, frameHeight = h, anchorX = rOpts.anchorX, anchorY = rOpts.anchorY, gbaArt = true }
+      frameWidth = w, frameHeight = h, anchorX = rOpts.anchorX, anchorY = rOpts.anchorY, gbaArt = not dmg }
     local ok, r = pcall(SpriteRenderer.new, def, "player")
     if not ok then
       warnOnce("renderer" .. name, "couldn't set up the %s sheet: %s", name, tostring(r))
@@ -194,7 +245,19 @@ function gen12.init(mod, ctx, family, opts)
       return draw(self, px, py, camX, camY, facing, walkPhase, stepFlip, topHalf, forceFlip, frameOverride, oamRow)
     end
     r.drawTile = function() end
+    r.dmg = dmg
     return r
+  end
+
+  -- DMG: our sheet wears the palette of the game sprite it stands in for
+  -- (Gen 1's sprite colours by sprite number, Gen 2's object palette for
+  -- the time of day), copied each time it's drawn
+  local function wearPalette(r, from)
+    if not (r and r.dmg and type(from) == "table") then return end
+    local def = type(from.def) == "table" and from.def or {}
+    r.def.paletteSource = def.paletteSource or def.source
+    r.seed = from.seed
+    r.objColors, r.objGroup = from.objColors, from.objGroup
   end
 
   local function walker(name, src, w, h)
@@ -299,6 +362,20 @@ function gen12.init(mod, ctx, family, opts)
     return out
   end
 
+  -- A picture as a real file, for the screens that open the front pic as
+  -- a file (Assets.compose can't serve those): written to the mod's own
+  -- cache folder. nil if the cache can't be written.
+  local function cacheFile(name, data)
+    local cache = mod.cache
+    if type(cache) ~= "table" or type(cache.write) ~= "function" then return nil end
+    local okE, encoded = pcall(function() return data:encode("png"):getString() end)
+    if not okE then return nil end
+    local rel = "dmg/" .. name .. ".png"
+    local ok, done = pcall(cache.write, cache, rel, encoded)
+    if not ok or not done then return nil end
+    return ("mod_cache/%s/%s"):format(mod.id or "emerald_lens", rel)
+  end
+
   -- The front pic is the look's own front.png file: the trainer card,
   -- Oak's intro and the Hall of Fame open the path as a file. The back is
   -- one frame of a strip, so it's built (battles load through Assets), at
@@ -308,15 +385,38 @@ function gen12.init(mod, ctx, family, opts)
   local function picOf(name)
     for _, base in ipairs(bases) do
       if base.gameBoy then
-        for _, file in ipairs(GB_PICS[name]) do
-          if mod.assets:info(base.dir .. file) then return mod.assets:path(base.dir .. file), file:find("Color") ~= nil end
+        -- DMG: the grey file first, the way Crystal Lens picks
+        local files = GB_PICS[name]
+        if dmg then files = { files[2], files[1] } end
+        for _, file in ipairs(files) do
+          local rel = base.dir .. file
+          if mod.assets:info(rel) then
+            local colour = file:find("Color") ~= nil
+            if dmg and colour then
+              local ok, data = pcall(love.image.newImageData, mod.assets:path(rel))
+              local grey = ok and data and greyed(data, true)
+              local path = grey and (name == "front" and cacheFile(cleanKey(rel), grey)
+                or publish(name, grey, lookKey and gen12.backPath(mod.id, lookKey .. "_dmg") or nil))
+              if path then return path, false end
+            end
+            return mod.assets:path(rel), colour
+          end
         end
       else
         local src, layout, _, _, dir = loadSheet(name, { base })
         if src then
-          if name == "front" then return mod.assets:path(dir .. "front.png"), true end
+          if name == "front" then
+            if dmg then
+              local path = cacheFile(cleanKey(dir .. "front"), greyed(src, true))
+              if path then return path, false end
+            end
+            return mod.assets:path(dir .. "front.png"), true
+          end
           local out = love.image.newImageData(64, 64)
           out:paste(src, 0, 0, 0, BACK_IDLE[layout] * 64, 64, 64)
+          if dmg then
+            return publish(name, greyed(out, true), lookKey and gen12.backPath(mod.id, lookKey .. "_dmg") or nil), false
+          end
           return publish(name, out, lookKey and gen12.backPath(mod.id, lookKey) or nil), true
         end
       end
@@ -359,7 +459,9 @@ function gen12.init(mod, ctx, family, opts)
     out.front, out.frontColour = picOf("front")
     out.back, out.backColour = picOf("back")
     local card = cardOf()
-    if card then
+    if card and dmg then
+      out.cardGrey = greyed(card, true)
+    elseif card then
       local ok, img = pcall(love.graphics.newImage, card)
       if ok and img then
         img:setFilter("nearest", "nearest")
@@ -416,6 +518,9 @@ function gen12.init(mod, ctx, family, opts)
       else
         pcall(scales.register, scales, "emerald_lens_back_" .. cleanKey(key), { path = gen12.backPath(mod.id, key), scale = 1 })
       end
+      -- and the DMG copy of either
+      pcall(scales.register, scales, "emerald_lens_back_" .. cleanKey(key) .. "_dmg",
+        { path = gen12.backPath(mod.id, key .. "_dmg"), scale = 1 })
     end
   end
 
@@ -449,6 +554,7 @@ function gen12.init(mod, ctx, family, opts)
   -- game sets up who's on a map as you enter it.
   -- --------------------------------------------------
   local rivalBases = {}
+  local rivalDmg = false
   local saved = {} -- [record] = { [field] = { value } }
   local function setField(record, field, value)
     saved[record] = saved[record] or {}
@@ -486,8 +592,10 @@ function gen12.init(mod, ctx, family, opts)
       local record = type(records) == "table" and records[pair[1]]
       local src = loadSheet(pair[2], rivalBases) or front
       if type(record) == "table" and src then
-        setField(record, "pic", publish(pair[2], opponentPic(src), tag .. pair[2] .. ".png"))
-        setField(record, "trueColor", true)
+        local pic = opponentPic(src)
+        if rivalDmg then pic = greyed(pic, true) end
+        setField(record, "pic", publish(pair[2], pic, tag .. pair[2] .. ".png"))
+        setField(record, "trueColor", not rivalDmg)
       end
     end
     local sprites = gen == 2 and data.gen2Sprites or data.sprites
@@ -496,11 +604,13 @@ function gen12.init(mod, ctx, family, opts)
     if type(sprite) == "table" and walk then
       -- the Game Boy order, one step each way, as the game's NPCs walk
       local sheet = pick(walk, ww, wh, { 0, 1, 2, 3, 5, 7 })
+      -- DMG: in the rival's own palette, like the game's own sprite
+      if rivalDmg then sheet = greyed(sheet) end
       setField(sprite, "image", publish("rivalWalk", sheet, tag .. "walk.png"))
       setField(sprite, "frames", 6)
       setField(sprite, "frameWidth", ww)
       setField(sprite, "frameHeight", wh)
-      setField(sprite, "gbaArt", true)
+      setField(sprite, "gbaArt", not rivalDmg)
     end
   end
 
@@ -518,6 +628,10 @@ function gen12.init(mod, ctx, family, opts)
         self.surfSprite = live.surf or s3
         -- Yellow: surfing on Pikachu, the look rides it too
         if s4 and live.surfPika then self.surfPikachuSprite = live.surfPika end
+        wearPalette(self.sprite, s1)
+        wearPalette(live.bike, s2 or s1)
+        wearPalette(live.surf, s1)
+        if s4 then wearPalette(live.surfPika, s4) end
         local ok, err = pcall(originalDraw, self, ...)
         self.sprite, self.bikeSprite, self.surfSprite, self.surfPikachuSprite = s1, s2, s3, s4
         if not ok then error(err, 0) end
@@ -537,6 +651,7 @@ function gen12.init(mod, ctx, family, opts)
         local r = kind and replaces(female) and ((self.fishing and self.fishSheet and live.fish) or live[kind])
         if not r then return originalDraw(self, ...) end
         local before = self.sprite
+        wearPalette(r, before)
         self.sprite = r
         local ok, err = pcall(originalDraw, self, ...)
         self.sprite = before
@@ -575,14 +690,34 @@ function gen12.init(mod, ctx, family, opts)
   -- The Gen 2 trainer card draws its portrait from tiles, so with a look
   -- the card's drawPortrait paints the look's portrait instead, the way
   -- Crystal Lens does it
-  local function drawCard()
-    local card = live and live.card
-    if not card or not replaces(saveFemale()) then return false end
-    local w, h = card:getDimensions()
+  local cardImages = {} -- DMG: the grey card in each palette it's been drawn in
+  local function drawCard(card)
+    local img = live and live.card
+    if live and live.cardGrey then
+      -- DMG: the grey portrait in the card's own portrait palette
+      local colors = type(card) == "table" and type(card.colorsAt) == "function" and card:colorsAt(14, 2)
+      if type(colors) ~= "table" or #colors < 4 then colors = { { 255, 255, 255 }, { 170, 170, 170 }, { 85, 85, 85 }, { 0, 0, 0 } } end
+      local key = tostring(live.cardGrey)
+      for i = 1, 4 do key = key .. "|" .. table.concat(colors[i], ",") end
+      if not cardImages[key] then
+        local data = live.cardGrey:clone()
+        data:mapPixel(function(_, _, r, g, b, a)
+          if a == 0 then return r, g, b, a end
+          local c = colors[(r > 0.83 and 1) or (r > 0.5 and 2) or (r > 0.17 and 3) or 4]
+          return c[1] / 255, c[2] / 255, c[3] / 255, a
+        end)
+        local made = love.graphics.newImage(data)
+        made:setFilter("nearest", "nearest")
+        cardImages[key] = made
+      end
+      img = cardImages[key]
+    end
+    if not img or not replaces(saveFemale()) then return false end
+    local w, h = img:getDimensions()
     local x, y = CARD_X + math.floor((CARD_W - w) / 2), CARD_Y + CARD_H - h
     if PaletteFX and type(PaletteFX.markTrueColor) == "function" then pcall(PaletteFX.markTrueColor, x, y, w, h) end
     love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.draw(card, x, y)
+    love.graphics.draw(img, x, y)
     return true
   end
   if gen == 2 and opts.ownCard and mod.content and mod.content.screens then
@@ -592,7 +727,7 @@ function gen12.init(mod, ctx, family, opts)
         local instance = TrainerCard.new(game, screenOpts)
         local own = instance.drawPortrait
         instance.drawPortrait = function(self, ...)
-          if drawCard() then return end
+          if drawCard(self) then return end
           return own(self, ...)
         end
         return instance
@@ -603,6 +738,8 @@ function gen12.init(mod, ctx, family, opts)
   -- configure: a new choice (nil for OFF) -Elvie
   local function configure(newCtx)
     bases, surfFolders, pikaFolders, slots, lookKey = {}, {}, {}, {}, nil
+    dmg = newCtx ~= nil and newCtx.dmg == true
+    cardImages = {}
     if newCtx and type(newCtx.folderKeys) == "table" then
       bases = basesOf(newCtx)
       lookKey = newCtx.lookKey or newCtx.folderKeys[1]
@@ -627,6 +764,7 @@ function gen12.init(mod, ctx, family, opts)
   -- configureRival: { folderKeys, spritesDir } for a rival, nil for the game's own
   local function configureRival(rivalCtx)
     rivalBases = (rivalCtx and type(rivalCtx.folderKeys) == "table") and basesOf(rivalCtx) or {}
+    rivalDmg = rivalCtx ~= nil and rivalCtx.dmg == true
     applyRival()
   end
 
@@ -645,7 +783,15 @@ function gen12.init(mod, ctx, family, opts)
     configureRival = configureRival,
     current = function() return live end,
     -- the trainer card portrait, for Crystal Lens's card
-    card = function() return live and live.card or nil end,
+    -- the card portrait for Crystal Lens's card; in DMG the grey one, drawn
+    -- as Crystal Lens draws its own grey trainerCard.png
+    card = function()
+      if live and not live.card and live.cardGrey then
+        local ok, img = pcall(love.graphics.newImage, live.cardGrey)
+        if ok and img then img:setFilter("nearest", "nearest"); live.card = img end
+      end
+      return live and live.card or nil
+    end,
   }
 end
 

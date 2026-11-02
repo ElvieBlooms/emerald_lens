@@ -591,6 +591,13 @@ do
     { { label = "OPTION" }, { label = "MODS" }, { label = "QUIT" } }), facetsEntry, nil, "facets_prism")
   check(both[2].label == "PRISM" and #both[2].entries == 2 and both[2].entries[1].id == "emerald_lens"
     and both[2].screen == "emerald_lens_prism" and #both == 4, "with Facets, one PRISM item lists both, sorted by name")
+  options.colorGb1 = "dmg"
+  handlers["mod.options_changed"]({ mod = "emerald_lens", key = "colorGb1" })
+  check(gbCtx.dmg == true and type(gbRival) == "table" and gbRival.dmg == true,
+    "COLOR on DMG reaches the player and the rival")
+  options.colorGb1 = nil
+  handlers["mod.options_changed"]({ mod = "emerald_lens", key = "colorGb1" })
+  check(not gbCtx.dmg, "COLOR back on FULL")
   options.rivalGb1, options.rivalLookGb1_KRIS = nil, nil
   options.surfGb1 = "lapras"
 
@@ -613,6 +620,8 @@ do
     if row.key == "characterGb1" then charRow = row end
   end
   check(surfRow and not charRow, "with Crystal Lens only SURF is left in the R/B/Y rows")
+  added.configure("emerald_lens:zeta", { colorMode = "dmg" })
+  check(gbCtx and gbCtx.dmg == true, "Crystal Lens's COLOR PALETTE on DMG COMPATIBLE reaches its pick")
   added.configure("emerald_lens:zeta")
   check(gbCtx and gbCtx.folderKeys[1] == "zeta" and gbCtx.fitSave == true and gbCtx.lookKey == "zeta"
     and gbCtx.surfKit == "assets/surfmons/lapras/",
