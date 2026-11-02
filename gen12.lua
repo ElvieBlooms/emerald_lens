@@ -79,6 +79,8 @@ function gen12.init(mod, ctx, family, opts)
   opts = opts or {}
   local okGb, gameboy = pcall(require, "mods.emerald_lens.gameboy")
   if not okGb then gameboy = nil end
+  local okCross, crossgame = pcall(require, "mods.emerald_lens.crossgame")
+  if not okCross then crossgame = nil end
   if not (love and love.graphics and love.image) then return nil end
   local GameVersion = engine("src.core.GameVersion")
   local Assets = engine("src.render.Assets")
@@ -140,6 +142,17 @@ function gen12.init(mod, ctx, family, opts)
           local w, h = data:getDimensions()
           if (w == size[1] or (size[1] == 16 and w == 32)) and h == (size[2] + drop) * size[3] then
             return data, base.layout, w, size[2] + drop, base.dir, drop
+          end
+        end
+      elseif size and not mod.assets:info(rel) and crossgame and crossgame.isBase(base.dir) then
+        -- a player from the Gen 3 games, read from that game (crossgame.lua)
+        local file = name .. ".png"
+        local ok, data = false, nil
+        if crossgame.has(mod, base.dir, file, base.layout) then ok, data = pcall(crossgame.load, mod, base.dir, file, base.layout) end
+        if ok and data then
+          local w, h = data:getDimensions()
+          if (w == size[1] or (size[1] == 16 and w == 32)) and h == size[2] * size[3] then
+            return data, base.layout, w, size[2], base.dir, 0
           end
         end
       elseif size and mod.assets:info(rel) then
@@ -602,6 +615,8 @@ function gen12.init(mod, ctx, family, opts)
 
   -- configure: a new choice (nil for OFF) -Elvie
   local function configure(newCtx)
+    -- a game imported since the last time is found now
+    if crossgame and crossgame.retry then crossgame.retry() end
     bases, surfFolders, pikaFolders, slots, lookKey = {}, {}, {}, {}, nil
     if newCtx and type(newCtx.folderKeys) == "table" then
       bases = basesOf(newCtx)

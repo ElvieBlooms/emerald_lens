@@ -558,10 +558,13 @@ do
   handlers["mod.options_changed"]({ mod = "emerald_lens", key = "lookGb1_KRIS" })
   check(gbCtx.folderKeys[1] == "arale" and gbCtx.gameBoy and gbCtx.gameBoy.arale and not gbCtx.gameBoy.kris,
     "a Game Boy look is offered in R/B/Y, drawn from its own files")
+  local X = package.loaded["mods.emerald_lens.crossgame"]
+  check(X.isBase("assets/sprites/red_x/gen3/frlg/") and X.isBase("assets/sprites/may_x/gen3/rse/"),
+    "players from the Gen 3 games are offered in R/B/Y, each read from its own family's game")
   options.lookGb1_KRIS = "kris"
   handlers["mod.options_changed"]({ mod = "emerald_lens", key = "lookGb1_KRIS" })
   check(gbCtx.lookKey == "kris", "the selected look is handed over, for the battle back's fixed path")
-  check(gbOpts and gbOpts.ownCard == true and table.concat(gbOpts.lookKeys, ",") == "arale,kris,zeta,red_gb"
+  check(gbOpts and gbOpts.ownCard == true and table.concat(gbOpts.lookKeys, ",") == "arale,kris,zeta,may_x,red_x,red_gb"
     and gbOpts.gameBoy.arale and gbOpts.spritesDir == "assets/sprites",
     "every R/B/Y look listed for the back scales, Game Boy ones marked; the trainer card is this mod's own")
   check(gbRival == nil, "RIVAL starts OFF in R/B/Y")
@@ -602,7 +605,7 @@ do
   dofile("lens.lua").init(mod)
   local keys = {}
   for _, look in ipairs(added and added.looks or {}) do keys[#keys + 1] = look.key end
-  check(added and table.concat(keys, ",") == "emerald_lens:arale,emerald_lens:kris,emerald_lens:zeta,emerald_lens:red_gb"
+  check(added and table.concat(keys, ",") == "emerald_lens:arale,emerald_lens:kris,emerald_lens:zeta,emerald_lens:may_x,emerald_lens:red_x,emerald_lens:red_gb"
     and added.looks[1].folder == "arale",
     "looks handed to Crystal Lens, with their folders so it can leave out its own: " .. table.concat(keys, ","))
   check(gbCtx == nil, "nothing drawn until Crystal Lens picks one")

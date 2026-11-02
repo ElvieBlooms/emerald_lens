@@ -77,9 +77,12 @@ function lensGb.new(mod, api)
   end
   local function image(path, box)
     if not path then return nil end
-    local key = path .. (box and "|box" or "")
+    local key = type(path) == "string" and (path .. (box and "|box" or "")) or path
     if images[key] == nil then
-      local ok, data = pcall(love.image.newImageData, path)
+      -- a path, or a picture already made (a player read from a Gen 3 game)
+      local ok, data
+      if type(path) == "string" then ok, data = pcall(love.image.newImageData, path)
+      else ok, data = true, path end
       if ok and data then
         if box then data = fitted(data, PIC_BOX, PIC_BOX) end
         local img = love.graphics.newImage(data)

@@ -197,10 +197,16 @@ function lens.init(mod)
           end
           if own then hasGen3[key] = true end
         end
-        local cross = not family.gb and crossFamily == family.id
-        if cross then
+        -- In the Game Boy games every one of them is offered, read from
+        -- its own family's game (registered below, once the running game
+        -- is known)
+        local cross = crossFamily ~= nil and (family.gb or crossFamily == family.id)
+        if cross and not family.gb then
           crossgame.register(SPRITES_DIR .. "/" .. key .. "/gen3/" .. family.id .. "/", meta)
+        end
+        if cross then
           crossFor[family.id][key] = true
+          if family.gb then hasGen3[key] = true end
         end
         if not own and gameBoy then gameBoyFor[family.id][key] = true end
         if own or gameBoy or cross then
@@ -514,6 +520,16 @@ function lens.init(mod)
   for _, f in ipairs(FAMILIES) do
     if f.id == layout then running = f end
   end
+  -- Players from the Gen 3 games in a Game Boy game: each one's sheets
+  -- come from its own family's game (Red and Leaf from FR/LG, Brendan and
+  -- May from R/S/E), through crossgame.lua as in the Gen 3 games
+  if running and running.gb and crossgame then
+    for key in pairs(crossFor[running.id]) do
+      local meta = metaFor[key]
+      local from = crossgame.PLAYERS[crossgame.playerOf(meta)].family
+      crossgame.register(SPRITES_DIR .. "/" .. key .. "/gen3/" .. from .. "/", meta)
+    end
+  end
 
   -- The character a family would use right now (nil for OFF). -Elvie
   local function currentCharacter(family)
@@ -654,6 +670,7 @@ function lens.init(mod)
   -- the look's overworldColors (walkGb, colors). Used by this mod's screen
   -- and Crystal Lens's.
   local CRYSTAL_COLORS = { { 255, 255, 255 }, { 255, 173, 99 }, { 1, 99, 198 }, { 0, 0, 0 } }
+  local crossWalks = {} -- [key] = the walk read from its Gen 3 game, or false
   local function gbPreviewOf(character, look, rival)
     local out = {}
     local gb = running and gameBoyFor[running.id] or {}
@@ -681,6 +698,18 @@ function lens.init(mod)
         for _, art in ipairs(running.art) do
           local rel = SPRITES_DIR .. "/" .. key .. "/gen3/" .. art .. "/walk.png"
           if not out.walk and mod.assets:info(rel) then out.walk = mod.assets:path(rel) end
+        end
+        -- a player from the Gen 3 games: the sheet read from that game
+        -- (an ImageData; both LENS screens take one in place of a path)
+        if not out.walk and crossFor[running.id][key] and crossgame then
+          if crossWalks[key] == nil then
+            local from = crossgame.PLAYERS[crossgame.playerOf(metaFor[key])].family
+            local base = SPRITES_DIR .. "/" .. key .. "/gen3/" .. from .. "/"
+            local ok, data = false, nil
+            if crossgame.has(mod, base, "walk.png", from) then ok, data = pcall(crossgame.load, mod, base, "walk.png", from) end
+            crossWalks[key] = ok and data or false
+          end
+          out.walk = crossWalks[key] or nil
         end
       end
     end
