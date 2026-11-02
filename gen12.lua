@@ -182,11 +182,12 @@ function gen12.init(mod, ctx, family, opts)
   -- sprite colour 0 is see-through), a pic all four.
   local GREYS = { 1, 2 / 3, 1 / 3, 0 }
   -- How the games' own art splits its shades, lightest first, as shares of
-  -- the drawing: Red, Blue, Chris and Kris's sprites are about a fifth
-  -- light, a quarter dark and half black; their trainer pics about an
-  -- eighth white, an eighth light, a third dark and the rest black
+  -- the drawing (backdrop left out): Red, Blue, Chris and Kris's sprites
+  -- are about a fifth light, a quarter dark and half black; Gold/Silver/
+  -- Crystal's trainer pics about a sixth white, a sixth light, a quarter
+  -- dark and two fifths black
   local SPRITE_SPLIT = { 0.22, 0.5 }
-  local PIC_SPLIT = { 0.13, 0.25, 0.6 }
+  local PIC_SPLIT = { 0.17, 0.32, 0.6 }
   local function greyed(data, pic)
     local w, h = data:getDimensions()
     local lums, count = {}, {}
