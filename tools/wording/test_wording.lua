@@ -305,6 +305,7 @@ do
   package.loaded["mods.emerald_lens.gameboy"] = dofile("gameboy.lua")
   package.loaded["mods.emerald_lens.crossgame"] = dofile("crossgame.lua")
   package.loaded["mods.emerald_lens.lens_screen"] = dofile("lens_screen.lua")
+  package.loaded["mods.emerald_lens.lens_gb"] = dofile("lens_gb.lua")
   local layers = {}
   package.loaded["src.ui.game3.stack"] = {
     push = function(id, m) layers[#layers + 1] = { id = id, mod = m } end,
@@ -355,8 +356,8 @@ do
   local byKey = {}
   for _, row in ipairs(rows) do byKey[row.key] = row end
   check(byKey.characterGb1 and byKey.characterGb2 and byKey.genderGb2 and not byKey.genderGb1
-    and not byKey.rivalGb1 and not byKey.textGb2,
-    "R/B/Y and G/S/C rows: CHARACTER for both, GENDER only for G/S/C, no rival or text")
+    and byKey.rivalGb1 and byKey.rivalGb2 and byKey.rivalGb1.default == "__off" and not byKey.textGb2,
+    "R/B/Y and G/S/C rows: CHARACTER and RIVAL (OFF) for both, GENDER only for G/S/C, no text")
 
   options.characterFrlg, options.rivalFrlg = "KRIS", "SAGE"
   handlers["mod.options_changed"]({ mod = "emerald_lens", key = "rivalFrlg" })
@@ -436,6 +437,7 @@ do
   local dirs = { "kris/gen3/frlg", "zeta/gen3/frlg" }
   local files = { ["arale/backColor.png"] = true }
   local options, handlers, ctxs = {}, {}, {}
+  local defined
   package.loaded["mods.emerald_lens.gen3"] = { init = function(_, ctx)
     ctxs[#ctxs + 1] = ctx
     return { configure = function(c) ctxs[#ctxs + 1] = c end }
@@ -443,8 +445,13 @@ do
   local mod = {
     id = "emerald_lens",
     assets = {
-      list = function(_, dir) return dir == "assets/sprites" and { "arale", "kris", "may_x", "red_gb", "red_x", "zeta" } or {} end,
+      list = function(_, dir)
+        if dir == "assets/surfmons" then return { "lapras" } end
+        return dir == "assets/sprites" and { "arale", "kris", "may_x", "red_gb", "red_x", "zeta" } or {}
+      end,
       info = function(_, rel)
+        if rel == "assets/surfmons/lapras" then return { type = "directory" } end
+        if rel:match("^assets/surfmons/lapras/[a-z]+/surfBlob%.png$") then return { type = "file" } end
         local key, rest = rel:match("^assets/sprites/([^/]+)/?(.*)$")
         if not key or not metas[key] then return nil end
         if rest == "" or rest == "gen3" then
@@ -458,7 +465,7 @@ do
     },
     read = function(_, path) return metas[path:match("sprites/([^/]+)/")] end,
     log = { warn = function() end, info = function() end },
-    options = { define = function() end, get = function(_, key) return options[key] end },
+    options = { define = function(_, r) defined = r end, get = function(_, key) return options[key] end },
     events = { on = function(_, name, fn) handlers[name] = fn end },
     hooks = { wrap = function() end },
   }
@@ -520,16 +527,24 @@ do
     "a folder's own overworldSurf.png: surf, dive and the left-out blob, with no game installed")
 
   -- Red/Blue/Yellow: Gen 3 looks only, through gen12.lua -Elvie
-  local gbCtx, gbFamily
-  package.loaded["mods.emerald_lens.gen12"] = { init = function(_, c, f)
-    gbCtx, gbFamily = c, f
-    return { configure = function(c2) gbCtx = c2 end }
+  local gbCtx, gbFamily, gbOpts, gbRival = nil, nil, nil, nil
+  package.loaded["mods.emerald_lens.gen12"] = { init = function(_, c, f, o)
+    gbCtx, gbFamily, gbOpts = c, f, o
+    gbRival = c and c.rival
+    return { configure = function(c2) gbCtx = c2 end, configureRival = function(r) gbRival = r end,
+      card = function() return "card" end }
   end }
   local GV = package.loaded["src.core.GameVersion"]
   local GENERATION = { red = 1 }
   GV.generation = function(v) return GENERATION[v] or 3 end
   version = "red"
+  local screens = {}
+  mod.content = { screens = { register = function(_, id, def) screens[id] = def end } }
+  mod.ui = { Font = {}, push = function() end }
+  mod.hooks = { wrap = function(_, name, fn) handlers[name] = fn end }
   dofile("lens.lua").init(mod)
+  check(screens.emerald_lens_lens and screens.emerald_lens_lens_credits,
+    "the Game Boy LENS and credits screens are registered")
   check(gbCtx == nil, "R/B/Y starts OFF, so Crystal Lens's player stays")
   options.characterGb1 = "KRIS"
   handlers["mod.options_changed"]({ mod = "emerald_lens", key = "characterGb1" })
@@ -540,6 +555,30 @@ do
   options.lookGb1_KRIS = "arale"
   handlers["mod.options_changed"]({ mod = "emerald_lens", key = "lookGb1_KRIS" })
   check(gbCtx.folderKeys[1] == "kris", "a Game Boy look isn't offered in R/B/Y (Crystal Lens's art)")
+  check(gbCtx.lookKey == "kris", "the selected look is handed over, for the battle back's fixed path")
+  check(gbOpts and gbOpts.ownCard == true and table.concat(gbOpts.lookKeys, ",") == "kris,zeta",
+    "every R/B/Y look listed for the back scales; the trainer card is this mod's own")
+  check(gbRival == nil, "RIVAL starts OFF in R/B/Y")
+  options.rivalGb1 = "KRIS"
+  handlers["mod.options_changed"]({ mod = "emerald_lens", key = "rivalGb1" })
+  check(gbRival and table.concat(gbRival.folderKeys, ",") == "kris,zeta,arale" and gbRival.spritesDir == "assets/sprites",
+    "R/B/Y RIVAL: Blue gets the look's chain")
+  options.rivalLookGb1_KRIS = "zeta"
+  handlers["mod.options_changed"]({ mod = "emerald_lens", key = "rivalLookGb1_KRIS" })
+  check(gbRival and gbRival.folderKeys[1] == "zeta", "RIVAL LOOK changes Blue's look")
+  check(gbCtx and gbCtx.folderKeys[1] == "kris", "the player keeps their own look")
+  gbRival = "unset"
+  handlers["save.loaded"]()
+  check(type(gbRival) == "table" and gbRival.folderKeys[1] == "zeta", "loading a save puts the rival back")
+  -- the LENS screen on the Game Boy START and OPTION menus
+  local items = handlers["ui.start_menu.items"](function(_, list) return list end, nil,
+    { { label = "OPTION" }, { label = "MODS" }, { label = "QUIT" } })
+  check(items[2] and items[2].label == "LENS" and items[3].label == "MODS",
+    "LENS goes just above MODS on the Game Boy START menu")
+  local optRows = handlers["ui.options.rows"](function(_, list) return list end, nil, { { id = "text" } })
+  check(optRows[2] and optRows[2].label == "EMERALD LENS" and optRows[2].value() == "KRIS" and optRows[2].activate,
+    "EMERALD LENS row on the Game Boy OPTION menu, showing the character")
+  options.rivalGb1, options.rivalLookGb1_KRIS = nil, nil
   options.surfGb1 = "lapras"
 
   -- With Crystal Lens: it keeps the choices; these looks join its lists -Elvie
@@ -553,9 +592,25 @@ do
   check(added and table.concat(keys, ",") == "emerald_lens:kris,emerald_lens:zeta",
     "Gen 3 looks handed to Crystal Lens: " .. table.concat(keys, ","))
   check(gbCtx == nil, "nothing drawn until Crystal Lens picks one")
+  check(gbOpts and gbOpts.ownCard == false, "with Crystal Lens, its trainer card screen stays")
+  local surfRow, charRow
+  for _, row in ipairs(defined) do
+    if row.key == "surfGb1" then surfRow = row end
+    if row.key == "characterGb1" then charRow = row end
+  end
+  check(surfRow and not charRow, "with Crystal Lens only SURF is left in the R/B/Y rows")
   added.configure("emerald_lens:zeta")
-  check(gbCtx and gbCtx.folderKeys[1] == "zeta" and gbCtx.fitSave == true,
-    "Crystal Lens picks a look: drawn, for either save (its GENDER decides)")
+  check(gbCtx and gbCtx.folderKeys[1] == "zeta" and gbCtx.fitSave == true and gbCtx.lookKey == "zeta"
+    and gbCtx.surfKit == "assets/surfmons/lapras/",
+    "Crystal Lens picks a look: drawn, for either save (its GENDER decides), with this mod's SURF")
+  handlers["mod.options_changed"]({ mod = "emerald_lens", key = "surfGb1" })
+  check(gbCtx and gbCtx.folderKeys[1] == "zeta", "changing SURF keeps Crystal Lens's pick")
+  added.configureRival("emerald_lens:kris")
+  check(type(gbRival) == "table" and gbRival.folderKeys[1] == "kris", "Crystal Lens's RIVAL on one of these looks: drawn here")
+  added.configureRival(nil)
+  check(gbRival == nil, "Crystal Lens's own rival: this mod steps back")
+  local preview = added.preview("emerald_lens:zeta")
+  check(preview and preview.card == "card", "the trainer card portrait handed to Crystal Lens for the drawn look")
   gbCtx = nil
   handlers["save.loaded"]()
   check(gbCtx and gbCtx.folderKeys[1] == "zeta", "loading a save keeps Crystal Lens's pick")

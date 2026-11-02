@@ -11,9 +11,9 @@
 -- Overworld: the folder's own overworldWalk.png / overworldBike.png
 -- (Crystal Lens's files), or with "romOverworld" in meta.json ("red",
 -- "blue", "gold" or "kris"), that trainer's sprites from the player's own
--- installed Gen 1 or Gen 2 game, through the engine's Union Room avatar
--- loader (which reads other games' sprites for online play). Nintendo's
--- art is never shipped. -Elvie
+-- installed Gen 1 or Gen 2 game, through mod.datasets (the game's own
+-- sprite records and, for Gen 2, its overworld colours). Nintendo's art is
+-- never shipped. -Elvie
 --
 -- Surfing: the Game Boy games show only the Pokémon (Gen 1's Seel, Gen
 -- 2's Lapras), so with romOverworld that's surf.png, and the Gen 3 surf
@@ -124,6 +124,19 @@ local registered = {} -- [base] = meta -Elvie
 local warned = {}
 local romCache = {} -- ["kris|walk"] = { grey ImageData, the game's colours } or false -Elvie
 local fromRom -- below; gameboy.has asks it whether a game has a sprite -Elvie
+-- The player's installed games, read through mod.datasets -Elvie
+local views = {} -- [game] = view or false -Elvie
+local function viewOf(mod, game)
+  if views[game] ~= nil then return views[game] or nil end
+  local datasets = type(mod.datasets) == "table" and mod.datasets
+  local view
+  if datasets and type(datasets.open) == "function" then
+    local ok, v = pcall(datasets.open, datasets, game)
+    if ok and type(v) == "table" then view = v end
+  end
+  views[game] = view or false
+  return view
+end
 local FISH, fishParts -- below, with fishing -Elvie
 
 local function engine(name)
@@ -279,26 +292,44 @@ local function colourise(data, colors, ranked)
 end
 
 -- A trainer's sprite sheet from an installed game: grey, plus colours
--- (the game's own for Gen 2, else Gen 2's). nil if no game has it. -Elvie
+-- (the game's own for Gen 2, else Gen 2's). nil if no game has it. The
+-- sprite record names its sheet and, in Gen 2, which object palette it
+-- wears; the daytime set is the one the overworld uses. -Elvie
+local function datasetSprite(view, id)
+  local sprites = view.content and view.content.sprites
+  if type(sprites) ~= "table" or type(sprites.get) ~= "function" then return nil end
+  local ok, record = pcall(sprites.get, sprites, id)
+  if not ok or type(record) ~= "table" or type(record.image) ~= "string" then return nil end
+  local okPath, full = pcall(view.assets.path, view.assets, record.image)
+  if not okPath or type(full) ~= "string" then return nil end
+  local okData, data = pcall(love.image.newImageData, full)
+  if not okData or not data then return nil end
+  local w, h = data:getDimensions()
+  if w ~= 16 or h < 96 then return nil end
+  local colors
+  local palettes = view.content.palettes
+  local index = tonumber(record.paletteId)
+  if index and type(palettes) == "table" and type(palettes.get) == "function" then
+    local okPal, objects = pcall(palettes.get, palettes, "objects")
+    local day = okPal and type(objects) == "table" and objects.DAY
+    local set = type(day) == "table" and day[index + 1]
+    if type(set) == "table" and #set == 4 then colors = set end
+  end
+  return data, colors
+end
+
 function fromRom(mod, which, kind)
   local key = which .. "|" .. kind
   if romCache[key] ~= nil then return unpack(romCache[key] or {}) end
-  local Avatars = engine("src.online.union.Avatars")
   local sources = ROM[which] and ROM[which][kind] or {}
   local data, colors, games = nil, nil, {}
   for _, source in ipairs(sources) do
     for _, game in ipairs(source[1]) do
       games[#games + 1] = game
-      if not data and Avatars and type(Avatars.hostEntry) == "function" then
-        local ok, entry = pcall(Avatars.hostEntry, game, source[2])
-        if ok and type(entry) == "table" and entry.layout == "gb" then
-          local okData, grey = pcall(Avatars.imageData, entry)
-          if okData and grey then
-            data = grey
-            local own = type(entry.palette) == "table" and entry.palette.colors
-            colors = type(own) == "table" and #own == 4 and own or PALETTES[source[3]]
-          end
-        end
+      local view = not data and viewOf(mod, game)
+      if view then
+        local grey, own = datasetSprite(view, source[2])
+        if grey then data, colors = grey, own or PALETTES[source[3]] end
       end
     end
   end
@@ -462,14 +493,11 @@ local fishCacheOf = {} -- [which] = art or false -Elvie
 local function fishArt(mod, which)
   if fishCacheOf[which] ~= nil then return fishCacheOf[which] or nil end
   local info = FISH[which]
-  local datasets = type(mod.datasets) == "table" and mod.datasets
   local art
-  if info and datasets and type(datasets.open) == "function" then
-    for _, game in ipairs(info.games) do
-      local ok, view = pcall(datasets.open, datasets, game)
-      if ok and type(view) == "table" then art = fromDataset(view, info) end
-      if art then break end
-    end
+  for _, game in ipairs(info and info.games or {}) do
+    local view = viewOf(mod, game)
+    if view then art = fromDataset(view, info) end
+    if art then break end
   end
   if art then art.gen = info.gen end
   fishCacheOf[which] = art or false
@@ -628,19 +656,6 @@ local ROM_PICS = {
 for _, pics in pairs(ROM_PICS) do pics["intro.png"] = pics["front.png"] end
 local PIC_SIZE = { ["rivalEarly.png"] = { 64, 64 }, ["rivalLate.png"] = { 64, 64 }, ["rivalChampion.png"] = { 64, 64 } }
 
-local views = {} -- [game] = view or false -Elvie
-local function viewOf(mod, game)
-  if views[game] ~= nil then return views[game] or nil end
-  local datasets = type(mod.datasets) == "table" and mod.datasets
-  local view
-  if datasets and type(datasets.open) == "function" then
-    local ok, v = pcall(datasets.open, datasets, game)
-    if ok and type(v) == "table" then view = v end
-  end
-  views[game] = view or false
-  return view
-end
-
 -- White joined to the edge is the pic's backdrop: see-through. -Elvie
 local function clearBackdrop(data)
   local w, h = data:getDimensions()
@@ -706,18 +721,12 @@ end
 -- The Gen 3 file as ImageData, or nil if the folder has no art for it.
 -- layout ("frlg" or "rse") sets the frame counts. -Elvie
 -- Like crossgame.retry: forget the misses (a game that wasn't imported,
--- fishing art that wasn't found) so a new setup asks again, and refresh
--- the engine's avatar cache, which keeps misses too.
+-- fishing art that wasn't found) so a new setup asks again. -Elvie
 function gameboy.retry()
-  local missed = false
-  for _, t in ipairs({ romCache, fishCacheOf, fishCache }) do
+  for _, t in ipairs({ romCache, fishCacheOf, fishCache, views, picCache }) do
     for key, value in pairs(t) do
-      if value == false then t[key], missed = nil, true end
+      if value == false then t[key] = nil end
     end
-  end
-  if missed then
-    local Avatars = engine("src.online.union.Avatars")
-    if Avatars and type(Avatars.refresh) == "function" then pcall(Avatars.refresh) end
   end
 end
 
