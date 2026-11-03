@@ -551,6 +551,16 @@ function gen12.init(mod, ctx, family, opts)
   -- what the player is riding right now, for the achievements: "surf",
   -- "pika" (Yellow's Pikachu) or nil
   local surfNow
+  -- Gen 1: { x0, y0, x1, y1 } of a tall look above its own feet this frame
+  local drawingPlayer, playerBox = false, nil
+  -- the same sums as TileRenderer.feetStrip, for the part above the feet
+  local function upperBody(sprite, px, py)
+    local fw, fh = sprite.frameWidth or 16, sprite.frameHeight or 16
+    if fh <= 16 then return nil end
+    local x0 = math.floor(px + 8 - (sprite.anchorX or fw / 2))
+    local top = math.floor(py + 12 - (sprite.anchorY or fh))
+    return { x0, top, x0 + fw, top + fh - 8 }
+  end
   if gen == 1 then
     local Player = engine("src.world.Player")
     if Player and type(Player.draw) == "function" then
@@ -564,9 +574,53 @@ function gen12.init(mod, ctx, family, opts)
         self.surfSprite = live.surf or s3
         -- Yellow: surfing on Pikachu, the look rides it too
         if s4 and live.surfPika then self.surfPikachuSprite = live.surfPika end
+        drawingPlayer = true
         local ok, err = pcall(originalDraw, self, ...)
+        drawingPlayer = false
         self.sprite, self.bikeSprite, self.surfSprite, self.surfPikachuSprite = s1, s2, s3, s4
         if not ok then error(err, 0) end
+      end
+      -- where the player is drawn this frame, read off the pose the draw
+      -- itself asks for (pose moves the surf bob, so it's never called twice)
+      local originalPose = Player.pose
+      if type(originalPose) == "function" then
+        Player.pose = function(self, ...)
+          local sprite, px, py, a, b, c, d = originalPose(self, ...)
+          if drawingPlayer and type(sprite) == "table" then playerBox = upperBody(sprite, px, py) end
+          return sprite, px, py, a, b, c, d
+        end
+      end
+    end
+    -- Tall grass in Gen 1 is laid over every sprite's feet after all of
+    -- them are drawn. A look taller than the Game Boy's 16 pixels reaches
+    -- into the square above, so whoever stands there in grass (Yellow's
+    -- Pikachu, following behind as you walk down) had their grass laid over
+    -- the look's head. The grass now goes around the look above its own
+    -- feet; its own grass still covers its feet.
+    local Overworld = engine("src.world.OverworldController")
+    local TileRenderer = engine("src.render.TileRenderer")
+    if Overworld and type(Overworld.drawWorld) == "function" and TileRenderer then
+      local originalWorld = Overworld.drawWorld
+      Overworld.drawWorld = function(...)
+        playerBox = nil
+        return originalWorld(...)
+      end
+      for _, name in ipairs({ "drawStrip", "markStripRedraw" }) do
+        local original = TileRenderer[name]
+        if type(original) == "function" then
+          TileRenderer[name] = function(self, x0, y0, x1, y1, ...)
+            local box = live and playerBox
+            if not box or x1 <= box[1] or x0 >= box[3] or y1 <= box[2] or y0 >= box[4] then
+              return original(self, x0, y0, x1, y1, ...)
+            end
+            -- the strip minus the box: above, below, left and right of it
+            local my0, my1 = math.max(y0, box[2]), math.min(y1, box[4])
+            if y0 < box[2] then original(self, x0, y0, x1, box[2], ...) end
+            if y1 > box[4] then original(self, x0, box[4], x1, y1, ...) end
+            if x0 < box[1] then original(self, x0, my0, box[1], my1, ...) end
+            if x1 > box[3] then original(self, box[3], my0, x1, my1, ...) end
+          end
+        end
       end
     end
   else
