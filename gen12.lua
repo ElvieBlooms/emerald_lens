@@ -486,6 +486,24 @@ function gen12.init(mod, ctx, family, opts)
 
   local rivalSerial = 0
   local rivalGender -- the rival look's genderMode, for its lines
+  -- The rival's battle pics as files in this mod's cache folder: Oak's
+  -- intro opens OPP_RIVAL1's pic as a file (newImage), so a composed pic
+  -- left it showing the player. A new name each time, so nothing that
+  -- loaded the last one keeps it; the last ones are removed.
+  local rivalFiles = {}
+  local function picFile(name, data, fallback)
+    local cache = type(mod.cache) == "table" and mod.cache or nil
+    local okE, encoded = pcall(function() return data:encode("png"):getString() end)
+    if cache and okE then
+      local rel = ("rival/%d_%s.png"):format(rivalSerial, name)
+      local ok, done = pcall(cache.write, cache, rel, encoded)
+      if ok and done then
+        rivalFiles[#rivalFiles + 1] = rel
+        return ("mod_cache/%s/%s"):format(mod.id or "emerald_lens", rel)
+      end
+    end
+    return publish(name, data, fallback)
+  end
   local function applyRival()
     restoreRival()
     if #rivalBases == 0 then return end
@@ -494,16 +512,23 @@ function gen12.init(mod, ctx, family, opts)
     local spec = RIVAL[gen]
     if type(data) ~= "table" or not spec then return end
     -- he, she or they in the lines about the rival (rival_text.lua)
-    require("mods.emerald_lens.rival_text").apply(data, gen, rivalGender, setField)
+    if rivalGender then
+      local n = require("mods.emerald_lens.rival_text").apply(data, gen, rivalGender, setField)
+      mod.log:info("rival text (%s): %d lines reworded", rivalGender, n)
+    end
     rivalSerial = rivalSerial + 1
     local tag = ("mods/%s/live/rival%d/"):format(mod.id or "emerald_lens", rivalSerial)
+    for _, rel in ipairs(rivalFiles) do
+      if type(mod.cache) == "table" then pcall(mod.cache.delete, mod.cache, rel) end
+    end
+    rivalFiles = {}
     local records = gen == 2 and type(data.gen2Trainers) == "table" and data.gen2Trainers.classes or data.trainers
     local front = loadSheet("front", rivalBases)
     for _, pair in ipairs(spec.pics) do
       local record = type(records) == "table" and records[pair[1]]
       local src = loadSheet(pair[2], rivalBases) or front
       if type(record) == "table" and src then
-        setField(record, "pic", publish(pair[2], opponentPic(src), tag .. pair[2] .. ".png"))
+        setField(record, "pic", picFile(pair[2], opponentPic(src), tag .. pair[2] .. ".png"))
         setField(record, "trueColor", true)
       end
     end
@@ -636,11 +661,12 @@ function gen12.init(mod, ctx, family, opts)
     local game = liveGame()
     local data = game and game.data
     if type(data) ~= "table" then return end
-    require("mods.emerald_lens.player_text").apply(data, gen, playerGender, function(texts, key, value)
+    local n = require("mods.emerald_lens.player_text").apply(data, gen, playerGender, function(texts, key, value)
       playerSaved[texts] = playerSaved[texts] or {}
       if not playerSaved[texts][key] then playerSaved[texts][key] = { value = texts[key] } end
       texts[key] = value
     end)
+    mod.log:info("player text (%s): %d lines reworded", playerGender, n)
   end
 
   -- configure: a new choice (nil for OFF) -Elvie
