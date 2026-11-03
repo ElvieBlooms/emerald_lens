@@ -775,7 +775,7 @@ function lens.init(mod)
     if first then first.rival = gbRival() end
     handle = watch(require("mods.emerald_lens.gen12").init(mod, first, running,
       { lookKeys = lookKeys, gameBoy = gameBoyFor[running.id], spritesDir = SPRITES_DIR,
-        pikachuKit = pikachu, ownCard = not crystalLens }), first)
+        pikachuKit = pikachu, ownCard = not crystalLens, ownText = not crystalLens }), first)
     if handle and crystalLens then
       -- Hand Crystal Lens every look with gen3/ art. While one is its
       -- front sprite, it calls configure with that look's key and this

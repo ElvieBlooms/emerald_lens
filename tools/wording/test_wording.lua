@@ -639,6 +639,35 @@ do
   version = "firered"
 end
 
+-- The Game Boy games' text tables (rival_text.lua, player_text.lua): every
+-- line fits the 18-character text box, and each entry has a hash and words
+do
+  local rival = dofile("rival_text.lua")
+  package.loaded["mods.emerald_lens.rival_text"] = rival
+  local player = dofile("player_text.lua")
+  local wide, shape = 0, 0
+  for _, list in ipairs({ rival.LINES, player.LINES }) do
+    for _, line in ipairs(list) do
+      if type(line[1]) ~= "number" or not (line.girl or line.enby or line.boy or line.all) then shape = shape + 1 end
+      for _, mode in ipairs({ "girl", "enby", "boy", "all" }) do
+        local t = line[mode]
+        if t then
+          local flat = t:gsub("{RIVAL}", "RRRRRRR"):gsub("{PLAYER}", "PPPPPPP"):gsub("{PROMPT}", "")
+            :gsub("{DONE}", ""):gsub("é", "e"):gsub("…", "."):gsub("¥", "Y")
+          for seg in (flat .. "\n"):gmatch("([^\n\011\012]*)[\n\011\012]") do
+            if #seg > 18 then wide = wide + 1; print("  too wide: " .. seg) end
+          end
+        end
+      end
+    end
+  end
+  check(shape == 0, "Game Boy text: every entry has a hash and its words")
+  check(wide == 0, "Game Boy text: every line fits the text box")
+  check(#player.LINES >= 50, "player text: Crystal Lens's girl and enby lines are all here")
+  -- a boy look, or none, changes nothing
+  check(player.apply({ text = {} }, 1, "boy", function() error("no") end) == 0, "player text: a boy look leaves the lines alone")
+end
+
 -- Achievements (achievements.lua), against a stand-in Recomp Achievements
 do
   local Ach = dofile("achievements.lua")

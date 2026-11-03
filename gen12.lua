@@ -74,7 +74,8 @@ local GB_PICS = { front = { "frontColor.png", "front.png" }, back = { "backColor
 -- gameBoy ([key] = true for the Game Boy looks among them) and spritesDir,
 -- pikachuKit (a surf kit folder for Yellow's surfing Pikachu), ownCard
 -- (draw the Gen 2 trainer card portrait; off while Crystal Lens leads,
--- since it draws the card itself)
+-- since it draws the card itself), ownText (word the player's lines for
+-- a girl or enby look; off while Crystal Lens leads, since it does that)
 function gen12.init(mod, ctx, family, opts)
   opts = opts or {}
   local okGb, gameboy = pcall(require, "mods.emerald_lens.gameboy")
@@ -622,6 +623,26 @@ function gen12.init(mod, ctx, family, opts)
     })
   end
 
+  -- The player's lines (player_text.lua) for a girl or enby look, kept
+  -- apart from the rival's so each puts back only its own
+  local playerGender
+  local playerSaved = {} -- [table] = { [key] = { value } }
+  local function applyPlayerText()
+    for texts, keys in pairs(playerSaved) do
+      for key, old in pairs(keys) do texts[key] = old.value end
+    end
+    playerSaved = {}
+    if not (opts.ownText and playerGender) then return end
+    local game = liveGame()
+    local data = game and game.data
+    if type(data) ~= "table" then return end
+    require("mods.emerald_lens.player_text").apply(data, gen, playerGender, function(texts, key, value)
+      playerSaved[texts] = playerSaved[texts] or {}
+      if not playerSaved[texts][key] then playerSaved[texts][key] = { value = texts[key] } end
+      texts[key] = value
+    end)
+  end
+
   -- configure: a new choice (nil for OFF) -Elvie
   local function configure(newCtx)
     -- a game imported since the last time is found now
@@ -646,6 +667,8 @@ function gen12.init(mod, ctx, family, opts)
     end
     live = build()
     setRod()
+    playerGender = newCtx and type(newCtx.folderKeys) == "table" and newCtx.genderMode or nil
+    applyPlayerText()
   end
 
   -- configureRival: { folderKeys, spritesDir, genderMode } for a rival, nil
@@ -664,6 +687,7 @@ function gen12.init(mod, ctx, family, opts)
       savedFx = nil
       setRod()
       applyRival()
+      applyPlayerText()
     end)
   end
   return {
