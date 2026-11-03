@@ -720,8 +720,9 @@ function lens.init(mod)
   local function gbRival()
     local rival = currentRival(running)
     if not rival then return nil end
-    return { folderKeys = chainFor(rival, selectedLook(running, rival, true)), spritesDir = SPRITES_DIR,
-      gameBoy = gameBoyFor[running.id] }
+    local look = selectedLook(running, rival, true)
+    return { folderKeys = chainFor(rival, look), spritesDir = SPRITES_DIR,
+      gameBoy = gameBoyFor[running.id], genderMode = genderModeOf(look) }
   end
 
   if running and defaults[running.id] and running.gb then
@@ -787,7 +788,7 @@ function lens.init(mod)
           local folder = folderOf(key)
           local character = folder and characterOf[folder]
           handle.configureRival(character and { folderKeys = chainFor(character, folder), spritesDir = SPRITES_DIR,
-            gameBoy = gameBoyFor[running.id] } or nil)
+            gameBoy = gameBoyFor[running.id], genderMode = genderModeOf(folder) } or nil)
         end,
         preview = function(key)
           local folder = folderOf(key)

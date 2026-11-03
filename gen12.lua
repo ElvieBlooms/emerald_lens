@@ -484,6 +484,7 @@ function gen12.init(mod, ctx, family, opts)
   end
 
   local rivalSerial = 0
+  local rivalGender -- the rival look's genderMode, for its lines
   local function applyRival()
     restoreRival()
     if #rivalBases == 0 then return end
@@ -491,6 +492,8 @@ function gen12.init(mod, ctx, family, opts)
     local data = game and game.data
     local spec = RIVAL[gen]
     if type(data) ~= "table" or not spec then return end
+    -- he, she or they in the lines about the rival (rival_text.lua)
+    require("mods.emerald_lens.rival_text").apply(data, gen, rivalGender, setField)
     rivalSerial = rivalSerial + 1
     local tag = ("mods/%s/live/rival%d/"):format(mod.id or "emerald_lens", rivalSerial)
     local records = gen == 2 and type(data.gen2Trainers) == "table" and data.gen2Trainers.classes or data.trainers
@@ -639,9 +642,11 @@ function gen12.init(mod, ctx, family, opts)
     setRod()
   end
 
-  -- configureRival: { folderKeys, spritesDir } for a rival, nil for the game's own
+  -- configureRival: { folderKeys, spritesDir, genderMode } for a rival, nil
+  -- for the game's own
   local function configureRival(rivalCtx)
     rivalBases = (rivalCtx and type(rivalCtx.folderKeys) == "table") and basesOf(rivalCtx) or {}
+    rivalGender = rivalCtx and rivalCtx.genderMode or nil
     applyRival()
   end
 
