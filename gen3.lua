@@ -99,6 +99,55 @@ local function warnOnce(key, fmt, ...)
   print(("[emerald_lens] " .. fmt):format(...))
 end
 
+-- A copy of a sheet with at most 15 colours (the GBA's 4-bit palette
+-- less see-through): the 15 most used stay, each other colour takes the
+-- nearest of them. Colours are compared at the GBA's 5 bits
+function gen3.fifteen(src)
+  local w, h = src:getDimensions()
+  local function key(r, g, b)
+    return math.floor(r * 31 + 0.5) * 1024 + math.floor(g * 31 + 0.5) * 32 + math.floor(b * 31 + 0.5)
+  end
+  local count = {}
+  for y = 0, h - 1 do
+    for x = 0, w - 1 do
+      local r, g, b, a = src:getPixel(x, y)
+      if a > 0 then local k = key(r, g, b); count[k] = (count[k] or 0) + 1 end
+    end
+  end
+  local all = {}
+  for k, n in pairs(count) do all[#all + 1] = { k, n } end
+  if #all <= 15 then return src end
+  table.sort(all, function(p, q) if p[2] ~= q[2] then return p[2] > q[2] end return p[1] < q[1] end)
+  local keep = {}
+  for i = 1, 15 do keep[i] = all[i][1] end
+  local function rgb(k) return math.floor(k / 1024), math.floor(k / 32) % 32, k % 32 end
+  local near = {}
+  local function nearest(k)
+    local hit = near[k]
+    if hit then return hit end
+    local r, g, b = rgb(k)
+    local best, bestD = keep[1], math.huge
+    for _, c in ipairs(keep) do
+      local cr, cg, cb = rgb(c)
+      local d = (r - cr) ^ 2 * 3 + (g - cg) ^ 2 * 4 + (b - cb) ^ 2 * 2
+      if d < bestD then best, bestD = c, d end
+    end
+    near[k] = best
+    return best
+  end
+  local out = love.image.newImageData(w, h)
+  for y = 0, h - 1 do
+    for x = 0, w - 1 do
+      local r, g, b, a = src:getPixel(x, y)
+      if a > 0 then
+        local cr, cg, cb = rgb(nearest(key(r, g, b)))
+        out:setPixel(x, y, cr / 31, cg / 31, cb / 31, 1)
+      end
+    end
+  end
+  return out
+end
+
 -- ctx comes from lens.lua: { folderKeys, genderMode, fitSave, spritesDir }, with
 -- folderKeys in fallback order, the selected look first. nil means OFF:
 -- everything passes through to the game's own art. Returns a handle whose
@@ -929,6 +978,52 @@ function gen3.init(mod, ctx)
   end
   local RIVAL_FILES = { "walk.png", "bike.png", "acroBike.png", "surf.png", "fieldMove.png",
     "front.png", "intro.png", "rivalEarly.png", "rivalLate.png", "rivalChampion.png" }
+  -- The cable car builds its sprites as 4-bit GBA sheets and refuses one
+  -- with more than 15 colours (the scene then never starts), which many
+  -- looks have. A sheet it refuses is handed over again cut down to 15
+  -- (gen3.fifteen), for that scene only. Facets does the same; with both
+  -- installed, whichever wraps first does it
+  local okSheet, OwSheet = pcall(require, "src.ui.game3.rse.ow_sheet")
+  if layout == "rse" and okOw and okSheet and type(OwSheet) == "table" and type(OwSheet.build) == "function" then
+    local ownBuild = OwSheet.build
+    OwSheet.build = function(graphicsId, ...)
+      local ok, got = pcall(ownBuild, graphicsId, ...)
+      if ok then return got end
+      if not tostring(got):find("more than 15 colours", 1, true) then error(got, 0) end
+      local get = OwSprites.get
+      OwSprites.get = function(id, ...)
+        local spr = get(id, ...)
+        if id ~= graphicsId or type(spr) ~= "table" or not spr.imageData then return spr end
+        local copy = {}
+        for k, v in pairs(spr) do copy[k] = v end
+        copy.imageData = gen3.fifteen(spr.imageData)
+        return copy
+      end
+      local ok2, again = pcall(ownBuild, graphicsId, ...)
+      OwSprites.get = get
+      if not ok2 then error(again, 0) end
+      return again
+    end
+  end
+
+  -- The cable car (Emerald's Mt. Chimney, Ruby and Sapphire's too) draws
+  -- the player with the rival's sprite for the player's own gender, as the
+  -- GBA games do, so a look never reached it. With a look on it asks for
+  -- the player's own walking sheet instead, which the look replaces
+  if layout == "rse" then
+    local okCable, CableCar = pcall(require, "src.ui.game3.rse.cable_car")
+    if okCable and type(CableCar) == "table" and type(CableCar.open) == "function" then
+      local ownOpen = CableCar.open
+      CableCar.open = function(opts, ...)
+        opts = opts or {}
+        if #slots > 0 then
+          opts.playerGfxNames = { [0] = "OBJ_EVENT_GFX_BRENDAN_NORMAL", "OBJ_EVENT_GFX_MAY_NORMAL" }
+        end
+        return ownOpen(opts, ...)
+      end
+    end
+  end
+
   local function configure(newCtx)
     -- ask again for other games' sprites that weren't there last time
     if crossgame and crossgame.retry then crossgame.retry() end
@@ -936,6 +1031,9 @@ function gen3.init(mod, ctx)
     -- fitSave (GENDER set to MY SAVE): both slots, as for enby; with a
     -- save, sharedSlots keeps only the picked one -Elvie
     slots = newCtx and SLOTS_FOR_GENDER_MODE[newCtx.fitSave and "enby" or newCtx.genderMode] or NONE
+    -- the cable car keeps its sheets until told; a new look needs new ones
+    local sheets = package.loaded["src.ui.game3.rse.ow_sheet"]
+    if type(sheets) == "table" and type(sheets.reset) == "function" then pcall(sheets.reset) end
     local folderKeys = newCtx and (newCtx.folderKeys or { newCtx.folderKey }) or {}
     if #folderKeys == 0 then slots = NONE end
 
@@ -1003,7 +1101,16 @@ function gen3.init(mod, ctx)
   end
 
   configure(ctx)
-  return { configure = configure }
+  -- Whether a trainer is the rival wearing a look: its pic is one the
+  -- rival's look replaces (for the achievements)
+  local function isRivalTrainer(trainerId)
+    local okT, Trainers = pcall(require, "src.core.game3.scripting.trainers")
+    if not (okT and type(Trainers) == "table" and type(Trainers.get) == "function") then return false end
+    local okGet, t = pcall(Trainers.get, trainerId)
+    return okGet and type(t) == "table" and rivalPicFile(t.pic) ~= nil or false
+  end
+
+  return { configure = configure, isRivalTrainer = isRivalTrainer }
 end
 
 return gen3

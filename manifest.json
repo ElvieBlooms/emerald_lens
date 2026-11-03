@@ -1,22 +1,29 @@
 {
   "id": "emerald_lens",
   "name": "Emerald Lens",
-  "version": "0.7.0",
+  "version": "1.0.0",
   "api": 2,
   "entry": "main.lua",
   "profile": "content",
-  "game_version": ">=0.3.93",
+  "game_version": ">=0.3.98",
   "category": "GRAPHICS",
   "priority": 100,
   "dependencies": [],
-  "optional_dependencies": [],
+  "optional_dependencies": [
+    "crystal",
+    "recomp_achievements"
+  ],
   "conflicts": [],
   "incompatible": [],
   "experimental": false,
   "permissions": [
     "engine_internals"
   ],
-  "description": "Player sprite replacement for FireRed, LeafGreen, Ruby, Sapphire and Emerald, using the same character folder format as Crystal Lens.",
+  "description": "Player sprite replacement for FireRed, LeafGreen, Ruby, Sapphire and Emerald, and for Red, Blue, Yellow, Gold, Silver and Crystal, using the same character folder format as Crystal Lens.",
   "github": "ElvieBlooms/emerald_lens",
-  "games": ["gen3"]
+  "games": [
+    "gen1",
+    "gen2",
+    "gen3"
+  ]
 }

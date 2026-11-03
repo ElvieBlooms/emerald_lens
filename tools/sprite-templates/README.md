@@ -280,7 +280,7 @@ player:
 - `surfmons/` has 37 ready-made sheets: the 32 custom drawn for the
   expansion, free to use with credit, and five of the hack's legacy ones
   (Dewgong, Lapras, Ludicolo, Mantine, Pelipper), edited from HG/SS
-  sprites by its contributors and credited that way. Ten of them also ship
+  sprites by its contributors and credited that way. Eleven of them also ship
   with the mod in `assets/surfmons/<id>/frlg|rse`, built with this command,
   for the LENS screen's SURF row; a new one there needs its folder and a
   `meta.json` with `label` and `credit`. `surfmons/kits.json` lists each one's

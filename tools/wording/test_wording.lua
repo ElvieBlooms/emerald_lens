@@ -305,6 +305,8 @@ do
   package.loaded["mods.emerald_lens.gameboy"] = dofile("gameboy.lua")
   package.loaded["mods.emerald_lens.crossgame"] = dofile("crossgame.lua")
   package.loaded["mods.emerald_lens.lens_screen"] = dofile("lens_screen.lua")
+  package.loaded["mods.emerald_lens.achievements"] = dofile("achievements.lua")
+  package.loaded["mods.emerald_lens.lens_gb"] = dofile("lens_gb.lua")
   local layers = {}
   package.loaded["src.ui.game3.stack"] = {
     push = function(id, m) layers[#layers + 1] = { id = id, mod = m } end,
@@ -352,6 +354,11 @@ do
   check(genderRow and #genderRow.choices == 2 and genderRow.choices[2][1] == "MY SAVE" and genderRow.default == "look",
     "GENDER row: the look's gender or MY SAVE")
   check(got.family == "frlg", "text set up for the running family")
+  local byKey = {}
+  for _, row in ipairs(rows) do byKey[row.key] = row end
+  check(byKey.characterGb1 and byKey.characterGb2 and byKey.genderGb2 and not byKey.genderGb1
+    and byKey.rivalGb1 and byKey.rivalGb2 and byKey.rivalGb1.default == "__off" and not byKey.textGb2,
+    "R/B/Y and G/S/C rows: CHARACTER and RIVAL (OFF) for both, GENDER only for G/S/C, no text")
 
   options.characterFrlg, options.rivalFrlg = "KRIS", "SAGE"
   handlers["mod.options_changed"]({ mod = "emerald_lens", key = "rivalFrlg" })
@@ -431,6 +438,7 @@ do
   local dirs = { "kris/gen3/frlg", "zeta/gen3/frlg" }
   local files = { ["arale/backColor.png"] = true }
   local options, handlers, ctxs = {}, {}, {}
+  local defined
   package.loaded["mods.emerald_lens.gen3"] = { init = function(_, ctx)
     ctxs[#ctxs + 1] = ctx
     return { configure = function(c) ctxs[#ctxs + 1] = c end }
@@ -438,8 +446,13 @@ do
   local mod = {
     id = "emerald_lens",
     assets = {
-      list = function(_, dir) return dir == "assets/sprites" and { "arale", "kris", "may_x", "red_gb", "red_x", "zeta" } or {} end,
+      list = function(_, dir)
+        if dir == "assets/surfmons" then return { "lapras" } end
+        return dir == "assets/sprites" and { "arale", "kris", "may_x", "red_gb", "red_x", "zeta" } or {}
+      end,
       info = function(_, rel)
+        if rel == "assets/surfmons/lapras" then return { type = "directory" } end
+        if rel:match("^assets/surfmons/lapras/[a-z]+/surfBlob%.png$") then return { type = "file" } end
         local key, rest = rel:match("^assets/sprites/([^/]+)/?(.*)$")
         if not key or not metas[key] then return nil end
         if rest == "" or rest == "gen3" then
@@ -453,7 +466,7 @@ do
     },
     read = function(_, path) return metas[path:match("sprites/([^/]+)/")] end,
     log = { warn = function() end, info = function() end },
-    options = { define = function() end, get = function(_, key) return options[key] end },
+    options = { define = function(_, r) defined = r end, get = function(_, key) return options[key] end },
     events = { on = function(_, name, fn) handlers[name] = fn end },
     hooks = { wrap = function() end },
   }
@@ -507,12 +520,207 @@ do
   check(not gb.has(mod, "assets/sprites/arale/", "walk.png") and not gb.has(mod, "assets/sprites/arale/", "surf.png")
     and not gb.has(mod, "assets/sprites/arale/", "surfBlob.png"),
     "romOverworld with the game not installed: no walk, surf or blob, so they fall back")
+  check(not gb.has(mod, "assets/sprites/arale/", "bike.png") and gb.BIKE_CUT == 10,
+    "no game installed, no bike sprite to borrow the bottom half of (cut at row 10)")
   check(not gb.has(mod, "assets/sprites/arale/", "fishing.png") and gb.DROP["fishing.png"] == 8,
     "no fishing art readable: fishing.png isn't offered, so it falls back; fishing frames are 8 taller")
   files["arale/overworldSurf.png"] = true
   check(gb.has(mod, "assets/sprites/arale/", "surf.png") and gb.has(mod, "assets/sprites/arale/", "surfBlob.png")
     and gb.has(mod, "assets/sprites/arale/", "underwater.png") and not gb.has(mod, "assets/sprites/arale/", "walk.png"),
     "a folder's own overworldSurf.png: surf, dive and the left-out blob, with no game installed")
+
+  -- Red/Blue/Yellow: Gen 3 looks only, through gen12.lua -Elvie
+  local gbCtx, gbFamily, gbOpts, gbRival = nil, nil, nil, nil
+  package.loaded["mods.emerald_lens.gen12"] = { init = function(_, c, f, o)
+    gbCtx, gbFamily, gbOpts = c, f, o
+    gbRival = c and c.rival
+    return { configure = function(c2) gbCtx = c2 end, configureRival = function(r) gbRival = r end,
+      card = function() return "card" end }
+  end }
+  local GV = package.loaded["src.core.GameVersion"]
+  local GENERATION = { red = 1 }
+  GV.generation = function(v) return GENERATION[v] or 3 end
+  version = "red"
+  local screens = {}
+  mod.content = { screens = { register = function(_, id, def) screens[id] = def end } }
+  mod.ui = { Font = {}, push = function() end }
+  mod.hooks = { wrap = function(_, name, fn) handlers[name] = fn end }
+  dofile("lens.lua").init(mod)
+  check(screens.emerald_lens_lens and screens.emerald_lens_lens_credits and screens.emerald_lens_prism,
+    "the Game Boy LENS, credits and PRISM screens are registered")
+  check(gbCtx == nil, "R/B/Y starts OFF, so Crystal Lens's player stays")
+  options.characterGb1 = "KRIS"
+  handlers["mod.options_changed"]({ mod = "emerald_lens", key = "characterGb1" })
+  check(gbFamily and gbFamily.id == "gb1" and gbFamily.art[1] == "frlg",
+    "Red runs gen12.lua with FR/LG art first")
+  check(gbCtx and table.concat(gbCtx.folderKeys, ",") == "kris,zeta,arale",
+    "R/B/Y chain: " .. tostring(gbCtx and table.concat(gbCtx.folderKeys, ",")))
+  options.lookGb1_KRIS = "arale"
+  handlers["mod.options_changed"]({ mod = "emerald_lens", key = "lookGb1_KRIS" })
+  check(gbCtx.folderKeys[1] == "arale" and gbCtx.gameBoy and gbCtx.gameBoy.arale and not gbCtx.gameBoy.kris,
+    "a Game Boy look is offered in R/B/Y, drawn from its own files")
+  local X = package.loaded["mods.emerald_lens.crossgame"]
+  check(X.isBase("assets/sprites/red_x/gen3/frlg/") and X.isBase("assets/sprites/may_x/gen3/rse/"),
+    "players from the Gen 3 games are offered in R/B/Y, each read from its own family's game")
+  options.lookGb1_KRIS = "kris"
+  handlers["mod.options_changed"]({ mod = "emerald_lens", key = "lookGb1_KRIS" })
+  check(gbCtx.lookKey == "kris", "the selected look is handed over, for the battle back's fixed path")
+  check(gbOpts and gbOpts.ownCard == true and table.concat(gbOpts.lookKeys, ",") == "arale,kris,zeta,may_x,red_x,red_gb"
+    and gbOpts.gameBoy.arale and gbOpts.spritesDir == "assets/sprites",
+    "every R/B/Y look listed for the back scales, Game Boy ones marked; the trainer card is this mod's own")
+  check(gbRival == nil, "RIVAL starts OFF in R/B/Y")
+  options.rivalGb1 = "KRIS"
+  handlers["mod.options_changed"]({ mod = "emerald_lens", key = "rivalGb1" })
+  check(gbRival and table.concat(gbRival.folderKeys, ",") == "kris,zeta,arale" and gbRival.spritesDir == "assets/sprites",
+    "R/B/Y RIVAL: Blue gets the look's chain")
+  options.rivalLookGb1_KRIS = "zeta"
+  handlers["mod.options_changed"]({ mod = "emerald_lens", key = "rivalLookGb1_KRIS" })
+  check(gbRival and gbRival.folderKeys[1] == "zeta", "RIVAL LOOK changes Blue's look")
+  check(gbCtx and gbCtx.folderKeys[1] == "kris", "the player keeps their own look")
+  gbRival = "unset"
+  handlers["save.loaded"]()
+  check(type(gbRival) == "table" and gbRival.folderKeys[1] == "zeta", "loading a save puts the rival back")
+  -- the LENS screen on the Game Boy START and OPTION menus, through PRISM
+  local items = handlers["ui.start_menu.items"](function(_, list) return list end, nil,
+    { { label = "OPTION" }, { label = "MODS" }, { label = "QUIT" } })
+  check(items[2] and items[2].label == "LENS" and items[2].id == "prism" and items[3].label == "MODS",
+    "LENS goes just above MODS on the Game Boy START menu")
+  local optRows = handlers["ui.options.rows"](function(_, list) return list end, nil, { { id = "text" }, { id = "cancel", cancel = true } })
+  check(optRows[2] and optRows[2].label == "EMERALD LENS" and optRows[2].value() == "KRIS" and optRows[2].activate
+    and optRows[3].cancel, "EMERALD LENS row on the Game Boy OPTION menu, before BACK, showing the character")
+  -- with Facets there too, one PRISM item for both
+  local prism = dofile("prism.lua")
+  local facetsEntry = { id = "facets", label = "FACETS", short = "FACETS", value = function() return "HGSS" end, open = function() end }
+  local both = prism.addStartGb(mod, handlers["ui.start_menu.items"](function(_, list) return list end, nil,
+    { { label = "OPTION" }, { label = "MODS" }, { label = "QUIT" } }), facetsEntry, nil, "facets_prism")
+  check(both[2].label == "PRISM" and #both[2].entries == 2 and both[2].entries[1].id == "emerald_lens"
+    and both[2].screen == "emerald_lens_prism" and #both == 4, "with Facets, one PRISM item lists both, sorted by name")
+  options.rivalGb1, options.rivalLookGb1_KRIS = nil, nil
+  options.surfGb1 = "lapras"
+
+  -- With Crystal Lens: it keeps the choices; these looks join its lists -Elvie
+  local added
+  local installed = { crystal = { exports = { lens = { addLooks = function(p) added = p return true end } } } }
+  mod.find = function(a, b) return installed[b == nil and a or b] end
+  gbCtx = "unset"
+  dofile("lens.lua").init(mod)
+  local keys = {}
+  for _, look in ipairs(added and added.looks or {}) do keys[#keys + 1] = look.key end
+  check(added and table.concat(keys, ",") == "emerald_lens:arale,emerald_lens:kris,emerald_lens:zeta,emerald_lens:may_x,emerald_lens:red_x,emerald_lens:red_gb"
+    and added.looks[1].folder == "arale",
+    "looks handed to Crystal Lens, with their folders so it can leave out its own: " .. table.concat(keys, ","))
+  check(gbCtx == nil, "nothing drawn until Crystal Lens picks one")
+  check(gbOpts and gbOpts.ownCard == false, "with Crystal Lens, its trainer card screen stays")
+  local surfRow, charRow
+  for _, row in ipairs(defined) do
+    if row.key == "surfGb1" then surfRow = row end
+    if row.key == "characterGb1" then charRow = row end
+  end
+  check(surfRow and not charRow, "with Crystal Lens only SURF is left in the R/B/Y rows")
+  added.configure("emerald_lens:zeta")
+  check(gbCtx and gbCtx.folderKeys[1] == "zeta" and gbCtx.fitSave == true and gbCtx.lookKey == "zeta"
+    and gbCtx.surfKit == "assets/surfmons/lapras/",
+    "Crystal Lens picks a look: drawn, for either save (its GENDER decides), with this mod's SURF")
+  handlers["mod.options_changed"]({ mod = "emerald_lens", key = "surfGb1" })
+  check(gbCtx and gbCtx.folderKeys[1] == "zeta", "changing SURF keeps Crystal Lens's pick")
+  added.configureRival("emerald_lens:kris")
+  check(type(gbRival) == "table" and gbRival.folderKeys[1] == "kris", "Crystal Lens's RIVAL on one of these looks: drawn here")
+  added.configureRival(nil)
+  check(gbRival == nil, "Crystal Lens's own rival: this mod steps back")
+  local preview = added.preview("emerald_lens:zeta")
+  check(preview and preview.card == "card", "the trainer card portrait handed to Crystal Lens for the drawn look")
+  gbCtx = nil
+  handlers["save.loaded"]()
+  check(gbCtx and gbCtx.folderKeys[1] == "zeta", "loading a save keeps Crystal Lens's pick")
+  added.configure(nil)
+  check(gbCtx == nil, "Crystal Lens's own look: this mod steps back")
+  mod.find = nil
+  GV.generation = nil
+  version = "firered"
+end
+
+-- Achievements (achievements.lua), against a stand-in Recomp Achievements
+do
+  local Ach = dofile("achievements.lua")
+  local handlers = {}
+  local saved = {}
+  local mod = {
+    id = "emerald_lens",
+    log = { warn = function() end, info = function() end },
+    events = { on = function(_, name, fn) handlers[name] = fn end },
+    save = { get = function(_, k, d) if saved[k] == nil then return d end return saved[k] end,
+      set = function(_, k, v) saved[k] = v end },
+  }
+  check(Ach.init(mod, {}) == nil, "achievements: nothing without Recomp Achievements")
+  local unlocked, progress, registered = {}, {}, nil
+  local exports = { apiVersion = "2.0.0", events = { ready = "ach.ready" } }
+  mod.find = function(a, b)
+    local id = b == nil and a or b
+    if id == "recomp_achievements" then return { exports = exports } end
+  end
+  check(Ach.init(mod, {}) == nil, "achievements: an API version this mod doesn't know is left alone")
+  exports.apiVersion = "1.3.0"
+  exports.connect = function(_, opts)
+    check(opts and opts.tab == "LENS", "achievements: their own LENS tab")
+    return {
+      registerMany = function(_, list) registered = list; return #list, {} end,
+      isUnlocked = function(_, id) return unlocked[id] == true end,
+      unlock = function(_, id) unlocked[id] = true; return true end,
+      setProgress = function(_, id, n) progress[id] = n; return true end,
+      addProgress = function(_, id, n) progress[id] = (progress[id] or 0) + (n or 1); return true end,
+    }
+  end
+  local now = { look = "gbkris", surfKit = false }
+  local kinds = { gbkris = "gameboy", red_frlg = "cross", may = "gen3", may2 = "gen3" }
+  local chars = { gbkris = "KRIS", red_frlg = "RED", may = "MAY", may2 = "MAY" }
+  local rivalTrainer = false
+  local api = {
+    family = { id = "rse", gb = false },
+    now = function() return now end,
+    handle = { isRivalTrainer = function() return rivalTrainer end },
+    kindOf = function(k) return kinds[k] end,
+    characterOf = function(k) return chars[k] end,
+  }
+  local a = Ach.init(mod, api)
+  check(a and registered and #registered == 13, "achievements: 13 added")
+  a.changed()
+  check(next(unlocked) == nil, "achievements: nothing before a save is attached")
+  handlers["ach.ready"]({ game = "emerald" })
+  check(unlocked.fresh_look and unlocked.old_school and progress.wardrobe == 1,
+    "achievements: a Game Boy look in Emerald (Fresh Look, Old School, Wardrobe 1)")
+  now.look = "red_frlg"; a.changed()
+  check(unlocked.across_the_sea and progress.wardrobe == 2, "achievements: RED from FR/LG in Emerald (Across the Sea)")
+  a.changed()
+  check(progress.wardrobe == 2, "achievements: the same look twice counts once")
+  now.look, now.rival = "may", "may2"
+  handlers["battle.started"]({ kind = "trainer", trainerId = 520 })
+  check(not unlocked.frenemies, "achievements: a trainer that isn't the rival")
+  rivalTrainer = true
+  handlers["battle.started"]({ kind = "trainer", trainerId = 520 })
+  check(unlocked.frenemies and unlocked.mirror_match, "achievements: the rival, the same character (Frenemies, Mirror Match)")
+  handlers["map.entered"]({ mapId = "EM_EVER_GRANDE_CITY_HALL_OF_FAME" })
+  check(unlocked.hall_of_lens, "achievements: Hall of Fame with a look")
+  a.lensOpened()
+  check(unlocked.behind_the_lens, "achievements: opening LENS")
+  -- the Game Boy games: surfing on the SURF row's Pokemon, and Yellow's Pikachu
+  unlocked, progress, saved = {}, {}, {}
+  local riding
+  api.family = { id = "gb1", gb = true }
+  api.handle = { surfNow = function() return riding end }
+  now = { look = "may", surfKit = true }
+  a = Ach.init(mod, api)
+  handlers["ach.ready"]({ game = "yellow" })
+  check(unlocked.new_tricks, "achievements: a Gen 3 look in Yellow (New Tricks)")
+  handlers["world.stepped"]({})
+  check(not unlocked.surfs_up and progress.long_walk == 1, "achievements: walking isn't surfing; Long Walk counts")
+  riding = "pika"
+  handlers["world.stepped"]({})
+  check(unlocked.surfs_up and unlocked.pika_pal, "achievements: surfing on Pikachu (Surf's Up, Pika Pal)")
+  handlers["battle.started"]({ kind = "trainer", trainerId = "OPP_RIVAL2" })
+  check(not unlocked.frenemies, "achievements: no rival look, no Frenemies")
+  now.rival = "may2"
+  handlers["battle.started"]({ kind = "trainer", trainerId = "OPP_RIVAL2" })
+  check(unlocked.frenemies, "achievements: Blue wearing a look (Frenemies)")
 end
 
 print(("%d passed, %d failed"):format(passed, failed))

@@ -89,7 +89,7 @@ Crystal Clear player sheet, puts its files at the look's top level, keeps
 Injecting colours as `overworldColors` for the download, and switches the
 look to Game Boy.
 The fishing preview places the rod as Gen 2 does when the look has that key.
-"Sprites from your game" sets `romOverworld` (Red, Blue, Gold or Kris):
+"Sprites from your game" sets `romOverworld` (Red, Blue, Gold, Kris or Silver):
 those sprites are read from the player's own game when they play, so they
 aren't in the download and the page can't show them, and a look can be
 just a `meta.json` naming a game. A preview draws the front and back pics

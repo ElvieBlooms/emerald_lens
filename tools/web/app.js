@@ -1797,7 +1797,7 @@ $("look-zip").addEventListener("change", async (e) => {
     // with Game Boy art and no gen3 folder is a Game Boy look -Elvie
     const gb = !exists("look/gen3") && (gbHas().length > 0 || !!meta.romOverworld);
     $("m-generation").value = gb ? "gb" : Number(meta.generation) === 4 ? "4" : "3";
-    $("gb-rom").value = ["red", "blue", "gold", "kris"].includes(meta.romOverworld) ? meta.romOverworld : "";
+    $("gb-rom").value = ["red", "blue", "gold", "kris", "silver"].includes(meta.romOverworld) ? meta.romOverworld : "";
     showGb();
     $("m-credit").value = (Array.isArray(meta.credit) ? meta.credit : meta.credit ? [meta.credit] : []).join("\n");
     noteLength($("m-label"), $("m-label-note"));

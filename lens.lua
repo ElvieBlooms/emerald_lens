@@ -147,20 +147,29 @@ function lens.init(mod)
   -- shows up for a family when it has that family's gen3 folder, but every
   -- folder of a character stays in the fallback chain. -Elvie
   -- --------------------------------------------------
+  -- The Game Boy games (gb = true) show a look's gen3/ sheets through
+  -- gen12.lua, from the art families in order: FR/LG's first in Kanto,
+  -- R/S/E's first in Johto. Game Boy looks are offered there too, drawn
+  -- from their own Crystal Lens files (with Crystal Lens installed, only
+  -- the ones it doesn't have itself).
   local FAMILIES = {
     { id = "frlg", suffix = "Frlg", label = "FR/LG" },
     { id = "rse",  suffix = "Rse",  label = "R/S/E" },
+    { id = "gb1",  suffix = "Gb1",  label = "R/B/Y", gb = true, art = { "frlg", "rse" } },
+    { id = "gb2",  suffix = "Gb2",  label = "G/S/C", gb = true, art = { "rse", "frlg" } },
   }
   local OFF = "__off"
   local allFolders, metaFor = {}, {}
-  local lookFolders = { frlg = {}, rse = {} } -- [family][character] = looks
+  local lookFolders = { frlg = {}, rse = {}, gb1 = {}, gb2 = {} } -- [family][character] = looks
   -- A folder with no gen3/ art for a family but Crystal Lens art (or a
   -- romOverworld) is a Game Boy look there: gameboy.lua fits it to the
   -- Gen 3 sizes. [family][key] = true. -Elvie
-  local gameBoyFor = { frlg = {}, rse = {} }
+  local gameBoyFor = { frlg = {}, rse = {}, gb1 = {}, gb2 = {} }
   -- A "fromGame" folder is the other family's player, read from that game
   -- (crossgame.lua), in the family it isn't from. [family][key] = true. -Elvie
-  local crossFor = { frlg = {}, rse = {} }
+  local crossFor = { frlg = {}, rse = {}, gb1 = {}, gb2 = {} }
+  -- Folders with gen3/ art, for the Game Boy games' fallback order -Elvie
+  local hasGen3 = {}
 
   for _, key in ipairs(mod.assets:list(SPRITES_DIR)) do
     if isDirectory(SPRITES_DIR .. "/" .. key) then
@@ -181,10 +190,23 @@ function lens.init(mod)
       local crossFamily = crossgame and crossgame.familyFor(meta)
       for _, family in ipairs(FAMILIES) do
         local own = isDirectory(SPRITES_DIR .. "/" .. key .. "/gen3/" .. family.id)
-        local cross = crossFamily == family.id
-        if cross then
+        if family.gb then
+          own = false
+          for _, art in ipairs(family.art) do
+            own = own or isDirectory(SPRITES_DIR .. "/" .. key .. "/gen3/" .. art)
+          end
+          if own then hasGen3[key] = true end
+        end
+        -- In the Game Boy games every one of them is offered, read from
+        -- its own family's game (registered below, once the running game
+        -- is known)
+        local cross = crossFamily ~= nil and (family.gb or crossFamily == family.id)
+        if cross and not family.gb then
           crossgame.register(SPRITES_DIR .. "/" .. key .. "/gen3/" .. family.id .. "/", meta)
+        end
+        if cross then
           crossFor[family.id][key] = true
+          if family.gb then hasGen3[key] = true end
         end
         if not own and gameBoy then gameBoyFor[family.id][key] = true end
         if own or gameBoy or cross then
@@ -313,6 +335,37 @@ function lens.init(mod)
     return lookDefaults[family.id .. ":" .. character] or looks[1].key
   end
 
+  -- Ridden Pokemon (surf kits): assets/surfmons/<id>/ with a meta.json
+  -- (label, credit) and frlg/ and rse/ folders made by pack_gen3.py
+  -- surfmon. Picked on the LENS screen only, per family (in the Game Boy
+  -- games in the mod options too); OFF keeps the look's blob or the
+  -- game's. -Elvie
+  local surfKits = {} -- [family id] = { { key, label, credit } } -Elvie
+  for _, id in ipairs(mod.assets:list(SURF_DIR) or {}) do
+    if isDirectory(SURF_DIR .. "/" .. id) then
+      local ok, meta = pcall(decodeJson, mod:read(SURF_DIR .. "/" .. id .. "/meta.json"))
+      meta = ok and type(meta) == "table" and meta or {}
+      for _, family in ipairs(FAMILIES) do
+        local has = false
+        for _, art in ipairs(family.art or { family.id }) do
+          has = has or mod.assets:info(SURF_DIR .. "/" .. id .. "/" .. art .. "/surfBlob.png") ~= nil
+        end
+        if has then
+          surfKits[family.id] = surfKits[family.id] or {}
+          table.insert(surfKits[family.id], { key = id, label = labelOf(meta, id), credit = meta.credit })
+        end
+      end
+    end
+  end
+  for _, list in pairs(surfKits) do table.sort(list, byLabel) end
+  local function surfKitOf(family)
+    local value = mod.options:get("surf" .. family.suffix)
+    for _, kit in ipairs(surfKits[family.id] or {}) do
+      if kit.key == value then return value end
+    end
+    return nil
+  end
+
   -- Layout
   -- A heading per family with CHARACTER, LOOK and GENDER under it, then
   -- RIVAL, RIVAL LOOK and TEXT, then a reminder at the bottom. Mod options only have rows the cursor can land
@@ -344,17 +397,39 @@ function lens.init(mod)
       choices = { { "", LOOK_GENDER }, { "MY SAVE", SAVE_GENDER } }, default = LOOK_GENDER }
   end
 
+  -- Crystal Lens (mods/crystal), when it's running too: in the Game Boy
+  -- games it keeps the choices and these looks join its lists, so the
+  -- R/B/Y and G/S/C rows aren't added here (see the end of init). -Elvie
+  local crystal = type(mod.find) == "function" and mod.find("crystal") or nil
+  local crystalLens = type(crystal) == "table" and type(crystal.exports) == "table"
+    and type(crystal.exports.lens) == "table" and type(crystal.exports.lens.addLooks) == "function"
+    and crystal.exports.lens or nil
+
   local function buildRows()
     local rows = {}
     for _, family in ipairs(FAMILIES) do
       local choices = choicesFor[family.id]
+      -- With Crystal Lens leading, its rows pick the look, so only SURF
+      -- is left here, for when one of these looks rides
+      if family.gb and crystalLens then
+        if #choices > 0 and surfKits[family.id] and #surfKits[family.id] > 0 then
+          table.insert(rows, inertRow("section" .. family.suffix, family.label))
+          local kits = pairsOf(surfKits[family.id])
+          table.insert(kits, 1, { "OFF", OFF })
+          table.insert(rows, { key = "surf" .. family.suffix, type = "choice", label = "  SURF",
+            choices = kits, default = OFF })
+        end
+        choices = {}
+      end
       if #choices > 0 then
         local characterKey = "character" .. family.suffix
         table.insert(rows, inertRow("section" .. family.suffix, family.label))
         local list = pairsOf(choices)
         table.insert(list, { "OFF", OFF })
+        -- OFF to start with in the Game Boy games, so Crystal Lens's
+        -- player stays until you pick one here -Elvie
         table.insert(rows, { key = characterKey, type = "choice", label = "  CHARACTER",
-          choices = list, default = defaults[family.id] })
+          choices = list, default = family.gb and OFF or defaults[family.id] })
         for _, choice in ipairs(choices) do
           local looks = lookFolders[family.id][choice.key]
           if #looks > 1 then
@@ -365,6 +440,38 @@ function lens.init(mod)
               visible_if = { key = characterKey, equals = choice.key },
             })
           end
+        end
+        -- Game Boy games: GENDER only in Crystal (G/S/C), where there's
+        -- a Kris; RIVAL for Blue or Silver; no text rows; SURF here as
+        -- well as on the LENS screen
+        if family.gb then
+          if family.id == "gb2" then
+            genderRows[family.id] = genderRow("gender" .. family.suffix)
+            table.insert(rows, genderRows[family.id])
+          end
+          local rivalKey = "rival" .. family.suffix
+          local rivals = pairsOf(choices)
+          table.insert(rivals, 1, { "OFF", OFF })
+          table.insert(rows, { key = rivalKey, type = "choice", label = "  RIVAL",
+            choices = rivals, default = OFF })
+          for _, choice in ipairs(choices) do
+            local looks = lookFolders[family.id][choice.key]
+            if #looks > 1 then
+              table.insert(rows, {
+                key = rivalLookKey(family, choice.key), type = "choice",
+                label = "  RIVAL LOOK", choices = pairsOf(looks),
+                default = lookDefaults[family.id .. ":" .. choice.key],
+                visible_if = { key = rivalKey, equals = choice.key },
+              })
+            end
+          end
+          if surfKits[family.id] and #surfKits[family.id] > 0 then
+            local kits = pairsOf(surfKits[family.id])
+            table.insert(kits, 1, { "OFF", OFF })
+            table.insert(rows, { key = "surf" .. family.suffix, type = "choice", label = "  SURF",
+              choices = kits, default = OFF })
+          end
+          goto nextFamily
         end
         genderRows[family.id] = genderRow("gender" .. family.suffix)
         table.insert(rows, genderRows[family.id])
@@ -391,6 +498,7 @@ function lens.init(mod)
         table.insert(rows, { key = "text" .. family.suffix, type = "choice", label = "  TEXT",
           choices = { { "ON", "on" }, { "OFF", "off" } }, default = "on" })
       end
+      ::nextFamily::
     end
     for i, line in ipairs(WARNING) do
       table.insert(rows, inertRow("warning" .. i, line))
@@ -405,16 +513,32 @@ function lens.init(mod)
   -- --------------------------------------------------
   local okVersion, GameVersion = pcall(require, "src.core.GameVersion")
   local layout = okVersion and GameVersion.layout(GameVersion.get())
+  local generation = okVersion and type(GameVersion.generation) == "function"
+    and GameVersion.generation(GameVersion.get())
+  if generation == 1 then layout = "gb1" elseif generation == 2 then layout = "gb2" end
   local running
   for _, f in ipairs(FAMILIES) do
     if f.id == layout then running = f end
+  end
+  -- Players from the Gen 3 games in a Game Boy game: each one's sheets
+  -- come from its own family's game (Red and Leaf from FR/LG, Brendan and
+  -- May from R/S/E), through crossgame.lua as in the Gen 3 games
+  if running and running.gb and crossgame then
+    for key in pairs(crossFor[running.id]) do
+      local meta = metaFor[key]
+      local from = crossgame.PLAYERS[crossgame.playerOf(meta)].family
+      crossgame.register(SPRITES_DIR .. "/" .. key .. "/gen3/" .. from .. "/", meta)
+    end
   end
 
   -- The character a family would use right now (nil for OFF). -Elvie
   local function currentCharacter(family)
     local character = mod.options:get("character" .. family.suffix)
     if character == OFF then return nil end
-    if not lookFolders[family.id][character] then character = defaults[family.id] end
+    if not lookFolders[family.id][character] then
+      if family.gb then return nil end
+      character = defaults[family.id]
+    end
     return character
   end
 
@@ -441,6 +565,8 @@ function lens.init(mod)
   local function generationOf(key)
     local g = tonumber((metaFor[key] or {}).generation)
     if running and gameBoyFor[running.id][key] then return g == 1 and 1 or 2 end
+    -- in the Game Boy games, a folder with no gen3/ art has nothing to show -Elvie
+    if running and running.gb and not hasGen3[key] then return 1 end
     return g == 4 and 4 or 3
   end
 
@@ -476,42 +602,59 @@ function lens.init(mod)
     return character
   end
 
-  -- Ridden Pokemon (surf kits): assets/surfmons/<id>/ with a meta.json
-  -- (label, credit) and frlg/ and rse/ folders made by pack_gen3.py
-  -- surfmon. Picked on the LENS screen only, per family; OFF keeps the
-  -- look's blob or the game's. -Elvie
-  local surfKits = {} -- [family id] = { { key, label, credit } } -Elvie
-  for _, id in ipairs(mod.assets:list(SURF_DIR) or {}) do
-    if isDirectory(SURF_DIR .. "/" .. id) then
-      local ok, meta = pcall(decodeJson, mod:read(SURF_DIR .. "/" .. id .. "/meta.json"))
-      meta = ok and type(meta) == "table" and meta or {}
-      for _, family in ipairs(FAMILIES) do
-        if mod.assets:info(SURF_DIR .. "/" .. id .. "/" .. family.id .. "/surfBlob.png") then
-          surfKits[family.id] = surfKits[family.id] or {}
-          table.insert(surfKits[family.id], { key = id, label = labelOf(meta, id), credit = meta.credit })
-        end
-      end
-    end
-  end
-  for _, list in pairs(surfKits) do table.sort(list, byLabel) end
-  local function surfKitOf(family)
-    local value = mod.options:get("surf" .. family.suffix)
-    for _, kit in ipairs(surfKits[family.id] or {}) do
-      if kit.key == value then return value end
-    end
-    return nil
-  end
 
   local handle
+  -- With Crystal Lens leading, its pick (see the end of init); restarting
+  -- the sprites re-applies it instead of this mod's own rows -Elvie
+  local crystalPick
+
+  -- What's on right now, from every configure the sprites get (this
+  -- mod's own rows or Crystal Lens's pick), for the achievements
+  local lensNow, lensChanged = {}, nil
+  local function noteLook(ctx)
+    lensNow.look = ctx and ctx.lookKey or nil
+    lensNow.surfKit = (ctx and ctx.surfKit) ~= nil
+    -- the Game Boy games set the rival on its own (configureRival)
+    if not (running and running.gb) then
+      lensNow.rival = ctx and ctx.rival and type(ctx.rival.folderKeys) == "table" and ctx.rival.folderKeys[1] or nil
+    end
+    if lensChanged then lensChanged() end
+  end
+  local function noteRival(rivalCtx)
+    lensNow.rival = rivalCtx and type(rivalCtx.folderKeys) == "table" and rivalCtx.folderKeys[1] or nil
+    if lensChanged then lensChanged() end
+  end
+  local function watch(h, ctx)
+    if type(h) ~= "table" then return h end
+    noteLook(ctx)
+    if ctx and ctx.rival then noteRival(ctx.rival) end
+    local configure, configureRival = h.configure, h.configureRival
+    h.configure = function(c, ...)
+      noteLook(c)
+      return configure(c, ...)
+    end
+    if configureRival then
+      h.configureRival = function(r, ...)
+        noteRival(r)
+        return configureRival(r, ...)
+      end
+    end
+    return h
+  end
+  local achievements
   local function resolve()
     local ctx = { folderKeys = {}, genderMode = DEFAULT_GENDER_MODE, spritesDir = SPRITES_DIR,
       gameBoy = gameBoyFor[running.id] }
     local character = currentCharacter(running)
     local kit = surfKitOf(running)
-    if kit then ctx.surfKit = SURF_DIR .. "/" .. kit .. "/" .. running.id .. "/" end
+    if kit then
+      -- gen12.lua picks the art family's folder itself -Elvie
+      ctx.surfKit = SURF_DIR .. "/" .. kit .. "/" .. (running.gb and "" or (running.id .. "/"))
+    end
     if character then
       local selected = selectedLook(running, character)
       ctx.folderKeys = chainFor(character, selected)
+      ctx.lookKey = selected
       ctx.genderMode = genderModeOf(selected)
       ctx.fitSave = fitsSave(running) or nil
     end
@@ -556,10 +699,175 @@ function lens.init(mod)
     }
   end
 
-  if running and defaults[running.id] then
-    handle = require("mods.emerald_lens.gen3").init(mod, resolve())
+  -- What the Game Boy LENS screens show of a look, through its chain:
+  -- the front pic (rivalEarly.png first for the rival), and the walking
+  -- sprite, a Gen 3 walk.png (walk) or a Game Boy overworldWalk.png in
+  -- the look's overworldColors (walkGb, colors). Used by this mod's screen
+  -- and Crystal Lens's.
+  local CRYSTAL_COLORS = { { 255, 255, 255 }, { 255, 173, 99 }, { 1, 99, 198 }, { 0, 0, 0 } }
+  local crossWalks = {} -- [key] = the walk read from its Gen 3 game, or false
+  local function gbPreviewOf(character, look, rival)
+    local out = {}
+    local gb = running and gameBoyFor[running.id] or {}
+    local names = rival and { "rivalEarly", "front" } or { "front" }
+    for _, name in ipairs(names) do
+      for _, key in ipairs(chainFor(character, look)) do
+        local files = gb[key] and { SPRITES_DIR .. "/" .. key .. "/" .. name .. "Color.png", SPRITES_DIR .. "/" .. key .. "/" .. name .. ".png" } or {}
+        if not gb[key] then
+          for _, art in ipairs(running.art) do files[#files + 1] = SPRITES_DIR .. "/" .. key .. "/gen3/" .. art .. "/" .. name .. ".png" end
+        end
+        for _, rel in ipairs(files) do
+          if not out.pic and mod.assets:info(rel) then out.pic = mod.assets:path(rel) end
+        end
+      end
+    end
+    for _, key in ipairs(chainFor(character, look)) do
+      if out.walk or out.walkGb then break end
+      if gb[key] then
+        local rel = SPRITES_DIR .. "/" .. key .. "/overworldWalk.png"
+        if mod.assets:info(rel) then
+          local c = (metaFor[key] or {}).overworldColors
+          out.walkGb, out.colors = mod.assets:path(rel), (type(c) == "table" and #c == 4) and c or CRYSTAL_COLORS
+        end
+      else
+        for _, art in ipairs(running.art) do
+          local rel = SPRITES_DIR .. "/" .. key .. "/gen3/" .. art .. "/walk.png"
+          if not out.walk and mod.assets:info(rel) then out.walk = mod.assets:path(rel) end
+        end
+        -- a player from the Gen 3 games: the sheet read from that game
+        -- (an ImageData; both LENS screens take one in place of a path)
+        if not out.walk and crossFor[running.id][key] and crossgame then
+          if crossWalks[key] == nil then
+            local from = crossgame.PLAYERS[crossgame.playerOf(metaFor[key])].family
+            local base = SPRITES_DIR .. "/" .. key .. "/gen3/" .. from .. "/"
+            local ok, data = false, nil
+            if crossgame.has(mod, base, "walk.png", from) then ok, data = pcall(crossgame.load, mod, base, "walk.png", from) end
+            crossWalks[key] = ok and data or false
+          end
+          out.walk = crossWalks[key] or nil
+        end
+      end
+    end
+    return out
+  end
+
+  -- The rival in the Game Boy games, from this mod's own rows (nil for OFF)
+  local function gbRival()
+    local rival = currentRival(running)
+    if not rival then return nil end
+    local look = selectedLook(running, rival, true)
+    return { folderKeys = chainFor(rival, look), spritesDir = SPRITES_DIR,
+      gameBoy = gameBoyFor[running.id], genderMode = genderModeOf(look) }
+  end
+
+  if running and defaults[running.id] and running.gb then
+    -- every look offered here, so each one's battle back gets its scale
+    -- while the mod loads; and Yellow's surfing Pikachu, if it's shipped
+    local lookKeys = {}
+    for _, choice in ipairs(choicesFor[running.id]) do
+      for _, entry in ipairs(lookFolders[running.id][choice.key]) do lookKeys[#lookKeys + 1] = entry.key end
+    end
+    local pikachu
+    for _, kit in ipairs(surfKits[running.id] or {}) do
+      if kit.key == "pikachu" then pikachu = SURF_DIR .. "/pikachu/" end
+    end
+    local first = not crystalLens and resolve() or nil
+    if first then first.rival = gbRival() end
+    handle = watch(require("mods.emerald_lens.gen12").init(mod, first, running,
+      { lookKeys = lookKeys, gameBoy = gameBoyFor[running.id], spritesDir = SPRITES_DIR,
+        pikachuKit = pikachu, ownCard = not crystalLens }), first)
+    if handle and crystalLens then
+      -- Hand Crystal Lens every look with gen3/ art. While one is its
+      -- front sprite, it calls configure with that look's key and this
+      -- mod draws the player; otherwise configure(nil) and it doesn't.
+      -- The same for its RIVAL: configureRival with the look's key while
+      -- one of these is the rival, nil otherwise.
+      local PREFIX = "emerald_lens:"
+      local characterOf, looks = {}, {}
+      for _, choice in ipairs(choicesFor[running.id]) do
+        for _, entry in ipairs(lookFolders[running.id][choice.key]) do
+          characterOf[entry.key] = choice.key
+          local meta = metaFor[entry.key] or {}
+          -- folder: Crystal Lens leaves out a Game Boy look it has itself;
+          -- genderMode: its girl or enby text, after a restart
+          looks[#looks + 1] = { key = PREFIX .. entry.key, character = choice.key, label = entry.label,
+            credit = meta.credit, folder = entry.key, genderMode = genderModeOf(entry.key) }
+        end
+      end
+      local function folderOf(key)
+        return type(key) == "string" and key:sub(1, #PREFIX) == PREFIX and key:sub(#PREFIX + 1) or nil
+      end
+      local pickedFolder
+      crystalLens.addLooks({
+        id = mod.id,
+        looks = looks,
+        configure = function(key)
+          local folder = folderOf(key)
+          local character = folder and characterOf[folder]
+          pickedFolder = character and folder or nil
+          if not character then
+            crystalPick = function() return nil end
+            return handle.configure(nil)
+          end
+          -- Crystal Lens decides who's replaced (its GENDER row), so either;
+          -- SURF is this mod's own row
+          crystalPick = function()
+            local kit = surfKitOf(running)
+            return { folderKeys = chainFor(character, folder), lookKey = folder, genderMode = genderModeOf(folder),
+              fitSave = true, spritesDir = SPRITES_DIR, surfKit = kit and (SURF_DIR .. "/" .. kit .. "/") or nil,
+              gameBoy = gameBoyFor[running.id] }
+          end
+          handle.configure(crystalPick())
+        end,
+        configureRival = function(key)
+          local folder = folderOf(key)
+          local character = folder and characterOf[folder]
+          handle.configureRival(character and { folderKeys = chainFor(character, folder), spritesDir = SPRITES_DIR,
+            gameBoy = gameBoyFor[running.id], genderMode = genderModeOf(folder) } or nil)
+        end,
+        preview = function(key)
+          local folder = folderOf(key)
+          local character = folder and characterOf[folder]
+          if not character then return nil end
+          -- the card while this look is the player's: the one being drawn
+          -- Crystal Lens's names: walk is a Game Boy sheet coloured with
+          -- colors, walkFull a Gen 3 one drawn as it is
+          local p = gbPreviewOf(character, folder)
+          return { pic = p.pic, walk = p.walkGb, colors = p.colors, walkFull = p.walk,
+            card = folder == pickedFolder and handle.card() or nil }
+        end,
+      })
+    end
+  elseif running and defaults[running.id] then
+    local first = resolve()
+    handle = watch(require("mods.emerald_lens.gen3").init(mod, first), first)
     textHandle = require("mods.emerald_lens.wording").init(mod, running.id)
     if textHandle then textHandle.configure(textChoice()) end
+  end
+
+  -- Achievements, with Recomp Achievements installed (achievements.lua)
+  if running and handle then
+    local characterOf
+    achievements = require("mods.emerald_lens.achievements").init(mod, {
+      family = running,
+      now = function() return lensNow end,
+      handle = handle,
+      kindOf = function(key)
+        if gameBoyFor[running.id][key] then return "gameboy" end
+        if crossFor[running.id][key] then return "cross" end
+        return "gen3"
+      end,
+      characterOf = function(key)
+        if not characterOf then
+          characterOf = {}
+          for character, entries in pairs(allFolders) do
+            for _, entry in ipairs(entries) do characterOf[entry.key] = character end
+          end
+        end
+        return characterOf[key]
+      end,
+    })
+    lensChanged = achievements and achievements.changed or nil
   end
 
   -- The LENS screen (lens_screen.lua)
@@ -578,10 +886,17 @@ function lens.init(mod)
     if Runtime and Runtime.safeMode then return end
     game = liveGame(game)
     if not game then return end
-    if type(game.options) == "table" then
-      game.options.modOptions = game.options.modOptions or {}
-      game.options.modOptions[mod.id] = game.options.modOptions[mod.id] or {}
-      game.options.modOptions[mod.id][key] = value
+    -- The settings that get saved: game.options in Gold/Silver/Crystal and
+    -- the Gen 3 games, game.save.options in Red/Blue/Yellow (the same table
+    -- in Gold/Silver/Crystal), as the Mods manager writes them
+    local saved = {}
+    if type(game.options) == "table" then saved[#saved + 1] = game.options end
+    local fromSave = type(game.save) == "table" and game.save.options
+    if type(fromSave) == "table" and fromSave ~= game.options then saved[#saved + 1] = fromSave end
+    for _, t in ipairs(saved) do
+      t.modOptions = t.modOptions or {}
+      t.modOptions[mod.id] = t.modOptions[mod.id] or {}
+      t.modOptions[mod.id][key] = value
     end
     local loader = game.mods
     if type(loader) == "table" then
@@ -791,7 +1106,7 @@ function lens.init(mod)
   end
 
   local lensScreen
-  if running and defaults[running.id] then
+  if running and defaults[running.id] and not running.gb then
     lensScreen = require("mods.emerald_lens.lens_screen").new(mod, {
       title = function() return "EMERALD LENS" end,
       rows = screenRows,
@@ -811,13 +1126,17 @@ function lens.init(mod)
     local entry = { id = "emerald_lens", label = "EMERALD LENS", short = "LENS",
       about = "The look of you and your rival.",
       colour = { 24, 140, 72 }, -- emerald -Elvie
+      order = 10, -- the lens first, Facets under it
       draw = function(area, clock)
         lensScreen.drawLook(screenPreview("player", liveGame()), {
           frontX = area.x0 + 16, frontY = area.y1 - 64, walkX = area.x1 - 18, walkBottom = area.y1,
         }, clock)
       end,
       value = function() return currentCharacter(running) or "OFF" end,
-      open = function(g) lensScreen.open(liveGame(g)) end,
+      open = function(g)
+        if achievements then achievements.lensOpened() end
+        lensScreen.open(liveGame(g))
+      end,
     }
     mod.hooks:wrap("ui.start_menu.items", function(nextFn, game, items)
       local out = nextFn()
@@ -834,6 +1153,100 @@ function lens.init(mod)
     end)
   end
 
+  -- The Game Boy games: the LENS screen drawn their way (lens_gb.lua),
+  -- on the START and OPTION menus through PRISM. Crystal Lens has its own
+  -- LENS screen, so with it installed its rows pick the looks.
+  -- --------------------------------------------------
+  local function hasKris()
+    local game = liveGame()
+    local data = game and game.data
+    local sprites = type(data) == "table" and (data.gen2Sprites or data.sprites)
+    return type(sprites) == "table" and sprites.SPRITE_KRIS ~= nil
+  end
+
+  local function gbRows()
+    local f, rows = running, {}
+    local function add(row)
+      row.valueLabel = row.valueLabel or labelOf(row.choices, row.value)
+      rows[#rows + 1] = row
+    end
+    local characters = pairsOf(choicesFor[f.id])
+    table.insert(characters, { "OFF", OFF })
+    local character = currentCharacter(f)
+    add({ key = "character" .. f.suffix, label = "CHAR", who = "player", choices = characters, value = character or OFF })
+    if character then
+      add({ key = lookKey(f, character), label = "LOOK", who = "player",
+        choices = pairsOf(lookFolders[f.id][character]), value = selectedLook(f, character) })
+      -- only Crystal has a girl to replace; an enby look fits either
+      local mode = genderModeOf(selectedLook(f, character))
+      if f.id == "gb2" and hasKris() and mode ~= "enby" then
+        add({ key = "gender" .. f.suffix, label = "GENDER", who = "player",
+          choices = { { GENDER_TEXT[mode], LOOK_GENDER }, { "MY SAVE", SAVE_GENDER } },
+          value = fitsSave(f) and SAVE_GENDER or LOOK_GENDER })
+      end
+    end
+    local rivals = pairsOf(choicesFor[f.id])
+    table.insert(rivals, 1, { "OFF", OFF })
+    local rival = currentRival(f)
+    add({ key = "rival" .. f.suffix, label = "RIVAL", who = "rival", choices = rivals, value = rival or OFF })
+    if rival then
+      add({ key = rivalLookKey(f, rival), label = "R.LOOK", who = "rival",
+        choices = pairsOf(lookFolders[f.id][rival]), value = selectedLook(f, rival, true) })
+    end
+    if surfKits[f.id] and #surfKits[f.id] > 0 then
+      local kits = pairsOf(surfKits[f.id])
+      table.insert(kits, 1, { "OFF", OFF })
+      add({ key = "surf" .. f.suffix, label = "SURF", who = "player", choices = kits, value = surfKitOf(f) or OFF })
+    end
+    add({ key = "credits", label = "CREDITS", who = "player", page = true, valueLabel = "SEE ALL" })
+    return rows
+  end
+
+  local function gbPreview(who)
+    local f = running
+    if who == "rival" then
+      local rival = currentRival(f)
+      if not rival then return { line = "THE GAME'S OWN" } end
+      return gbPreviewOf(rival, selectedLook(f, rival, true), true)
+    end
+    local character = currentCharacter(f)
+    if not character then return { line = "THE GAME'S OWN" } end
+    return gbPreviewOf(character, selectedLook(f, character))
+  end
+
+  if running and defaults[running.id] and running.gb and not crystalLens then
+    local gbScreen = require("mods.emerald_lens.lens_gb").new(mod, {
+      rows = gbRows, set = setOption, preview = gbPreview, credits = screenCredits,
+    })
+    -- START and OPTION menus through prism.lua, as in the Gen 3 games: on
+    -- its own it's LENS on START and EMERALD LENS on OPTION; with Facets
+    -- (or another visuals mod) they share one PRISM item.
+    local prism = require("mods.emerald_lens.prism")
+    local prismScreen = prism.registerGb(mod)
+    if gbScreen and mod.hooks and type(mod.hooks.wrap) == "function" then
+      local entry = { id = "emerald_lens", label = "EMERALD LENS", short = "LENS",
+        about = "The look of you and your rival.",
+        colour = { 24, 140, 72 }, -- emerald
+        order = 10, -- the lens first, Facets under it
+        value = function() return currentCharacter(running) or "OFF" end,
+        open = function(g)
+          if achievements then achievements.lensOpened() end
+          gbScreen.open(liveGame(g))
+        end,
+      }
+      mod.hooks:wrap("ui.start_menu.items", function(nextFn, game, items)
+        local out = nextFn(game, items)
+        if type(out) ~= "table" then return out end
+        return prism.addStartGb(mod, out, entry, liveGame(game), prismScreen)
+      end)
+      mod.hooks:wrap("ui.options.rows", function(nextFn, game, rows)
+        local out = nextFn(game, rows)
+        if type(out) ~= "table" then return out end
+        return prism.addOptionGb(mod, out, entry, liveGame(game), prismScreen)
+      end)
+    end
+  end
+
   if mod.events and type(mod.events.on) == "function" then
     -- Changing CHARACTER or LOOK in the mod options applies straight away,
     -- no restart, and GENDER follows (and MY SAVE in GENDER). Only the running family's rows
@@ -844,11 +1257,13 @@ function lens.init(mod)
       if type(change) ~= "table" or change.mod ~= mod.id or type(change.key) ~= "string" then return end
       local key = change.key
       if key:sub(1, 9) == "character" or key:sub(1, 4) == "look" then updateGender() end
+      local rivalKey = key == "rival" .. running.suffix or key:sub(1, #rivalPrefix) == rivalPrefix
       if handle and (key == "character" .. running.suffix or key:sub(1, #lookPrefix) == lookPrefix
-          or key == "gender" .. running.suffix or key == "surf" .. running.suffix
-          or key == "rival" .. running.suffix or key:sub(1, #rivalPrefix) == rivalPrefix) then
-        handle.configure(resolve())
+          or key == "gender" .. running.suffix or key == "surf" .. running.suffix or rivalKey) then
+        handle.configure(crystalPick and crystalPick() or resolve())
       end
+      -- the Game Boy games' rival is set apart from the player
+      if handle and running.gb and not crystalLens and rivalKey then handle.configureRival(gbRival()) end
       if textHandle and (key == "character" .. running.suffix or key:sub(1, #lookPrefix) == lookPrefix
           or key == "rival" .. running.suffix or key:sub(1, #rivalPrefix) == rivalPrefix
           or key == "text" .. running.suffix) then
@@ -859,7 +1274,10 @@ function lens.init(mod)
     -- enby, the Hoenn rival), and pics built for the last save or before
     -- any save stay in the engine's caches, so the sprites start over.
     if handle then
-      local function restart() handle.configure(resolve()) end
+      local function restart()
+        handle.configure(crystalPick and crystalPick() or resolve())
+        if running.gb and not crystalLens then handle.configureRival(gbRival()) end
+      end
       mod.events:on("save.loaded", restart)
       mod.events:on("save.created", restart)
     end

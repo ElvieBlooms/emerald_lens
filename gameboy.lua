@@ -10,15 +10,15 @@
 --
 -- Overworld: the folder's own overworldWalk.png / overworldBike.png
 -- (Crystal Lens's files), or with "romOverworld" in meta.json ("red",
--- "blue", "gold" or "kris"), that trainer's sprites from the player's own
--- installed Gen 1 or Gen 2 game, through the engine's Union Room avatar
--- loader (which reads other games' sprites for online play). Nintendo's
--- art is never shipped. -Elvie
+-- "blue", "gold", "kris" or "silver"), that trainer's sprites from the
+-- player's own installed Gen 1 or Gen 2 game, through mod.datasets (the
+-- game's own sprite records and, for Gen 2, its overworld colours).
+-- Nintendo's art is never shipped. -Elvie
 --
 -- Surfing: the Game Boy games show only the Pokémon (Gen 1's Seel, Gen
 -- 2's Lapras), so with romOverworld that's surf.png, and the Gen 3 surf
 -- blob under it is left out. R/S/E diving (underwater.png) uses the same
--- Pokémon, except Gold and Kris dive on Gen 1's Seel. A folder's own
+-- Pokémon, except Gold, Kris and Silver dive on Gen 1's Seel. A folder's own
 -- overworldSurf.png (16x96, like overworldWalk.png; Emerald Lens only)
 -- wins over the game's, for surfing and diving. -Elvie
 --
@@ -76,7 +76,17 @@ local ROM = {
   gold = { walk = { { GEN2, "SPRITE_CHRIS", "red" } }, bike = { { GEN2, "SPRITE_CHRIS_BIKE", "red" } },
            surf = { { GEN2, "SPRITE_SURF", "blue" } },
            dive = { { GEN1, "SPRITE_SEEL", "blue" }, { GEN2, "SPRITE_SURF", "blue" } } },
+  -- the bike half a look without a bike sprite borrows (see bikeFrames):
+  -- Kris's for a girl, Chris's otherwise, Red's without Gold/Silver/Crystal
+  bikegirl = { bike = { { { "crystal" }, "SPRITE_KRIS_BIKE", "blue" }, { GEN2, "SPRITE_CHRIS_BIKE", "red" },
+    { GEN1, "SPRITE_RED_BIKE", "red" } } },
+  bikeboy = { bike = { { GEN2, "SPRITE_CHRIS_BIKE", "red" }, { GEN1, "SPRITE_RED_BIKE", "red" } } },
   kris = { walk = { { { "crystal" }, "SPRITE_KRIS", "blue" } }, bike = { { { "crystal" }, "SPRITE_KRIS_BIKE", "blue" } },
+           surf = { { GEN2, "SPRITE_SURF", "blue" } },
+           dive = { { GEN1, "SPRITE_SEEL", "blue" }, { GEN2, "SPRITE_SURF", "blue" } } },
+  -- the Gold/Silver/Crystal rival; no bike, so he borrows Chris's like
+  -- the GBC looks, and surfs and dives like Gold
+  silver = { walk = { { GEN2, "SPRITE_RIVAL", "red" } },
            surf = { { GEN2, "SPRITE_SURF", "blue" } },
            dive = { { GEN1, "SPRITE_SEEL", "blue" }, { GEN2, "SPRITE_SURF", "blue" } } },
 }
@@ -124,6 +134,21 @@ local registered = {} -- [base] = meta -Elvie
 local warned = {}
 local romCache = {} -- ["kris|walk"] = { grey ImageData, the game's colours } or false -Elvie
 local fromRom -- below; gameboy.has asks it whether a game has a sprite -Elvie
+-- which game bike a look without one borrows the bottom half of
+local function bikeOf(meta) return meta.genderMode == "girl" and "bikegirl" or "bikeboy" end
+-- The player's installed games, read through mod.datasets -Elvie
+local views = {} -- [game] = view or false -Elvie
+local function viewOf(mod, game)
+  if views[game] ~= nil then return views[game] or nil end
+  local datasets = type(mod.datasets) == "table" and mod.datasets
+  local view
+  if datasets and type(datasets.open) == "function" then
+    local ok, v = pcall(datasets.open, datasets, game)
+    if ok and type(v) == "table" then view = v end
+  end
+  views[game] = view or false
+  return view
+end
 local FISH, fishParts -- below, with fishing -Elvie
 
 local function engine(name)
@@ -202,7 +227,13 @@ function gameboy.has(mod, base, file)
   local own = OW_FILES[file]
   if not own then return false end
   if mod.assets:info(base .. own) then return true end
-  return which ~= nil and fromRom(mod, which, file:sub(1, 4)) ~= nil
+  if which ~= nil and fromRom(mod, which, file:sub(1, 4)) ~= nil then return true end
+  -- no bike of its own: borrowed from the game's, with a walk to go on top
+  if file == "bike.png" then
+    local walk = mod.assets:info(base .. OWN_OF.walk) or (which ~= nil and fromRom(mod, which, "walk") ~= nil)
+    return walk and fromRom(mod, bikeOf(registered[base] or {}), "bike") ~= nil or false
+  end
+  return false
 end
 
 -- The pic in a w x h box: centred across, feet on the bottom edge. A
@@ -279,26 +310,44 @@ local function colourise(data, colors, ranked)
 end
 
 -- A trainer's sprite sheet from an installed game: grey, plus colours
--- (the game's own for Gen 2, else Gen 2's). nil if no game has it. -Elvie
+-- (the game's own for Gen 2, else Gen 2's). nil if no game has it. The
+-- sprite record names its sheet and, in Gen 2, which object palette it
+-- wears; the daytime set is the one the overworld uses. -Elvie
+local function datasetSprite(view, id)
+  local sprites = view.content and view.content.sprites
+  if type(sprites) ~= "table" or type(sprites.get) ~= "function" then return nil end
+  local ok, record = pcall(sprites.get, sprites, id)
+  if not ok or type(record) ~= "table" or type(record.image) ~= "string" then return nil end
+  local okPath, full = pcall(view.assets.path, view.assets, record.image)
+  if not okPath or type(full) ~= "string" then return nil end
+  local okData, data = pcall(love.image.newImageData, full)
+  if not okData or not data then return nil end
+  local w, h = data:getDimensions()
+  if w ~= 16 or h < 96 then return nil end
+  local colors
+  local palettes = view.content.palettes
+  local index = tonumber(record.paletteId)
+  if index and type(palettes) == "table" and type(palettes.get) == "function" then
+    local okPal, objects = pcall(palettes.get, palettes, "objects")
+    local day = okPal and type(objects) == "table" and objects.DAY
+    local set = type(day) == "table" and day[index + 1]
+    if type(set) == "table" and #set == 4 then colors = set end
+  end
+  return data, colors
+end
+
 function fromRom(mod, which, kind)
   local key = which .. "|" .. kind
   if romCache[key] ~= nil then return unpack(romCache[key] or {}) end
-  local Avatars = engine("src.online.union.Avatars")
   local sources = ROM[which] and ROM[which][kind] or {}
   local data, colors, games = nil, nil, {}
   for _, source in ipairs(sources) do
     for _, game in ipairs(source[1]) do
       games[#games + 1] = game
-      if not data and Avatars and type(Avatars.hostEntry) == "function" then
-        local ok, entry = pcall(Avatars.hostEntry, game, source[2])
-        if ok and type(entry) == "table" and entry.layout == "gb" then
-          local okData, grey = pcall(Avatars.imageData, entry)
-          if okData and grey then
-            data = grey
-            local own = type(entry.palette) == "table" and entry.palette.colors
-            colors = type(own) == "table" and #own == 4 and own or PALETTES[source[3]]
-          end
-        end
+      local view = not data and viewOf(mod, game)
+      if view then
+        local grey, own = datasetSprite(view, source[2])
+        if grey then data, colors = grey, own or PALETTES[source[3]] end
       end
     end
   end
@@ -330,8 +379,39 @@ local function frames(mod, base, kind)
   return colourise(grey:clone(), colors, false)
 end
 
+-- A bike sprite for a look with none: the look's own walking frames down
+-- to row 10 (head and shoulders, which the games' bike sprites share
+-- with their walking ones), and below that the game's own bike sprite
+-- (arms, handlebars, wheel), both in the look's colours. Read from the
+-- player's own game, never shipped. A look's own overworldBike.png, or a
+-- romOverworld trainer's bike, always wins.
+local BIKE_CUT = 10
+local function bikeFrames(mod, base)
+  local meta = registered[base] or {}
+  local walk = frames(mod, base, "walk")
+  if not walk then return nil end
+  local grey = fromRom(mod, bikeOf(meta), "bike")
+  if not grey then return nil end
+  -- the walk's own colours, so both halves match
+  local fallback = CRYSTAL_COLORS
+  if not mod.assets:info(base .. OWN_OF.walk) and romOf(meta) then
+    local _, romColors = fromRom(mod, romOf(meta), "walk")
+    fallback = romColors or fallback
+  end
+  local bike = colourise(grey:clone(), colorsOf(meta, fallback), false)
+  local w, h = walk:getDimensions()
+  local out = love.image.newImageData(w, h)
+  for f = 0, math.floor(h / 16) - 1 do
+    out:paste(walk, 0, f * 16, 0, f * 16, w, BIKE_CUT)
+    out:paste(bike, 0, f * 16 + BIKE_CUT, 0, f * 16 + BIKE_CUT, w, 16 - BIKE_CUT)
+  end
+  return out
+end
+gameboy.BIKE_CUT = BIKE_CUT
+
 local function sheet(mod, base, kind, layout)
   local src = frames(mod, base, kind)
+  if not src and kind == "bike" then src = bikeFrames(mod, base) end
   if not src then return nil end
   local sw, sh = src:getDimensions()
   if sw ~= 16 or sh < 16 * 6 then
@@ -394,7 +474,7 @@ end
 -- --------------------------------------------------
 FISH = {
   red = { gen = 1, games = GEN1 }, blue = { gen = 1, games = GEN1 },
-  gold = { gen = 2, games = GEN2, key = "fishing" },
+  gold = { gen = 2, games = GEN2, key = "fishing" }, silver = { gen = 2, games = GEN2, key = "fishing" },
   kris = { gen = 2, games = { "crystal" }, key = "fishingFemale" },
 }
 -- The rod tile, from the sprite's top-left: { dx, dy, tile, mirrored }.
@@ -462,14 +542,11 @@ local fishCacheOf = {} -- [which] = art or false -Elvie
 local function fishArt(mod, which)
   if fishCacheOf[which] ~= nil then return fishCacheOf[which] or nil end
   local info = FISH[which]
-  local datasets = type(mod.datasets) == "table" and mod.datasets
   local art
-  if info and datasets and type(datasets.open) == "function" then
-    for _, game in ipairs(info.games) do
-      local ok, view = pcall(datasets.open, datasets, game)
-      if ok and type(view) == "table" then art = fromDataset(view, info) end
-      if art then break end
-    end
+  for _, game in ipairs(info and info.games or {}) do
+    local view = viewOf(mod, game)
+    if view then art = fromDataset(view, info) end
+    if art then break end
   end
   if art then art.gen = info.gen end
   fishCacheOf[which] = art or false
@@ -607,13 +684,14 @@ local PIC_READ = {
   chris = function(view) return view.assets:path("assets/generated/battle/trainers/chris.png") end,
   playerBack = function(view) return view.assets:path("assets/generated/battle/player_back.png") end,
 }
--- Each pic's colours: pokecrystal's trainer palettes (RED, BLUE, PLAYER),
+-- Each pic's colours: pokecrystal's trainer palettes (RED, BLUE, PLAYER, RIVAL),
 -- white and black around them, as the games draw them. Gen 1 pics get
 -- Gen 2's, like the overworld sprites. -Elvie
 local PIC_COLORS = {
   RED = { { 255, 255, 255 }, { 230, 148, 140 }, { 181, 58, 66 }, { 0, 0, 0 } },
   BLUE = { { 255, 255, 255 }, { 255, 197, 66 }, { 99, 74, 156 }, { 0, 0, 0 } },
   PLAYER = { { 255, 255, 255 }, { 206, 148, 99 }, { 181, 74, 41 }, { 0, 0, 0 } },
+  RIVAL = { { 255, 255, 255 }, { 222, 148, 58 }, { 214, 33, 74 }, { 0, 0, 0 } },
 }
 -- Per trainer and Gen 3 file: { games, read, colours, scale } in order;
 -- Gen 1 backs are 32x32, drawn twice the size. intro.png is the front
@@ -624,22 +702,13 @@ local ROM_PICS = {
     ["rivalEarly.png"] = { { GEN1, "rival1", "BLUE" } }, ["rivalLate.png"] = { { GEN1, "rival2", "BLUE" } },
     ["rivalChampion.png"] = { { GEN1, "rival3", "BLUE" } } },
   gold = { ["front.png"] = { { { "crystal" }, "chris", "PLAYER" } }, ["back.png"] = { { GEN2, "playerBack", "PLAYER" } } },
+  -- Gen 2's rival1/rival2 are Silver (Gen 1's are Blue). He has no back
+  -- pic in any game, so that falls back as usual.
+  silver = { ["front.png"] = { { GEN2, "rival1", "RIVAL" } }, ["rivalEarly.png"] = { { GEN2, "rival1", "RIVAL" } },
+    ["rivalLate.png"] = { { GEN2, "rival2", "RIVAL" } } },
 }
 for _, pics in pairs(ROM_PICS) do pics["intro.png"] = pics["front.png"] end
 local PIC_SIZE = { ["rivalEarly.png"] = { 64, 64 }, ["rivalLate.png"] = { 64, 64 }, ["rivalChampion.png"] = { 64, 64 } }
-
-local views = {} -- [game] = view or false -Elvie
-local function viewOf(mod, game)
-  if views[game] ~= nil then return views[game] or nil end
-  local datasets = type(mod.datasets) == "table" and mod.datasets
-  local view
-  if datasets and type(datasets.open) == "function" then
-    local ok, v = pcall(datasets.open, datasets, game)
-    if ok and type(v) == "table" then view = v end
-  end
-  views[game] = view or false
-  return view
-end
 
 -- White joined to the edge is the pic's backdrop: see-through. -Elvie
 local function clearBackdrop(data)
@@ -706,18 +775,12 @@ end
 -- The Gen 3 file as ImageData, or nil if the folder has no art for it.
 -- layout ("frlg" or "rse") sets the frame counts. -Elvie
 -- Like crossgame.retry: forget the misses (a game that wasn't imported,
--- fishing art that wasn't found) so a new setup asks again, and refresh
--- the engine's avatar cache, which keeps misses too.
+-- fishing art that wasn't found) so a new setup asks again. -Elvie
 function gameboy.retry()
-  local missed = false
-  for _, t in ipairs({ romCache, fishCacheOf, fishCache }) do
+  for _, t in ipairs({ romCache, fishCacheOf, fishCache, views, picCache }) do
     for key, value in pairs(t) do
-      if value == false then t[key], missed = nil, true end
+      if value == false then t[key] = nil end
     end
-  end
-  if missed then
-    local Avatars = engine("src.online.union.Avatars")
-    if Avatars and type(Avatars.refresh) == "function" then pcall(Avatars.refresh) end
   end
 end
 
