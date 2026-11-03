@@ -752,9 +752,10 @@ function lens.init(mod)
         for _, entry in ipairs(lookFolders[running.id][choice.key]) do
           characterOf[entry.key] = choice.key
           local meta = metaFor[entry.key] or {}
-          -- folder: Crystal Lens leaves out a Game Boy look it has itself
+          -- folder: Crystal Lens leaves out a Game Boy look it has itself;
+          -- genderMode: its girl or enby text, after a restart
           looks[#looks + 1] = { key = PREFIX .. entry.key, character = choice.key, label = entry.label,
-            credit = meta.credit, folder = entry.key }
+            credit = meta.credit, folder = entry.key, genderMode = genderModeOf(entry.key) }
         end
       end
       local function folderOf(key)
