@@ -1101,7 +1101,16 @@ function gen3.init(mod, ctx)
   end
 
   configure(ctx)
-  return { configure = configure }
+  -- Whether a trainer is the rival wearing a look: its pic is one the
+  -- rival's look replaces (for the achievements)
+  local function isRivalTrainer(trainerId)
+    local okT, Trainers = pcall(require, "src.core.game3.scripting.trainers")
+    if not (okT and type(Trainers) == "table" and type(Trainers.get) == "function") then return false end
+    local okGet, t = pcall(Trainers.get, trainerId)
+    return okGet and type(t) == "table" and rivalPicFile(t.pic) ~= nil or false
+  end
+
+  return { configure = configure, isRivalTrainer = isRivalTrainer }
 end
 
 return gen3

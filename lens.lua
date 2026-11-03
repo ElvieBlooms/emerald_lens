@@ -607,6 +607,41 @@ function lens.init(mod)
   -- With Crystal Lens leading, its pick (see the end of init); restarting
   -- the sprites re-applies it instead of this mod's own rows -Elvie
   local crystalPick
+
+  -- What's on right now, from every configure the sprites get (this
+  -- mod's own rows or Crystal Lens's pick), for the achievements
+  local lensNow, lensChanged = {}, nil
+  local function noteLook(ctx)
+    lensNow.look = ctx and ctx.lookKey or nil
+    lensNow.surfKit = (ctx and ctx.surfKit) ~= nil
+    -- the Game Boy games set the rival on its own (configureRival)
+    if not (running and running.gb) then
+      lensNow.rival = ctx and ctx.rival and type(ctx.rival.folderKeys) == "table" and ctx.rival.folderKeys[1] or nil
+    end
+    if lensChanged then lensChanged() end
+  end
+  local function noteRival(rivalCtx)
+    lensNow.rival = rivalCtx and type(rivalCtx.folderKeys) == "table" and rivalCtx.folderKeys[1] or nil
+    if lensChanged then lensChanged() end
+  end
+  local function watch(h, ctx)
+    if type(h) ~= "table" then return h end
+    noteLook(ctx)
+    if ctx and ctx.rival then noteRival(ctx.rival) end
+    local configure, configureRival = h.configure, h.configureRival
+    h.configure = function(c, ...)
+      noteLook(c)
+      return configure(c, ...)
+    end
+    if configureRival then
+      h.configureRival = function(r, ...)
+        noteRival(r)
+        return configureRival(r, ...)
+      end
+    end
+    return h
+  end
+  local achievements
   local function resolve()
     local ctx = { folderKeys = {}, genderMode = DEFAULT_GENDER_MODE, spritesDir = SPRITES_DIR,
       gameBoy = gameBoyFor[running.id] }
@@ -738,9 +773,9 @@ function lens.init(mod)
     end
     local first = not crystalLens and resolve() or nil
     if first then first.rival = gbRival() end
-    handle = require("mods.emerald_lens.gen12").init(mod, first, running,
+    handle = watch(require("mods.emerald_lens.gen12").init(mod, first, running,
       { lookKeys = lookKeys, gameBoy = gameBoyFor[running.id], spritesDir = SPRITES_DIR,
-        pikachuKit = pikachu, ownCard = not crystalLens })
+        pikachuKit = pikachu, ownCard = not crystalLens }), first)
     if handle and crystalLens then
       -- Hand Crystal Lens every look with gen3/ art. While one is its
       -- front sprite, it calls configure with that look's key and this
@@ -804,9 +839,35 @@ function lens.init(mod)
       })
     end
   elseif running and defaults[running.id] then
-    handle = require("mods.emerald_lens.gen3").init(mod, resolve())
+    local first = resolve()
+    handle = watch(require("mods.emerald_lens.gen3").init(mod, first), first)
     textHandle = require("mods.emerald_lens.wording").init(mod, running.id)
     if textHandle then textHandle.configure(textChoice()) end
+  end
+
+  -- Achievements, with Recomp Achievements installed (achievements.lua)
+  if running and handle then
+    local characterOf
+    achievements = require("mods.emerald_lens.achievements").init(mod, {
+      family = running,
+      now = function() return lensNow end,
+      handle = handle,
+      kindOf = function(key)
+        if gameBoyFor[running.id][key] then return "gameboy" end
+        if crossFor[running.id][key] then return "cross" end
+        return "gen3"
+      end,
+      characterOf = function(key)
+        if not characterOf then
+          characterOf = {}
+          for character, entries in pairs(allFolders) do
+            for _, entry in ipairs(entries) do characterOf[entry.key] = character end
+          end
+        end
+        return characterOf[key]
+      end,
+    })
+    lensChanged = achievements and achievements.changed or nil
   end
 
   -- The LENS screen (lens_screen.lua)
@@ -1072,7 +1133,10 @@ function lens.init(mod)
         }, clock)
       end,
       value = function() return currentCharacter(running) or "OFF" end,
-      open = function(g) lensScreen.open(liveGame(g)) end,
+      open = function(g)
+        if achievements then achievements.lensOpened() end
+        lensScreen.open(liveGame(g))
+      end,
     }
     mod.hooks:wrap("ui.start_menu.items", function(nextFn, game, items)
       local out = nextFn()
@@ -1165,7 +1229,10 @@ function lens.init(mod)
         colour = { 24, 140, 72 }, -- emerald
         order = 10, -- the lens first, Facets under it
         value = function() return currentCharacter(running) or "OFF" end,
-        open = function(g) gbScreen.open(liveGame(g)) end,
+        open = function(g)
+          if achievements then achievements.lensOpened() end
+          gbScreen.open(liveGame(g))
+        end,
       }
       mod.hooks:wrap("ui.start_menu.items", function(nextFn, game, items)
         local out = nextFn(game, items)

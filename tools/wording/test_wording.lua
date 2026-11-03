@@ -305,6 +305,7 @@ do
   package.loaded["mods.emerald_lens.gameboy"] = dofile("gameboy.lua")
   package.loaded["mods.emerald_lens.crossgame"] = dofile("crossgame.lua")
   package.loaded["mods.emerald_lens.lens_screen"] = dofile("lens_screen.lua")
+  package.loaded["mods.emerald_lens.achievements"] = dofile("achievements.lua")
   package.loaded["mods.emerald_lens.lens_gb"] = dofile("lens_gb.lua")
   local layers = {}
   package.loaded["src.ui.game3.stack"] = {
@@ -636,6 +637,90 @@ do
   mod.find = nil
   GV.generation = nil
   version = "firered"
+end
+
+-- Achievements (achievements.lua), against a stand-in Recomp Achievements
+do
+  local Ach = dofile("achievements.lua")
+  local handlers = {}
+  local saved = {}
+  local mod = {
+    id = "emerald_lens",
+    log = { warn = function() end, info = function() end },
+    events = { on = function(_, name, fn) handlers[name] = fn end },
+    save = { get = function(_, k, d) if saved[k] == nil then return d end return saved[k] end,
+      set = function(_, k, v) saved[k] = v end },
+  }
+  check(Ach.init(mod, {}) == nil, "achievements: nothing without Recomp Achievements")
+  local unlocked, progress, registered = {}, {}, nil
+  local exports = { apiVersion = "2.0.0", events = { ready = "ach.ready" } }
+  mod.find = function(a, b)
+    local id = b == nil and a or b
+    if id == "recomp_achievements" then return { exports = exports } end
+  end
+  check(Ach.init(mod, {}) == nil, "achievements: an API version this mod doesn't know is left alone")
+  exports.apiVersion = "1.3.0"
+  exports.connect = function(_, opts)
+    check(opts and opts.tab == "LENS", "achievements: their own LENS tab")
+    return {
+      registerMany = function(_, list) registered = list; return #list, {} end,
+      isUnlocked = function(_, id) return unlocked[id] == true end,
+      unlock = function(_, id) unlocked[id] = true; return true end,
+      setProgress = function(_, id, n) progress[id] = n; return true end,
+      addProgress = function(_, id, n) progress[id] = (progress[id] or 0) + (n or 1); return true end,
+    }
+  end
+  local now = { look = "gbkris", surfKit = false }
+  local kinds = { gbkris = "gameboy", red_frlg = "cross", may = "gen3", may2 = "gen3" }
+  local chars = { gbkris = "KRIS", red_frlg = "RED", may = "MAY", may2 = "MAY" }
+  local rivalTrainer = false
+  local api = {
+    family = { id = "rse", gb = false },
+    now = function() return now end,
+    handle = { isRivalTrainer = function() return rivalTrainer end },
+    kindOf = function(k) return kinds[k] end,
+    characterOf = function(k) return chars[k] end,
+  }
+  local a = Ach.init(mod, api)
+  check(a and registered and #registered == 13, "achievements: 13 added")
+  a.changed()
+  check(next(unlocked) == nil, "achievements: nothing before a save is attached")
+  handlers["ach.ready"]({ game = "emerald" })
+  check(unlocked.fresh_look and unlocked.old_school and progress.wardrobe == 1,
+    "achievements: a Game Boy look in Emerald (Fresh Look, Old School, Wardrobe 1)")
+  now.look = "red_frlg"; a.changed()
+  check(unlocked.across_the_sea and progress.wardrobe == 2, "achievements: RED from FR/LG in Emerald (Across the Sea)")
+  a.changed()
+  check(progress.wardrobe == 2, "achievements: the same look twice counts once")
+  now.look, now.rival = "may", "may2"
+  handlers["battle.started"]({ kind = "trainer", trainerId = 520 })
+  check(not unlocked.frenemies, "achievements: a trainer that isn't the rival")
+  rivalTrainer = true
+  handlers["battle.started"]({ kind = "trainer", trainerId = 520 })
+  check(unlocked.frenemies and unlocked.mirror_match, "achievements: the rival, the same character (Frenemies, Mirror Match)")
+  handlers["map.entered"]({ mapId = "EM_EVER_GRANDE_CITY_HALL_OF_FAME" })
+  check(unlocked.hall_of_lens, "achievements: Hall of Fame with a look")
+  a.lensOpened()
+  check(unlocked.behind_the_lens, "achievements: opening LENS")
+  -- the Game Boy games: surfing on the SURF row's Pokemon, and Yellow's Pikachu
+  unlocked, progress, saved = {}, {}, {}
+  local riding
+  api.family = { id = "gb1", gb = true }
+  api.handle = { surfNow = function() return riding end }
+  now = { look = "may", surfKit = true }
+  a = Ach.init(mod, api)
+  handlers["ach.ready"]({ game = "yellow" })
+  check(unlocked.new_tricks, "achievements: a Gen 3 look in Yellow (New Tricks)")
+  handlers["world.stepped"]({})
+  check(not unlocked.surfs_up and progress.long_walk == 1, "achievements: walking isn't surfing; Long Walk counts")
+  riding = "pika"
+  handlers["world.stepped"]({})
+  check(unlocked.surfs_up and unlocked.pika_pal, "achievements: surfing on Pikachu (Surf's Up, Pika Pal)")
+  handlers["battle.started"]({ kind = "trainer", trainerId = "OPP_RIVAL2" })
+  check(not unlocked.frenemies, "achievements: no rival look, no Frenemies")
+  now.rival = "may2"
+  handlers["battle.started"]({ kind = "trainer", trainerId = "OPP_RIVAL2" })
+  check(unlocked.frenemies, "achievements: Blue wearing a look (Frenemies)")
 end
 
 print(("%d passed, %d failed"):format(passed, failed))

@@ -10,7 +10,8 @@
   "priority": 100,
   "dependencies": [],
   "optional_dependencies": [
-    "crystal"
+    "crystal",
+    "recomp_achievements"
   ],
   "conflicts": [],
   "incompatible": [],

@@ -522,11 +522,15 @@ function gen12.init(mod, ctx, family, opts)
 
   -- Drawing the player
   -- -----------------------------------------------
+  -- what the player is riding right now, for the achievements: "surf",
+  -- "pika" (Yellow's Pikachu) or nil
+  local surfNow
   if gen == 1 then
     local Player = engine("src.world.Player")
     if Player and type(Player.draw) == "function" then
       local originalDraw = Player.draw
       Player.draw = function(self, ...)
+        surfNow = self.surfing and (self.surfingPikachu and "pika" or "surf") or nil
         if not live then return originalDraw(self, ...) end
         local s1, s2, s3, s4 = self.sprite, self.bikeSprite, self.surfSprite, self.surfPikachuSprite
         self.sprite = (self.fishing and live.fish) or live.walk or s1
@@ -546,7 +550,9 @@ function gen12.init(mod, ctx, family, opts)
         SPRITE_KRIS_BIKE = "bike", SPRITE_SURF = "surf" }
       local originalDraw = Player.draw
       Player.draw = function(self, ...)
-        local id = live and type(self.spriteDef) == "table" and self.spriteDef.id
+        local id = type(self.spriteDef) == "table" and self.spriteDef.id
+        surfNow = id == "SPRITE_SURF" and "surf" or nil
+        if not live then id = nil end
         local kind = id and KIND[id]
         local female = type(id) == "string" and id:find("KRIS") ~= nil
         if kind == "surf" then female = self.female end
@@ -664,6 +670,7 @@ function gen12.init(mod, ctx, family, opts)
     configure = configure,
     configureRival = configureRival,
     current = function() return live end,
+    surfNow = function() return surfNow end,
     -- the trainer card portrait, for Crystal Lens's card
     card = function() return live and live.card or nil end,
   }

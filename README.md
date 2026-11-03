@@ -19,6 +19,7 @@ Emerald Lens is the Gen 3 companion to [Crystal Lens](https://github.com/dburton
 * Game Boy looks: drop in a folder from Crystal Lens and its battle art is used as it is; Red's, Gold's and Kris's Game Boy walking and biking sprites come from your own copies of those games (see **Game Boy looks** below).
 * Falls back sheet by sheet: the selected look, then the same character's other looks of the same generation, then its other looks, closest generation first, then the game's own sprite. Draw as much or as little as you like.
 * Your looks in the Game Boy games: Gen 3, Gen 4 and Game Boy looks walk, bike, surf and fish in Red/Blue/Yellow and Gold/Silver/Crystal too, in full colour, with their battle pics and trainer card, and Blue or Silver can wear a look as your rival (see **Looks in the Game Boy games** below).
+* Achievements: with [Recomp Achievements](https://github.com/ElvieBlooms/recomp_achievements) installed, 13 of its own on a **LENS** tab (see **Achievements** below).
 * Sprite tools to draw from the game's own sprites and pack your art (`tools/sprite-templates`).
 
 ## Adding a character
@@ -139,6 +140,25 @@ A Game Boy look is never a character's default look when the character has Gen 3
 Changing a character or look applies straight away, no restart needed: the player changes as soon as you're back in the game. The one exception is the FireRed/LeafGreen trainer card, which keeps the portrait it first loaded until the game restarts. Adding or editing files in a character folder still needs a restart.
 
 Updating to 1.0.0, copy the new files over the old `emerald_lens` folder; no looks moved and your choices carry over. The new **R/B/Y** and **G/S/C** rows start **OFF**, so the Game Boy games don't change until you pick a look there. From 0.1.5 or earlier, your old character choice carries over to both Gen 3 families, wherever that character has art.
+
+## Achievements
+With [Recomp Achievements](https://github.com/ElvieBlooms/recomp_achievements) installed too, Emerald Lens adds 13 achievements of its own, on a **LENS** tab in its menu. They don't count on its main leaderboard (that's the RetroAchievements lists only), but they do on **Extra Credit**, as `emerald_lens`. They're saved in your game like the rest, so a new game starts them over. Without Recomp Achievements, nothing changes.
+
+| Achievement | Points | How |
+|---|---|---|
+| Fresh Look | 2 | Play with a look on. |
+| Behind the Lens | 1 | Open the LENS screen (this mod's, so not Crystal Lens's). |
+| Wardrobe | 15 | Wear 10 different looks in one save. |
+| Old School | 5 | Wear a Game Boy look in FireRed, LeafGreen, Ruby, Sapphire or Emerald. |
+| New Tricks | 5 | Wear a Gen 3 or Gen 4 look in Red, Blue, Yellow, Gold, Silver or Crystal. |
+| Across the Sea | 5 | Play as RED or LEAF in Hoenn, or as BRENDAN or MAY in Kanto. |
+| Frenemies | 10 | Battle your rival while they wear a look. |
+| Mirror Match | 15 | Battle a rival wearing the same character as you. |
+| Surf's Up | 5 | Surf on a Pokémon from the SURF row. |
+| Pika Pal | 10 | Ride the surfing Pikachu as your look (Yellow). |
+| Sky High | 10 | Ride the Mt. Chimney cable car with a look on (Ruby, Sapphire, Emerald). |
+| Hall of Lens | 25 | Enter the Hall of Fame wearing a look. |
+| Long Walk | 10 | Walk 1,000 steps with a look on. |
 
 ## Sheet sizes
 Every file is optional. Each one is looked for in the selected look's folder, then the character's other folders (in menu order), then the game's own sprite. A file that isn't exactly the right size is skipped and logged to the console, and the next folder is tried.
