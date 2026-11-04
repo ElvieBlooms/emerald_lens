@@ -187,6 +187,26 @@ function gen12.init(mod, ctx, family, opts)
     return path
   end
 
+  -- frameFor(facing, walkPhase, stepFlip): which frame to draw for a pose,
+  -- or nil for the engine's own choice
+  local function framesBy(r, frameFor)
+    local draw = SpriteRenderer.draw
+    r.draw = function(self, px, py, camX, camY, facing, walkPhase, stepFlip, topHalf, forceFlip, frameOverride, oamRow)
+      local frame = frameFor(facing, walkPhase, stepFlip)
+      if frame then
+        return draw(self, px, py, camX, camY, facing, walkPhase, stepFlip, nil, facing == "right", frame, oamRow)
+      end
+      return draw(self, px, py, camX, camY, facing, walkPhase, stepFlip, topHalf, forceFlip, frameOverride, oamRow)
+    end
+  end
+
+  -- The Game Boy mirrors a step for the next one; Gen 3 and 4 art isn't
+  -- symmetrical, so the hair and bags swap sides. The other step instead.
+  local function secondStep(facing, walkPhase, stepFlip)
+    if walkPhase == 1 and stepFlip then return SECOND_STEP[facing] end
+    return nil
+  end
+
   local function renderer(name, data, w, h, n, rOpts)
     rOpts = rOpts or {}
     local def = { id = "EMERALD_LENS_" .. name:upper(), image = publish(name, data), frames = n, walker = true,
@@ -196,27 +216,15 @@ function gen12.init(mod, ctx, family, opts)
       warnOnce("renderer" .. name, "couldn't set up the %s sheet: %s", name, tostring(r))
       return nil
     end
-    local draw = SpriteRenderer.draw
-    -- frame: which one to draw for a pose, or nil for the engine's own
-    -- choice; drawTile does nothing, so the Game Boy fishing pose and rod
-    -- tiles don't land on top -Elvie
-    r.draw = function(self, px, py, camX, camY, facing, walkPhase, stepFlip, topHalf, forceFlip, frameOverride, oamRow)
-      local frame = rOpts.frameFor and rOpts.frameFor(facing, walkPhase, stepFlip)
-      if frame then
-        return draw(self, px, py, camX, camY, facing, walkPhase, stepFlip, nil, facing == "right", frame, oamRow)
-      end
-      return draw(self, px, py, camX, camY, facing, walkPhase, stepFlip, topHalf, forceFlip, frameOverride, oamRow)
-    end
+    if rOpts.frameFor then framesBy(r, rOpts.frameFor) end
+    -- drawTile does nothing, so the Game Boy fishing pose and rod tiles
+    -- don't land on top -Elvie
     r.drawTile = function() end
     return r
   end
 
   local function walker(name, src, w, h)
-    return renderer(name, pick(src, w, h, WALK_ORDER), w, h, #WALK_ORDER, {
-      frameFor = function(facing, walkPhase, stepFlip)
-        if walkPhase == 1 and stepFlip then return SECOND_STEP[facing] end
-        return nil
-      end })
+    return renderer(name, pick(src, w, h, WALK_ORDER), w, h, #WALK_ORDER, { frameFor = secondStep })
   end
 
   -- Rider offsets from surfBlob.json, read the same way as gen3.lua's -Elvie
@@ -486,6 +494,17 @@ function gen12.init(mod, ctx, family, opts)
 
   local rivalSerial = 0
   local rivalGender -- the rival look's genderMode, for its lines
+  -- The rival's walk sheet as published, so the renderer the game makes
+  -- for it walks with both steps like the player
+  local rivalWalk
+  local newRenderer = SpriteRenderer.new
+  SpriteRenderer.new = function(def, ...)
+    local r = newRenderer(def, ...)
+    if rivalWalk and type(def) == "table" and def.image == rivalWalk and type(r) == "table" then
+      framesBy(r, secondStep)
+    end
+    return r
+  end
   -- The rival's battle pics as files in this mod's cache folder: Oak's
   -- intro opens OPP_RIVAL1's pic as a file (newImage), so a composed pic
   -- left it showing the player. A new name each time, so nothing that
@@ -506,6 +525,7 @@ function gen12.init(mod, ctx, family, opts)
   end
   local function applyRival()
     restoreRival()
+    rivalWalk = nil
     if #rivalBases == 0 then return end
     local game = liveGame()
     local data = game and game.data
@@ -536,10 +556,12 @@ function gen12.init(mod, ctx, family, opts)
     local sprite = type(sprites) == "table" and sprites[spec.sprite]
     local walk, _, ww, wh = loadSheet("walk", rivalBases)
     if type(sprite) == "table" and walk then
-      -- the Game Boy order, one step each way, as the game's NPCs walk
-      local sheet = pick(walk, ww, wh, { 0, 1, 2, 3, 5, 7 })
-      setField(sprite, "image", publish("rivalWalk", sheet, tag .. "walk.png"))
-      setField(sprite, "frames", 6)
+      -- the Game Boy order, then the other step each way, which the rival's
+      -- own renderer draws (SpriteRenderer.new below)
+      local sheet = pick(walk, ww, wh, WALK_ORDER)
+      rivalWalk = publish("rivalWalk", sheet, tag .. "walk.png")
+      setField(sprite, "image", rivalWalk)
+      setField(sprite, "frames", #WALK_ORDER)
       setField(sprite, "frameWidth", ww)
       setField(sprite, "frameHeight", wh)
       setField(sprite, "gbaArt", true)
