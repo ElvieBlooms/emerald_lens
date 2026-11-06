@@ -42,6 +42,16 @@ end
 function lensGb.new(mod, api)
   if type(api) ~= "table" then return nil end
   local Font = mod.ui and mod.ui.Font
+  -- A translation's TTF prints in the current colour (Game Boy tiles are
+  -- black whatever it is), so text is always drawn in black, as the game's
+  -- own screens do
+  local function text(s, x, y)
+    local r, g, b, a = love.graphics.getColor()
+    love.graphics.setColor(0, 0, 0, 1)
+    local w = Font.draw(s, x, y)
+    love.graphics.setColor(r, g, b, a)
+    return w
+  end
   if not (Font and mod.content and mod.content.screens) then return nil end
   local okFx, PaletteFX = pcall(require, "src.render.PaletteFX")
   if not okFx then PaletteFX = nil end
@@ -128,7 +138,7 @@ function lensGb.new(mod, api)
   local function cursor(x, y)
     local Theme = mod.ui.Theme
     if Theme and Theme.cursor and Font.drawCode then Font.drawCode(Theme.cursor, x, y)
-    else Font.draw(">", x, y) end
+    else text(">", x, y) end
   end
 
   -- The credits page: up and down scroll, left and right a page, B goes back
@@ -153,7 +163,7 @@ function lensGb.new(mod, api)
         Font.drawBox(0, 0, 20, 18)
         for i = 0, PAGE - 1 do
           local line = lines[self.top + i]
-          if line then Font.draw(cut(line, LINE_CHARS), 8, 8 + i * 8) end
+          if line then text(cut(line, LINE_CHARS), 8, 8 + i * 8) end
         end
       end
       return self
@@ -187,12 +197,12 @@ function lensGb.new(mod, api)
       function self:draw()
         local rows = api.rows()
         Font.drawBox(0, 0, 20, 18)
-        Font.draw("EMERALD LENS", 8, 8)
+        text("EMERALD LENS", 8, 8)
         for i, row in ipairs(rows) do
           local y = ROW_Y + (i - 1) * ROW_H
           if i == self.cursor then cursor(LABEL_X - 8, y) end
-          Font.draw(row.label, LABEL_X, y)
-          Font.draw(cut(row.valueLabel, VALUE_CHARS), VALUE_X, y)
+          text(row.label, LABEL_X, y)
+          text(cut(row.valueLabel, VALUE_CHARS), VALUE_X, y)
         end
         local row = rows[self.cursor] or {}
         local preview = api.preview(row.who or "player")
@@ -226,7 +236,7 @@ function lensGb.new(mod, api)
             love.graphics.draw(gb, quad, WALK_X, WALK_Y + 15)
           end
         else
-          Font.draw(preview and preview.line or "OFF", LABEL_X, WALK_Y + 16)
+          text(preview and preview.line or "OFF", LABEL_X, WALK_Y + 16)
         end
       end
       return self
