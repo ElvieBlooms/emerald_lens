@@ -163,6 +163,15 @@ function gen3.init(mod, ctx)
   -- has to replace them. -Elvie
   local slots = NONE
   local bases = {}
+  -- The first folder in the chain with surf frames. A Game Boy look's blob
+  -- is see-through (its sprite is the whole picture), so it's only used
+  -- when that look's own frames are the ones surfing; otherwise a Gen 3
+  -- look with no blob of its own would fall back to it and surf on
+  -- nothing
+  local surfBase
+  local function blobFrom(base, file)
+    return file ~= "surfBlob.png" or base == surfBase
+  end
   -- A ridden Pokemon picked on the LENS screen (ctx.surfKit, a folder in
   -- assets/surfmons/<id>/<family>/): its blob, overlay and rider offsets
   -- win over the look's, for whoever is the player, look or not. -Elvie
@@ -237,7 +246,9 @@ function gen3.init(mod, ctx)
       -- A Game Boy look's pics are fitted to size as they load. Some
       -- come with extra rows below each 32-tall frame (fishing: the rod
       -- hangs below the tile); the 5th value says how many. -Elvie
-      if gameboy and gameboy.isBase(base) then
+      if gameboy and gameboy.isBase(base) and not blobFrom(base, file) then
+        -- a Game Boy blob under another look's frames: skipped
+      elseif gameboy and gameboy.isBase(base) then
         local data = gameboy.load(mod, base, file, layout)
         local w, h
         if data then w, h = data:getDimensions() end
@@ -448,6 +459,14 @@ function gen3.init(mod, ctx)
       return n
     end
     local function bestDy(facing, frame)
+      local any = false
+      for y = 0, 31 do
+        for x = 0, 31 do
+          local _, _, _, a = over:getPixel(x, facing * 32 + y)
+          any = any or a > 0
+        end
+      end
+      if not any then return nil end
       local best, fewest = 0, math.huge
       for _, dy in ipairs({ 0, 1, -1, 2, -2, 3, -3 }) do
         local n = misses(facing, frame, dy)
@@ -457,7 +476,9 @@ function gen3.init(mod, ctx)
     end
     local steps = {}
     for facing = 0, 2 do
-      steps[facing] = bestDy(facing, facing * 2 + 1) - bestDy(facing, facing * 2)
+      local second, first = bestDy(facing, facing * 2 + 1), bestDy(facing, facing * 2)
+      -- no front parts this way: the player moves with the game's 1
+      steps[facing] = second and first and second - first or 1
     end
     return steps
   end
@@ -480,9 +501,10 @@ function gen3.init(mod, ctx)
     end
     local offsets = riderOffsets(folder)
     if not over and not offsets then return nil end
-    -- the overlay rides with the player, who moves 1 on the blob's second
-    -- frame; where the front parts move less (or more), a second set of
-    -- frames has the overlay where they are -Elvie
+    -- the game moves the player 1 on the blob's second frame; where the
+    -- front parts move less (or more), a second set of frames has the
+    -- overlay where they are and the player with them, so the player
+    -- stays seated on the Pokemon -Elvie
     local steps = over and blobSteps(folder, over)
     local stepShift
     for facing = 0, 2 do
@@ -508,10 +530,11 @@ function gen3.init(mod, ctx)
     end
     for fi = 0, n - 1 do
       local ox, oy = offsetOf(fi)
+      local d = stepShift and fi < 9 and stepShift[SURF_FACING[fi] or 0] or 0
       for y = 0, h - 1 do
         for x = 0, w - 1 do
           local _, _, _, a = data:getPixel(x, fi * h + y)
-          if a > 0 then reach(x + sx + ox, y + oy) end
+          if a > 0 then reach(x + sx + ox, y + oy); reach(x + sx + ox, y + oy + d) end
         end
       end
     end
@@ -530,6 +553,7 @@ function gen3.init(mod, ctx)
     for fi = 0, n - 1 do
       local ox, oy = offsetOf(fi)
       local fy = fi * FH + top
+      local step = stepShift and fi < 9 and stepShift[SURF_FACING[fi] or 0] or 0
       -- the player, moved by the facing's offset -Elvie
       for y = 0, h - 1 do
         for x = 0, w - 1 do
@@ -537,7 +561,7 @@ function gen3.init(mod, ctx)
           if a > 0 then
             out:setPixel(side + x + sx + ox, fy + y + oy, r, g, b, a)
             if plain then plain:setPixel(side + x + sx + ox, fy + y + oy, r, g, b, a) end
-            if stepped then stepped:setPixel(side + x + sx + ox, fy + y + oy, r, g, b, a) end
+            if stepped then stepped:setPixel(side + x + sx + ox, fy + y + oy + step, r, g, b, a) end
           end
         end
       end
@@ -1130,7 +1154,7 @@ function gen3.init(mod, ctx)
     return dir .. "/" .. key .. "/gen3/" .. layout .. "/"
   end
   local function exists(base, file)
-    if gameboy and gameboy.isBase(base) then return gameboy.has(mod, base, file) end
+    if gameboy and gameboy.isBase(base) then return blobFrom(base, file) and gameboy.has(mod, base, file) end
     if mod.assets:info(base .. file) then return true end
     return crossgame ~= nil and crossgame.isBase(base) and crossgame.has(mod, base, file, layout)
   end
@@ -1204,6 +1228,11 @@ function gen3.init(mod, ctx)
         seen[key] = true
         bases[#bases + 1] = baseOf(newCtx.spritesDir, key, newCtx.gameBoy)
       end
+    end
+
+    surfBase = nil
+    for _, base in ipairs(bases) do
+      if exists(base, "surf.png") then surfBase = base break end
     end
 
     -- Which files exist anywhere in the chain, checked once here rather
