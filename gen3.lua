@@ -419,6 +419,37 @@ function gen3.init(mod, ctx)
   -- frames without the overlay, for while the blob isn't under the player.
   -- Frames grow to hold whatever the offsets and overlay reach: wider both
   -- ways (the game centres them), taller above or below. -Elvie
+  -- FireRed/LeafGreen's blob bobs by its art: each facing has two frames,
+  -- the second lower, and the game moves the player down 1 with it
+  -- (pokefirered/src/field_effect_helpers.c:1061). Returns how far each
+  -- facing's second frame sits below its first, or nil (Ruby/Sapphire/
+  -- Emerald bob the blob and player together). -Elvie
+  local function blobSteps(folder)
+    if not (extras.surfBlob and extras.surfBlob[2] >= 192) then return nil end
+    local _, blob = loadImage("surfBlob.png", extras.surfBlob[1], extras.surfBlob[2], nil, folder)
+    if not blob then return nil end
+    local function solid(f, x, y)
+      if y < 0 or y > 31 then return false end
+      local _, _, _, a = blob:getPixel(x, f * 32 + y)
+      return a > 0
+    end
+    local steps = {}
+    for facing = 0, 2 do
+      local bestDy, bestMiss = 1, math.huge
+      for dy = -4, 4 do
+        local miss = 0
+        for y = 0, 31 do
+          for x = 0, 31 do
+            if solid(facing * 2, x, y - dy) ~= solid(facing * 2 + 1, x, y) then miss = miss + 1 end
+          end
+        end
+        if miss < bestMiss then bestDy, bestMiss = dy, miss end
+      end
+      steps[facing] = bestDy
+    end
+    return steps
+  end
+
   local function surfOverlay(data, w, h, n, offY)
     offY = offY or 0
     if not extras.surfOverlay then return nil end
@@ -437,6 +468,18 @@ function gen3.init(mod, ctx)
     end
     local offsets = riderOffsets(folder)
     if not over and not offsets then return nil end
+    -- the overlay rides with the player, who moves 1 on the blob's second
+    -- frame; where the blob moves more (or less), a second set of frames
+    -- has the overlay moved the rest of the way -Elvie
+    local steps = over and blobSteps(folder)
+    local stepShift
+    for facing = 0, 2 do
+      local d = steps and steps[facing] - 1 or 0
+      if d ~= 0 then
+        stepShift = stepShift or { [0] = 0, 0, 0 }
+        stepShift[facing] = d
+      end
+    end
     -- in the frame as the game draws a 32-wide one: the blob sits at
     -- (-8, -8) from the tile, the frame at ((16 - W) / 2, 16 - h + offY),
     -- so blob pixel (x, y) is (x, y + h - 24 - offY) and the player's
@@ -460,12 +503,18 @@ function gen3.init(mod, ctx)
         end
       end
     end
-    if over then reach(0, h - 24 - offY); reach(31, h + 7 - offY) end
+    if over then
+      for facing = 0, 2 do
+        local d = stepShift and stepShift[facing] or 0
+        reach(0, h - 24 - offY + math.min(0, d)); reach(31, h + 7 - offY + math.max(0, d))
+      end
+    end
     local side = math.max(0, -x0, x1 - (W - 1))
     local top, below = math.max(0, -y0), math.max(0, y1 - (h - 1))
     local FW, FH = W + 2 * side, h + top + below
     local out = love.image.newImageData(FW, FH * n)
     local plain = over and love.image.newImageData(FW, FH * n) or nil
+    local stepped = stepShift and love.image.newImageData(FW, FH * n) or nil
     for fi = 0, n - 1 do
       local ox, oy = offsetOf(fi)
       local fy = fi * FH + top
@@ -476,6 +525,7 @@ function gen3.init(mod, ctx)
           if a > 0 then
             out:setPixel(side + x + sx + ox, fy + y + oy, r, g, b, a)
             if plain then plain:setPixel(side + x + sx + ox, fy + y + oy, r, g, b, a) end
+            if stepped then stepped:setPixel(side + x + sx + ox, fy + y + oy, r, g, b, a) end
           end
         end
       end
@@ -488,11 +538,13 @@ function gen3.init(mod, ctx)
             local r, g, b, a = over:getPixel(x, facing * 32 + y)
             local py = y + h - 24 - offY
             if a > 0 and py >= -top and py < h + below then out:setPixel(side + x, fy + py, r, g, b, a) end
+            local sy = py + (stepShift and stepShift[facing] or 0)
+            if stepped and a > 0 and sy >= -top and sy < h + below then stepped:setPixel(side + x, fy + sy, r, g, b, a) end
           end
         end
       end
     end
-    return out, FW, FH, below, plain, over
+    return out, FW, FH, below, plain, over, stepped, steps
   end
 
   -- Surf sheets with an overlay: the overlay is part of the player's
@@ -505,9 +557,21 @@ function gen3.init(mod, ctx)
     img:setFilter("nearest", "nearest")
     return img
   end
-  local function withPlain(record, plainData, overData)
+  local function withPlain(record, plainData, overData, steppedData, steps)
     if not plainData then return end
-    overlaid[record] = { over = record.image, plain = nearestImage(plainData), hop = overData and nearestImage(overData) }
+    overlaid[record] = { over = record.image, plain = nearestImage(plainData),
+      stepped = steppedData and nearestImage(steppedData),
+      hop = overData and nearestImage(overData), steps = steps }
+  end
+  -- which of the blob's two frames shows (0 or 1; always 0 in Ruby/
+  -- Sapphire/Emerald, whose blob has one) -Elvie
+  local function blobStep()
+    local Fx = package.loaded["src.core.game3.field_effects"]
+    local b = type(Fx) == "table" and Fx._surfBob
+    local okBob, SurfBob = pcall(require, "src.core.game3.surf_bob")
+    if not (type(b) == "table" and okBob and type(SurfBob.animCmdIndex) == "function") then return 0 end
+    local okStep, step = pcall(SurfBob.animCmdIndex, b)
+    return okStep and step or 0
   end
   local okFx, FieldEffects = pcall(require, "src.core.game3.field_effects")
   if okFx and type(FieldEffects) == "table" and type(FieldEffects.drawBehind) == "function" then
@@ -517,8 +581,9 @@ function gen3.init(mod, ctx)
         local P = package.loaded["src.core.game3.player"]
         local under = type(P) == "table" and P.surfing and not P.surfHopping
           and not P.dismounting and not P.underwater
+        local step = under and blobStep() or 0
         for record, images in pairs(overlaid) do
-          record.image = under and images.over or images.plain
+          record.image = under and (step == 1 and images.stepped or images.over) or images.plain
         end
       end
       return drawBehind(...)
@@ -543,7 +608,11 @@ function gen3.init(mod, ctx)
           -- drawBehind) -Elvie
           local bob = type(FieldEffects.surfBlobY2) == "function" and FieldEffects.surfBlobY2() or 0
           local sx = (P.targetX or P.cellX or 0) * 16 - (camX or 0) - 8
+          local found
+          for _, images in pairs(overlaid) do found = found or (images.hop and images) end
+          local step = found and found.steps and blobStep() or 0
           local sy = (P.targetY or P.cellY or 0) * 16 - (camY or 0) - 8 + bob
+            + (step == 1 and found.steps[row] or 0)
           local quad = love.graphics.newQuad(0, row * 32, 32, 32, hop:getDimensions())
           love.graphics.setColor(1, 1, 1, 1)
           if P.facing == "right" then
@@ -573,7 +642,7 @@ function gen3.init(mod, ctx)
       local image, data, rel, gotW, drop = loadImage(file, w, h * rows, w == 16 and 32 or nil, nil, chain)
       if not image then return nil end
       w = gotW or w
-      local plainSurf, overSurf
+      local plainSurf, overSurf, steppedSurf, stepsSurf
       local record = {}
       for k, v in pairs(vanilla) do record[k] = v end
       if drop and drop > 0 then
@@ -583,13 +652,13 @@ function gen3.init(mod, ctx)
         record.drawOffY = (vanilla.drawOffY or 0) + drop
       end
       if file == "surf.png" and not chain then
-        local withOverlay, newW, newH, below, plainData, overData = surfOverlay(data, w, h, n,
+        local withOverlay, newW, newH, below, plainData, overData, steppedData, steps = surfOverlay(data, w, h, n,
           record.drawOffY or vanilla.drawOffY or 0)
         if withOverlay then
           image = love.graphics.newImage(withOverlay)
           image:setFilter("nearest", "nearest")
           data, w, h = withOverlay, newW, newH
-          plainSurf, overSurf = plainData, overData
+          plainSurf, overSurf, steppedSurf, stepsSurf = plainData, overData, steppedData, steps
           record.height = h
           -- rows added below draw lower, so the player stays put -Elvie
           record.drawOffY = (record.drawOffY or vanilla.drawOffY or 0) + below
@@ -607,7 +676,7 @@ function gen3.init(mod, ctx)
         end
       end
       record.image, record.imageData, record.width = image, data, w
-      withPlain(record, plainSurf, overSurf)
+      withPlain(record, plainSurf, overSurf, steppedSurf, stepsSurf)
       record.quads = {}
       for fi = 0, n - 1 do
         record.quads[fi] = love.graphics.newQuad(0, fi * h, w, h, w, h * rows)
@@ -641,7 +710,7 @@ function gen3.init(mod, ctx)
       if not (w and h and n and vanilla.imageData) then return nil end
       local okClone, data = pcall(function() return vanilla.imageData:clone() end)
       if not okClone then return nil end
-      local out, newW, newH, below, plainData, overData = surfOverlay(data, w, h, n, vanilla.drawOffY or 0)
+      local out, newW, newH, below, plainData, overData, steppedData, steps = surfOverlay(data, w, h, n, vanilla.drawOffY or 0)
       if not out then return nil end
       local record = {}
       for k, v in pairs(vanilla) do record[k] = v end
@@ -649,7 +718,7 @@ function gen3.init(mod, ctx)
       image:setFilter("nearest", "nearest")
       record.image, record.imageData, record.width, record.height = image, out, newW, newH
       record.drawOffY = (vanilla.drawOffY or 0) + below
-      withPlain(record, plainData, overData)
+      withPlain(record, plainData, overData, steppedData, steps)
       record.quads = {}
       for fi = 0, n - 1 do record.quads[fi] = love.graphics.newQuad(0, fi * newH, newW, newH, newW, newH * n) end
       return record
