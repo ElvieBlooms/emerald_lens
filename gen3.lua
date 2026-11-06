@@ -419,33 +419,45 @@ function gen3.init(mod, ctx)
   -- frames without the overlay, for while the blob isn't under the player.
   -- Frames grow to hold whatever the offsets and overlay reach: wider both
   -- ways (the game centres them), taller above or below. -Elvie
-  -- FireRed/LeafGreen's blob bobs by its art: each facing has two frames,
-  -- the second lower, and the game moves the player down 1 with it
-  -- (pokefirered/src/field_effect_helpers.c:1061). Returns how far each
-  -- facing's second frame sits below its first, or nil (Ruby/Sapphire/
-  -- Emerald bob the blob and player together). -Elvie
-  local function blobSteps(folder)
-    if not (extras.surfBlob and extras.surfBlob[2] >= 192) then return nil end
+  -- FireRed/LeafGreen's blob bobs by its art: each facing has a second
+  -- frame, with some of the Pokemon lower, and the game moves the player
+  -- down 1 with it (pokefirered/src/field_effect_helpers.c:1061). The
+  -- overlay is the blob's own front parts, so this finds where its pixels
+  -- sit in the second frame: how far each facing's front parts move, or
+  -- nil (Ruby/Sapphire/Emerald bob the blob and player together). -Elvie
+  local function blobSteps(folder, over)
+    if not (over and extras.surfBlob and extras.surfBlob[2] >= 192) then return nil end
     local _, blob = loadImage("surfBlob.png", extras.surfBlob[1], extras.surfBlob[2], nil, folder)
     if not blob then return nil end
-    local function solid(f, x, y)
-      if y < 0 or y > 31 then return false end
-      local _, _, _, a = blob:getPixel(x, f * 32 + y)
-      return a > 0
+    local function misses(facing, frame, dy)
+      local n = 0
+      for y = 0, 31 do
+        for x = 0, 31 do
+          local r, g, b, a = over:getPixel(x, facing * 32 + y)
+          if a > 0 then
+            local by = y + dy
+            if by < 0 or by > 31 then
+              n = n + 1
+            else
+              local br, bg, bb, ba = blob:getPixel(x, frame * 32 + by)
+              if ba == 0 or br ~= r or bg ~= g or bb ~= b then n = n + 1 end
+            end
+          end
+        end
+      end
+      return n
+    end
+    local function bestDy(facing, frame)
+      local best, fewest = 0, math.huge
+      for _, dy in ipairs({ 0, 1, -1, 2, -2, 3, -3 }) do
+        local n = misses(facing, frame, dy)
+        if n < fewest then best, fewest = dy, n end
+      end
+      return best
     end
     local steps = {}
     for facing = 0, 2 do
-      local bestDy, bestMiss = 1, math.huge
-      for dy = -4, 4 do
-        local miss = 0
-        for y = 0, 31 do
-          for x = 0, 31 do
-            if solid(facing * 2, x, y - dy) ~= solid(facing * 2 + 1, x, y) then miss = miss + 1 end
-          end
-        end
-        if miss < bestMiss then bestDy, bestMiss = dy, miss end
-      end
-      steps[facing] = bestDy
+      steps[facing] = bestDy(facing, facing * 2 + 1) - bestDy(facing, facing * 2)
     end
     return steps
   end
@@ -469,9 +481,9 @@ function gen3.init(mod, ctx)
     local offsets = riderOffsets(folder)
     if not over and not offsets then return nil end
     -- the overlay rides with the player, who moves 1 on the blob's second
-    -- frame; where the blob moves more (or less), a second set of frames
-    -- has the overlay moved the rest of the way -Elvie
-    local steps = over and blobSteps(folder)
+    -- frame; where the front parts move less (or more), a second set of
+    -- frames has the overlay where they are -Elvie
+    local steps = over and blobSteps(folder, over)
     local stepShift
     for facing = 0, 2 do
       local d = steps and steps[facing] - 1 or 0
