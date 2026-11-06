@@ -492,7 +492,7 @@ function gen3.init(mod, ctx)
         end
       end
     end
-    return out, FW, FH, below, plain
+    return out, FW, FH, below, plain, over
   end
 
   -- Surf sheets with an overlay: the overlay is part of the player's
@@ -500,11 +500,14 @@ function gen3.init(mod, ctx)
   -- player. Hopping on or off, the blob waits on its own tile, so for
   -- those frames the sheet without it is drawn. -Elvie
   local overlaid = setmetatable({}, { __mode = "k" })
-  local function withPlain(record, plainData)
+  local function nearestImage(data)
+    local img = love.graphics.newImage(data)
+    img:setFilter("nearest", "nearest")
+    return img
+  end
+  local function withPlain(record, plainData, overData)
     if not plainData then return end
-    local plain = love.graphics.newImage(plainData)
-    plain:setFilter("nearest", "nearest")
-    overlaid[record] = { over = record.image, plain = plain }
+    overlaid[record] = { over = record.image, plain = nearestImage(plainData), hop = overData and nearestImage(overData) }
   end
   local okFx, FieldEffects = pcall(require, "src.core.game3.field_effects")
   if okFx and type(FieldEffects) == "table" and type(FieldEffects.drawBehind) == "function" then
@@ -519,6 +522,38 @@ function gen3.init(mod, ctx)
         end
       end
       return drawBehind(...)
+    end
+  end
+  -- Jumping on, the overlay is drawn on the blob over the player instead,
+  -- so it's there the whole way and doesn't pop in when they land. The
+  -- game draws its in-front effects after everything (FieldEffects
+  -- .drawFront), which is fine at the shore. -Elvie
+  if okFx and type(FieldEffects) == "table" and type(FieldEffects.drawFront) == "function" then
+    local drawFront = FieldEffects.drawFront
+    local ROW = { down = 0, up = 1, left = 2, right = 2 }
+    FieldEffects.drawFront = function(camX, camY, ...)
+      local result = drawFront(camX, camY, ...)
+      local P = package.loaded["src.core.game3.player"]
+      if type(P) == "table" and P.surfHopping and not P.dismounting and next(overlaid) then
+        local hop
+        for _, images in pairs(overlaid) do hop = hop or images.hop end
+        local row = ROW[P.facing or "down"]
+        if hop and row then
+          -- where the game draws the blob while hopping (field_effects.lua
+          -- drawBehind) -Elvie
+          local bob = type(FieldEffects.surfBlobY2) == "function" and FieldEffects.surfBlobY2() or 0
+          local sx = (P.targetX or P.cellX or 0) * 16 - (camX or 0) - 8
+          local sy = (P.targetY or P.cellY or 0) * 16 - (camY or 0) - 8 + bob
+          local quad = love.graphics.newQuad(0, row * 32, 32, 32, hop:getDimensions())
+          love.graphics.setColor(1, 1, 1, 1)
+          if P.facing == "right" then
+            love.graphics.draw(hop, quad, sx + 32, sy, 0, -1, 1)
+          else
+            love.graphics.draw(hop, quad, sx, sy)
+          end
+        end
+      end
+      return result
     end
   end
 
@@ -538,7 +573,7 @@ function gen3.init(mod, ctx)
       local image, data, rel, gotW, drop = loadImage(file, w, h * rows, w == 16 and 32 or nil, nil, chain)
       if not image then return nil end
       w = gotW or w
-      local plainSurf
+      local plainSurf, overSurf
       local record = {}
       for k, v in pairs(vanilla) do record[k] = v end
       if drop and drop > 0 then
@@ -548,13 +583,13 @@ function gen3.init(mod, ctx)
         record.drawOffY = (vanilla.drawOffY or 0) + drop
       end
       if file == "surf.png" and not chain then
-        local withOverlay, newW, newH, below, plainData = surfOverlay(data, w, h, n,
+        local withOverlay, newW, newH, below, plainData, overData = surfOverlay(data, w, h, n,
           record.drawOffY or vanilla.drawOffY or 0)
         if withOverlay then
           image = love.graphics.newImage(withOverlay)
           image:setFilter("nearest", "nearest")
           data, w, h = withOverlay, newW, newH
-          plainSurf = plainData
+          plainSurf, overSurf = plainData, overData
           record.height = h
           -- rows added below draw lower, so the player stays put -Elvie
           record.drawOffY = (record.drawOffY or vanilla.drawOffY or 0) + below
@@ -572,7 +607,7 @@ function gen3.init(mod, ctx)
         end
       end
       record.image, record.imageData, record.width = image, data, w
-      withPlain(record, plainSurf)
+      withPlain(record, plainSurf, overSurf)
       record.quads = {}
       for fi = 0, n - 1 do
         record.quads[fi] = love.graphics.newQuad(0, fi * h, w, h, w, h * rows)
@@ -606,7 +641,7 @@ function gen3.init(mod, ctx)
       if not (w and h and n and vanilla.imageData) then return nil end
       local okClone, data = pcall(function() return vanilla.imageData:clone() end)
       if not okClone then return nil end
-      local out, newW, newH, below, plainData = surfOverlay(data, w, h, n, vanilla.drawOffY or 0)
+      local out, newW, newH, below, plainData, overData = surfOverlay(data, w, h, n, vanilla.drawOffY or 0)
       if not out then return nil end
       local record = {}
       for k, v in pairs(vanilla) do record[k] = v end
@@ -614,7 +649,7 @@ function gen3.init(mod, ctx)
       image:setFilter("nearest", "nearest")
       record.image, record.imageData, record.width, record.height = image, out, newW, newH
       record.drawOffY = (vanilla.drawOffY or 0) + below
-      withPlain(record, plainData)
+      withPlain(record, plainData, overData)
       record.quads = {}
       for fi = 0, n - 1 do record.quads[fi] = love.graphics.newQuad(0, fi * newH, newW, newH, newW, newH * n) end
       return record
@@ -1132,6 +1167,7 @@ function gen3.init(mod, ctx)
     surfKit = newCtx and type(newCtx.surfKit) == "string" and newCtx.surfKit or nil
     owFile = nil
     owReplaced = setmetatable({}, { __mode = "k" })
+    for record in pairs(overlaid) do overlaid[record] = nil end
     picReplaced = setmetatable({}, { __mode = "k" })
     rivalPicReplaced = setmetatable({}, { __mode = "k" })
     rivalOw, rivalOwFor = nil, nil
