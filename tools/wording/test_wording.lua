@@ -446,7 +446,7 @@ do
   local defined
   package.loaded["mods.emerald_lens.gen3"] = { init = function(_, ctx)
     ctxs[#ctxs + 1] = ctx
-    return { configure = function(c) ctxs[#ctxs + 1] = c end }
+    return { configure = function(c) ctxs[#ctxs + 1] = c; ctxs.calls = (ctxs.calls or 0) + 1; ctxs.last = c end }
   end }
   local mod = {
     id = "emerald_lens",
@@ -513,10 +513,11 @@ do
     "fromDS bases are registered for both families")
   check(X.sourceName({ fromDS = "ethan" }) == "HG/SS dump" and X.sourceName({ fromGame = "may" }) == "R/S/E game",
     "the LENS line names where a read look comes from")
+  local before = ctxs.calls or 0
   options.characterFrlg = "DAWN"
   handlers["mod.options_changed"]({ mod = "emerald_lens", key = "characterFrlg" })
-  check(ctxs[#ctxs].folderKeys == nil or ctxs[#ctxs].folderKeys[1] ~= "dawn_x",
-    "a fromDS look whose dump isn't imported isn't offered")
+  check((ctxs.calls or 0) == before + 1 and (ctxs.last == nil or ctxs.last.folderKeys == nil),
+    "a DS character whose dump isn't imported plays as the game's own player")
   check(not X.isBase("assets/sprites/dawn_x/gen3/frlg/"), "and isn't registered")
   local said = {}
   for _, line in ipairs(model and model.preview("you", {}).lines or {}) do said[#said + 1] = line.text end

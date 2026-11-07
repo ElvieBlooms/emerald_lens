@@ -173,6 +173,8 @@ function lens.init(mod)
   -- DS games whose looks aren't offered because the dump isn't imported
   -- in Prism Importer: [name] = true
   local hiddenDS = {}
+  -- [character] = DS game name, for characters with a look like that
+  local hiddenChar = {}
 
   for _, key in ipairs(mod.assets:list(SPRITES_DIR)) do
     if isDirectory(SPRITES_DIR .. "/" .. key) then
@@ -205,6 +207,7 @@ function lens.init(mod)
         local cross = crossgame ~= nil and crossgame.offeredIn(meta, family, mod)
         if crossgame and crossgame.dsOf(meta) and not cross then
           hiddenDS[crossgame.DS[crossgame.dsOf(meta)].name] = true
+          hiddenChar[character] = crossgame.DS[crossgame.dsOf(meta)].name
         end
         if cross and not family.gb then
           crossgame.register(SPRITES_DIR .. "/" .. key .. "/gen3/" .. family.id .. "/", meta)
@@ -538,10 +541,21 @@ function lens.init(mod)
   end
 
   -- The character a family would use right now (nil for OFF). -Elvie
+  local warnedHidden = {}
   local function currentCharacter(family)
     local character = mod.options:get("character" .. family.suffix)
     if character == OFF then return nil end
     if not lookFolders[family.id][character] then
+      -- a DS character whose dump isn't imported (after Prism Importer
+      -- updates, say) plays as the game's own player until it's back;
+      -- the setting stays, so it returns after importing and a restart
+      if hiddenChar[character] then
+        if not warnedHidden[character] then
+          warnedHidden[character] = true
+          mod.log:info("%s needs the %s dump imported in Prism Importer; playing as the game's own player", character, hiddenChar[character])
+        end
+        return nil
+      end
       if family.gb then return nil end
       character = defaults[family.id]
     end
