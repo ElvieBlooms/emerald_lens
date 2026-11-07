@@ -434,6 +434,7 @@ do
     red_gb = '{"label":"RED","character":"RED","genderMode":"boy","romOverworld":"red"}',
     red_x = '{"label":"FR/LG","character":"RED","genderMode":"boy","fromGame":"red"}',
     may_x = '{"label":"EMERALD","character":"MAY","genderMode":"girl","fromGame":"may"}',
+    ethan_x = '{"label":"HG/SS","character":"ETHAN","genderMode":"boy","generation":4,"fromDS":"ethan"}',
   }
   local dirs = { "kris/gen3/frlg", "zeta/gen3/frlg" }
   local files = { ["arale/backColor.png"] = true }
@@ -448,7 +449,7 @@ do
     assets = {
       list = function(_, dir)
         if dir == "assets/surfmons" then return { "lapras" } end
-        return dir == "assets/sprites" and { "arale", "kris", "may_x", "red_gb", "red_x", "zeta" } or {}
+        return dir == "assets/sprites" and { "arale", "ethan_x", "kris", "may_x", "red_gb", "red_x", "zeta" } or {}
       end,
       info = function(_, rel)
         if rel == "assets/surfmons/lapras" then return { type = "directory" } end
@@ -495,6 +496,14 @@ do
   local X = package.loaded["mods.emerald_lens.crossgame"]
   check(X and X.isBase("assets/sprites/may_x/gen3/frlg/") and not X.isBase("assets/sprites/red_x/gen3/frlg/"),
     "fromGame bases are registered for the other family only")
+  options.characterFrlg = "ETHAN"
+  handlers["mod.options_changed"]({ mod = "emerald_lens", key = "characterFrlg" })
+  check(ctxs[#ctxs].folderKeys[1] == "ethan_x" and ctxs[#ctxs].genderMode == "boy",
+    "a fromDS look is its own character's look in FR/LG")
+  check(X.isBase("assets/sprites/ethan_x/gen3/frlg/") and X.isBase("assets/sprites/ethan_x/gen3/rse/"),
+    "fromDS bases are registered for both families")
+  check(X.sourceName({ fromDS = "ethan" }) == "HG/SS dump" and X.sourceName({ fromGame = "may" }) == "R/S/E game",
+    "the LENS line names where a read look comes from")
   options.characterFrlg = "RED"
   handlers["mod.options_changed"]({ mod = "emerald_lens", key = "characterFrlg" })
   ctx = ctxs[#ctxs]
@@ -565,7 +574,7 @@ do
   options.lookGb1_KRIS = "kris"
   handlers["mod.options_changed"]({ mod = "emerald_lens", key = "lookGb1_KRIS" })
   check(gbCtx.lookKey == "kris", "the selected look is handed over, for the battle back's fixed path")
-  check(gbOpts and gbOpts.ownCard == true and table.concat(gbOpts.lookKeys, ",") == "arale,kris,zeta,may_x,red_x,red_gb"
+  check(gbOpts and gbOpts.ownCard == true and table.concat(gbOpts.lookKeys, ",") == "ethan_x,arale,kris,zeta,may_x,red_x,red_gb"
     and gbOpts.gameBoy.arale and gbOpts.spritesDir == "assets/sprites",
     "every R/B/Y look listed for the back scales, Game Boy ones marked; the trainer card is this mod's own")
   check(gbRival == nil, "RIVAL starts OFF in R/B/Y")
@@ -606,8 +615,8 @@ do
   dofile("lens.lua").init(mod)
   local keys = {}
   for _, look in ipairs(added and added.looks or {}) do keys[#keys + 1] = look.key end
-  check(added and table.concat(keys, ",") == "emerald_lens:arale,emerald_lens:kris,emerald_lens:zeta,emerald_lens:may_x,emerald_lens:red_x,emerald_lens:red_gb"
-    and added.looks[1].folder == "arale",
+  check(added and table.concat(keys, ",") == "emerald_lens:ethan_x,emerald_lens:arale,emerald_lens:kris,emerald_lens:zeta,emerald_lens:may_x,emerald_lens:red_x,emerald_lens:red_gb"
+    and added.looks[2].folder == "arale",
     "looks handed to Crystal Lens, with their folders so it can leave out its own: " .. table.concat(keys, ","))
   check(gbCtx == nil, "nothing drawn until Crystal Lens picks one")
   check(gbOpts and gbOpts.ownCard == false, "with Crystal Lens, its trainer card screen stays")

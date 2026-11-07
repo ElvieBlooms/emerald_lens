@@ -16,6 +16,7 @@ Emerald Lens is the Gen 3 companion to [Crystal Lens](https://github.com/dburton
 * A rival of your choosing: any character can stand in for Blue, or for May/Brendan, with the rival's own looks and fallback (see **The rival** below).
 * Gendered text follows your characters: girl or they/them wording where the game assumes a gender, for the player and the rival (see **Text** below).
 * The other Gen 3 games' players: RED and LEAF from FireRed/LeafGreen in Ruby/Sapphire/Emerald, and Emerald's BRENDAN and MAY in FireRed/LeafGreen, all four in the Game Boy games too, read from your own copies of those games (see **Players from the other Gen 3 games** below).
+* DS players and rivals: ETHAN, LYRA and SILVER from HeartGold/SoulSilver, LUCAS, DAWN and BARRY from Diamond/Pearl/Platinum, in every game, read from your own dumps through [Prism Importer](https://github.com/ElvieBlooms/prism_importer) (see **Players from the DS games** below).
 * Game Boy looks: drop in a folder from Crystal Lens and its battle art is used as it is; Red's, Gold's and Kris's Game Boy walking and biking sprites come from your own copies of those games (see **Game Boy looks** below).
 * Falls back sheet by sheet: the selected look, then the same character's other looks of the same generation, then its other looks, closest generation first, then the game's own sprite. Draw as much or as little as you like.
 * Your looks in the Game Boy games: Gen 3, Gen 4 and Game Boy looks walk, bike, surf and fish in Red/Blue/Yellow and Gold/Silver/Crystal too, in full colour, with their battle pics and trainer card, and Blue or Silver can wear a look as your rival (see **Looks in the Game Boy games** below).
@@ -117,6 +118,18 @@ In Red, Blue and Yellow (**R/B/Y** in the mod options) and Gold, Silver and Crys
 * Battle pics, the intro and the map icon can't be read from another game, so they fall back to the character's other looks: GREEN, BRENDAN and MAY have their own; RED, with only Game Boy looks, uses the game's.
 
 These looks never become a character's default when it has art of its own, so adding them changes nothing you already picked. The LENS screen says **Read from your FR/LG game.** (or R/S/E) under one.
+
+### Players from the DS games
+`"fromDS"` (optional, Emerald Lens only) in `meta.json` is `"ethan"`, `"lyra"`, `"silver"`, `"lucas"`, `"dawn"` or `"barry"`: the look is that player or rival, read from your own HeartGold/SoulSilver or Diamond/Pearl/Platinum dump through [Prism Importer](https://github.com/ElvieBlooms/prism_importer), a separate mod. Install it, pick your dumps in its imports, then import them from **IMPORTER** in **PRISM**. Nothing of theirs is shipped, so without Prism Importer or the dump the look falls back as usual, and the game log says which.
+
+These looks are offered in every game, as the player or the rival: **ETHAN**, **LYRA** and **SILVER: HG/SS DS** from HeartGold/SoulSilver, and **LUCAS**, **DAWN** and **BARRY** (**D/P/PT**) from whichever of Diamond, Pearl or Platinum you imported.
+
+* **Walking and running** come from the overworld sheets, standing on the game's feet rows. Ethan, Lyra, Lucas and Dawn ride their own bikes (the Acro Bike's tricks use the bike frames); Silver and Barry have none, so they fall back.
+* **Battle pics** are the DS trainer pics cut to 64x64 around the trainer: feet on the bottom row when they fit, otherwise the head is kept. Backs keep the head and shoulders, and their throw follows the DS frames.
+* **Oak's intro** in FireRed/LeafGreen (`intro.png`) is the front pic at its full height; the trainer card uses the front pic too. The map icon falls back.
+* **Surfing, fishing, field moves, diving and watering** use the standing frames for now, so the right trainer always shows.
+
+The LENS screen says **Read from your HG/SS dump.** (or D/P/Pt) under one.
 
 ### Game Boy looks
 A folder with no `gen3` folder for a game family, but with Crystal Lens's Game Boy art, is a Game Boy look there. Nothing is converted on disk, so the folder stays exactly as Crystal Lens reads it and can be copied back and forth. What it supplies:
@@ -245,6 +258,7 @@ The surf blob and bird have no boy or girl version, so they're only used when yo
 * KRIS Game Boy looks, from [Crystal Lens](https://github.com/dburton95/crystal): ARALE by Amanda Arale-Chan, DARIO by DarioMelo, ROCKET A, ROCKET B and SYGNA (with their ZOOM backs) by Elvie
 * RED, and the GAME BOY looks of GOLD, GARY and SILVER: read from your own games, nothing shipped
 * RED and LEAF (FR/LG), BRENDAN and MAY (EMERALD): read from your own FireRed/LeafGreen or Emerald/Ruby/Sapphire, nothing shipped; Round dive blob by Elvie
+* ETHAN, LYRA, SILVER (HG/SS DS), LUCAS, DAWN and BARRY: read from your own DS dumps through Prism Importer, nothing shipped
 * Crystal Clear (GBC) looks: LEAF (GBC and SYGNA) by Bani, BRENDAN (GBC) by Hyo, MAY (GBC) by isactuallyabear
 * Surfing Pokémon on the LENS screen's SURF row (`assets/surfmons/`), from the dynamic surf overworlds hacks: Blastoise by eMMe97, Latias by Nolo33LP, Pikachu by Nolo33LP (additional editing by Jordank), Tentacruel by Avara, Wailmer by Hestia, Whiscash by EduarPokeN; Dewgong, Lapras, Ludicolo, Mantine and Pelipper are the hack's legacy sprites, edited from HG/SS sprites by its contributors (ghoulslash, grunt-lucas, Slawter666, Surskitty, wally-217)
 * Surfing Pokémon in the sprite tools (`tools/sprite-templates/surfmons/`), custom drawn for the dynamic surf overworlds hacks ([expansion](https://github.com/jmynes/dynamic_surf_ows_masters-expansion) by Shiny miner, ansh and jordank; original by ghoulslash): Pokets: Barboach, Feebas, Lugia, Luvdisc, Masquerain, Relicanth, Sharpedo, Snorlax (4-frame snoring by Jordank), Surskit, Wailord, Zangoose; eMMe97: Blastoise, Squirtle; Michelle Soto: Carvanha, Dratini; Nolo33LP: Clamperl, Gorebyss, Huntail, Latias, Latios, Pichu (additional editing by Jordank), Pikachu (additional editing by Jordank), Raichu (additional editing by Jordank), Rayquaza; EduarPokeN: Corphish, Crawdaunt, Whiscash; Surskitty: Kyogre; Avara: Tentacool, Tentacruel, Wartortle; Hestia: Wailmer; and the hack's legacy Dewgong, Lapras, Ludicolo, Mantine and Pelipper, edited from HG/SS sprites by its contributors

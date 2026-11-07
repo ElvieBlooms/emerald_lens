@@ -12,6 +12,7 @@
   "optional_dependencies": [
     "crystal",
     "facets",
+    "prism_importer",
     "recomp_achievements"
   ],
   "conflicts": [],

@@ -321,6 +321,23 @@ function gen12.init(mod, ctx, family, opts)
     return out
   end
 
+  -- A front pic with no file of its own (a player read from the DS
+  -- games) is written to the mod's cache, so it has a path to open
+  local playerFiles = {}
+  local function frontFile(data)
+    local cache = type(mod.cache) == "table" and mod.cache or nil
+    if not cache then return nil end
+    for _, rel in ipairs(playerFiles) do pcall(cache.delete, cache, rel) end
+    playerFiles = {}
+    local okE, encoded = pcall(function() return data:encode("png"):getString() end)
+    if not okE then return nil end
+    local rel = ("player/%d_front.png"):format(serial)
+    local ok, done = pcall(cache.write, cache, rel, encoded)
+    if not (ok and done) then return nil end
+    playerFiles[1] = rel
+    return ("mod_cache/%s/%s"):format(mod.id or "emerald_lens", rel)
+  end
+
   -- The front pic is the look's own front.png file: the trainer card,
   -- Oak's intro and the Hall of Fame open the path as a file. The back is
   -- one frame of a strip, so it's built (battles load through Assets), at
@@ -336,7 +353,12 @@ function gen12.init(mod, ctx, family, opts)
       else
         local src, layout, _, _, dir = loadSheet(name, { base })
         if src then
-          if name == "front" then return mod.assets:path(dir .. "front.png"), true end
+          if name == "front" then
+            if mod.assets:info(dir .. "front.png") then return mod.assets:path(dir .. "front.png"), true end
+            local path = frontFile(src)
+            if path then return path, true end
+            return publish(name, src), true
+          end
           local out = love.image.newImageData(64, 64)
           out:paste(src, 0, 0, 0, BACK_IDLE[layout] * 64, 64, 64)
           return publish(name, out, lookKey and gen12.backPath(mod.id, lookKey) or nil), true

@@ -187,7 +187,6 @@ function lens.init(mod)
       local root = SPRITES_DIR .. "/" .. key .. "/"
       local gameBoy = gameboy and gameboy.hasArt(mod, root, meta)
       if gameBoy then gameboy.register(root, meta) end
-      local crossFamily = crossgame and crossgame.familyFor(meta)
       for _, family in ipairs(FAMILIES) do
         local own = isDirectory(SPRITES_DIR .. "/" .. key .. "/gen3/" .. family.id)
         if family.gb then
@@ -200,7 +199,7 @@ function lens.init(mod)
         -- In the Game Boy games every one of them is offered, read from
         -- its own family's game (registered below, once the running game
         -- is known)
-        local cross = crossFamily ~= nil and (family.gb or crossFamily == family.id)
+        local cross = crossgame ~= nil and crossgame.offeredIn(meta, family)
         if cross and not family.gb then
           crossgame.register(SPRITES_DIR .. "/" .. key .. "/gen3/" .. family.id .. "/", meta)
         end
@@ -526,8 +525,9 @@ function lens.init(mod)
   if running and running.gb and crossgame then
     for key in pairs(crossFor[running.id]) do
       local meta = metaFor[key]
-      local from = crossgame.PLAYERS[crossgame.playerOf(meta)].family
-      crossgame.register(SPRITES_DIR .. "/" .. key .. "/gen3/" .. from .. "/", meta)
+      for _, from in ipairs(crossgame.layoutsFor(meta, running)) do
+        crossgame.register(SPRITES_DIR .. "/" .. key .. "/gen3/" .. from .. "/", meta)
+      end
     end
   end
 
@@ -738,7 +738,7 @@ function lens.init(mod)
         -- (an ImageData; both LENS screens take one in place of a path)
         if not out.walk and crossFor[running.id][key] and crossgame then
           if crossWalks[key] == nil then
-            local from = crossgame.PLAYERS[crossgame.playerOf(metaFor[key])].family
+            local from = crossgame.layoutsFor(metaFor[key], running)[1]
             local base = SPRITES_DIR .. "/" .. key .. "/gen3/" .. from .. "/"
             local ok, data = false, nil
             if crossgame.has(mod, base, "walk.png", from) then ok, data = pcall(crossgame.load, mod, base, "walk.png", from) end
@@ -854,7 +854,7 @@ function lens.init(mod)
       handle = handle,
       kindOf = function(key)
         if gameBoyFor[running.id][key] then return "gameboy" end
-        if crossFor[running.id][key] then return "cross" end
+        if crossFor[running.id][key] and not (crossgame and crossgame.dsOf(metaFor[key])) then return "cross" end
         return "gen3"
       end,
       characterOf = function(key)
@@ -1013,8 +1013,8 @@ function lens.init(mod)
         if textOn then lines[2] = { text = "Called " .. rivalNameOf(look, rival) .. "." } end
       end
       if gameBoyFor[f.id][look] then lines[#lines + 1] = { text = "Game Boy art." } end
-      if crossFor[f.id][look] then
-        lines[#lines + 1] = { text = "Read from your " .. (f.id == "rse" and "FR/LG" or "R/S/E") .. " game." }
+      if crossFor[f.id][look] and crossgame then
+        lines[#lines + 1] = { text = "Read from your " .. (crossgame.sourceName(metaFor[look], f.id) or "game") .. "." }
       end
       creditLines(look, lines)
       return { bases = basesOf(rival, look), frontFile = f.id == "frlg" and "rivalEarly.png" or nil,
@@ -1059,8 +1059,8 @@ function lens.init(mod)
         end
       end
       if gameBoyFor[f.id][look] then lines[#lines + 1] = { text = "Game Boy art." } end
-      if crossFor[f.id][look] then
-        lines[#lines + 1] = { text = "Read from your " .. (f.id == "rse" and "FR/LG" or "R/S/E") .. " game." }
+      if crossFor[f.id][look] and crossgame then
+        lines[#lines + 1] = { text = "Read from your " .. (crossgame.sourceName(metaFor[look], f.id) or "game") .. "." }
       end
       creditLines(look, lines)
     end
