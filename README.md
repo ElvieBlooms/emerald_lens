@@ -120,7 +120,7 @@ In Red, Blue and Yellow (**R/B/Y** in the mod options) and Gold, Silver and Crys
 These looks never become a character's default when it has art of its own, so adding them changes nothing you already picked. The LENS screen says **Read from your FR/LG game.** (or R/S/E) under one.
 
 ### Players from the DS games
-`"fromDS"` (optional, Emerald Lens only) in `meta.json` is `"ethan"`, `"lyra"`, `"silver"`, `"lucas"`, `"dawn"` or `"barry"`: the look is that player or rival, read from your own HeartGold/SoulSilver or Diamond/Pearl/Platinum dump through [Prism Importer](https://github.com/ElvieBlooms/prism_importer), a separate mod. Install it, pick your dumps in its imports, then import them from **IMPORTER** in **PRISM**. Nothing of theirs is shipped, so without Prism Importer or the dump the look falls back as usual, and the game log says which.
+`"fromDS"` (optional, Emerald Lens only) in `meta.json` is `"ethan"`, `"lyra"`, `"silver"`, `"lucas"`, `"dawn"` or `"barry"`: the look is that player or rival, read from your own HeartGold/SoulSilver or Diamond/Pearl/Platinum dump through [Prism Importer](https://github.com/ElvieBlooms/prism_importer), a separate mod. Install it, pick your dumps in its imports, then import them from **IMPORTER** in **PRISM**. Nothing of theirs is shipped, so a look only shows once its dump is imported (restart the game after importing one). Until then the LENS screen says **More looks with HG/SS.** (or D/P/Pt, or Prism Importer when it isn't installed).
 
 These looks are offered in every game, as the player or the rival: **ETHAN**, **LYRA** and **SILVER: HG/SS DS** from HeartGold/SoulSilver, and **LUCAS**, **DAWN** and **BARRY** (**D/P/PT**) from whichever of Diamond, Pearl or Platinum you imported.
 

@@ -404,10 +404,27 @@ function crossgame.isBase(base)
   return registered[base] ~= nil or dsRegistered[base] ~= nil
 end
 
+-- Whether a DS look's dump is imported in Prism Importer. Looks whose
+-- dump isn't there aren't offered at all.
+function crossgame.dsReady(mod, meta)
+  local which = dsOf(meta)
+  local api = which and importer(mod)
+  if not (api and type(api.status) == "function") then return false end
+  local ok, status = pcall(api.status)
+  local st = ok and type(status) == "table" and status[DS[which].game] or nil
+  return type(st) == "table" and st.state == "ready"
+end
+
+-- Whether Prism Importer is installed
+function crossgame.hasImporter(mod)
+  return importer(mod) ~= nil
+end
+
 -- Whether a look is offered in a family: a Gen 3 player in the family
--- it isn't from and in the Game Boy games, a DS player everywhere
-function crossgame.offeredIn(meta, family)
-  if dsOf(meta) then return true end
+-- it isn't from and in the Game Boy games, a DS player everywhere once
+-- its dump is imported
+function crossgame.offeredIn(meta, family, mod)
+  if dsOf(meta) then return mod ~= nil and crossgame.dsReady(mod, meta) end
   local from = crossgame.familyFor(meta)
   return from ~= nil and (family.gb or from == family.id)
 end

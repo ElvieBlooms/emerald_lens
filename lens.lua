@@ -170,6 +170,9 @@ function lens.init(mod)
   local crossFor = { frlg = {}, rse = {}, gb1 = {}, gb2 = {} }
   -- Folders with gen3/ art, for the Game Boy games' fallback order -Elvie
   local hasGen3 = {}
+  -- DS games whose looks aren't offered because the dump isn't imported
+  -- in Prism Importer: [name] = true
+  local hiddenDS = {}
 
   for _, key in ipairs(mod.assets:list(SPRITES_DIR)) do
     if isDirectory(SPRITES_DIR .. "/" .. key) then
@@ -199,7 +202,10 @@ function lens.init(mod)
         -- In the Game Boy games every one of them is offered, read from
         -- its own family's game (registered below, once the running game
         -- is known)
-        local cross = crossgame ~= nil and crossgame.offeredIn(meta, family)
+        local cross = crossgame ~= nil and crossgame.offeredIn(meta, family, mod)
+        if crossgame and crossgame.dsOf(meta) and not cross then
+          hiddenDS[crossgame.DS[crossgame.dsOf(meta)].name] = true
+        end
         if cross and not family.gb then
           crossgame.register(SPRITES_DIR .. "/" .. key .. "/gen3/" .. family.id .. "/", meta)
         end
@@ -994,6 +1000,17 @@ function lens.init(mod)
     return bases
   end
 
+  -- A line saying more looks come with Prism Importer or another dump,
+  -- or nil when every DS look is already offered
+  local function moreLooks()
+    if not (crossgame and next(hiddenDS)) then return nil end
+    if not crossgame.hasImporter(mod) then return "More looks with Prism Importer." end
+    local names = {}
+    for name in pairs(hiddenDS) do names[#names + 1] = name end
+    table.sort(names, function(a, b) return a > b end)
+    return "More looks with " .. table.concat(names, ", ") .. "."
+  end
+
   local function screenPreview(who, game)
     local f, names = running, PLAYERS[running.id]
     local textOn = mod.options:get("text" .. f.suffix) ~= "off"
@@ -1042,7 +1059,11 @@ function lens.init(mod)
       if textOn then lines[2] = { text = "They/them for enby looks." } end
     end
     if not character then
-      if who ~= "text" then lines[1] = { text = "The game's own player." } end
+      if who ~= "text" then
+        lines[1] = { text = "The game's own player." }
+        local more = moreLooks()
+        if more then lines[2] = { text = more } end
+      end
       return { lines = lines }
     end
     local look = selectedLook(f, character)
@@ -1063,6 +1084,8 @@ function lens.init(mod)
         lines[#lines + 1] = { text = "Read from your " .. (crossgame.sourceName(metaFor[look], f.id) or "game") .. "." }
       end
       creditLines(look, lines)
+      local more = moreLooks()
+      if more then lines[#lines + 1] = { text = more } end
     end
     return { bases = basesOf(character, look), lines = lines, layout = f.id }
   end
@@ -1099,6 +1122,8 @@ function lens.init(mod)
       if type(credit) == "string" then credit = { credit } end
       for _, line in ipairs(type(credit) == "table" and credit or { "No credit listed." }) do out[#out + 1] = { text = line } end
     end
+    local more = moreLooks()
+    if more then out[#out + 1] = { text = more } end
     out[#out + 1] = { text = "EMERALD LENS", heading = true }
     out[#out + 1] = { text = "Built on the Crystal Lens framework by Dgray66, used with permission." }
     out[#out + 1] = { text = "Gen 3 support: Elvie" }

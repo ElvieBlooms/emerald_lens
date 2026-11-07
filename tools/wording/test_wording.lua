@@ -435,7 +435,11 @@ do
     red_x = '{"label":"FR/LG","character":"RED","genderMode":"boy","fromGame":"red"}',
     may_x = '{"label":"EMERALD","character":"MAY","genderMode":"girl","fromGame":"may"}',
     ethan_x = '{"label":"HG/SS","character":"ETHAN","genderMode":"boy","generation":4,"fromDS":"ethan"}',
+    dawn_x = '{"label":"D/P/PT","character":"DAWN","genderMode":"girl","generation":4,"fromDS":"dawn"}',
   }
+  -- Prism Importer with HG/SS imported and Diamond/Pearl/Platinum not
+  local importer = { exports = { apiVersion = 1, imageData = function() return nil end,
+    status = function() return { hgss = { state = "ready" }, dppt = { state = "needed" } } end } }
   local dirs = { "kris/gen3/frlg", "zeta/gen3/frlg" }
   local files = { ["arale/backColor.png"] = true }
   local options, handlers, ctxs = {}, {}, {}
@@ -449,7 +453,7 @@ do
     assets = {
       list = function(_, dir)
         if dir == "assets/surfmons" then return { "lapras" } end
-        return dir == "assets/sprites" and { "arale", "ethan_x", "kris", "may_x", "red_gb", "red_x", "zeta" } or {}
+        return dir == "assets/sprites" and { "arale", "dawn_x", "ethan_x", "kris", "may_x", "red_gb", "red_x", "zeta" } or {}
       end,
       info = function(_, rel)
         if rel == "assets/surfmons/lapras" then return { type = "directory" } end
@@ -466,6 +470,7 @@ do
       end,
     },
     read = function(_, path) return metas[path:match("sprites/([^/]+)/")] end,
+    find = function(a, b) return (b == nil and a or b) == "prism_importer" and importer or nil end,
     log = { warn = function() end, info = function() end },
     options = { define = function(_, r) defined = r end, get = function(_, key) return options[key] end },
     events = { on = function(_, name, fn) handlers[name] = fn end },
@@ -473,7 +478,11 @@ do
   }
   version = "firered"
   options.characterFrlg = "KRIS"
+  local Screen = package.loaded["mods.emerald_lens.lens_screen"]
+  local realNew, model = Screen.new, nil
+  Screen.new = function(m, mdl) model = mdl return realNew(m, mdl) end
   dofile("lens.lua").init(mod)
+  Screen.new = realNew
   local ctx = ctxs[#ctxs]
   check(ctx and ctx.folderKeys[1] == "kris", "a Game Boy look doesn't become the default look")
   check(ctx and table.concat(ctx.folderKeys, ",") == "kris,zeta,arale",
@@ -504,6 +513,15 @@ do
     "fromDS bases are registered for both families")
   check(X.sourceName({ fromDS = "ethan" }) == "HG/SS dump" and X.sourceName({ fromGame = "may" }) == "R/S/E game",
     "the LENS line names where a read look comes from")
+  options.characterFrlg = "DAWN"
+  handlers["mod.options_changed"]({ mod = "emerald_lens", key = "characterFrlg" })
+  check(ctxs[#ctxs].folderKeys == nil or ctxs[#ctxs].folderKeys[1] ~= "dawn_x",
+    "a fromDS look whose dump isn't imported isn't offered")
+  check(not X.isBase("assets/sprites/dawn_x/gen3/frlg/"), "and isn't registered")
+  local said = {}
+  for _, line in ipairs(model and model.preview("you", {}).lines or {}) do said[#said + 1] = line.text end
+  check(table.concat(said, "|"):find("More looks with D/P/Pt.", 1, true) ~= nil,
+    "the LENS screen says a dump would add looks: " .. table.concat(said, "|"))
   options.characterFrlg = "RED"
   handlers["mod.options_changed"]({ mod = "emerald_lens", key = "characterFrlg" })
   ctx = ctxs[#ctxs]
@@ -609,7 +627,8 @@ do
 
   -- With Crystal Lens: it keeps the choices; these looks join its lists -Elvie
   local added
-  local installed = { crystal = { exports = { lens = { addLooks = function(p) added = p return true end } } } }
+  local installed = { crystal = { exports = { lens = { addLooks = function(p) added = p return true end } } },
+    prism_importer = importer }
   mod.find = function(a, b) return installed[b == nil and a or b] end
   gbCtx = "unset"
   dofile("lens.lua").init(mod)
