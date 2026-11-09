@@ -15,6 +15,12 @@
     "prism_importer",
     "recomp_achievements"
   ],
+  "dependency_sources": {
+    "crystal": "dburton95/crystal",
+    "facets": "ElvieBlooms/facets",
+    "prism_importer": "ElvieBlooms/prism_importer",
+    "recomp_achievements": "ElvieBlooms/recomp_achievements"
+  },
   "conflicts": [],
   "incompatible": [],
   "experimental": false,
