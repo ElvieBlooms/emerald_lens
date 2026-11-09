@@ -247,6 +247,12 @@ local function fieldMove(i)
   if i > 4 then return { want("walk", DOWN, 0) } end
   return { want("use", DOWN, math.min(i, 3)), want("walk", DOWN, 0) }
 end
+-- The game moves some fishing frames as it draws them (ow_sprites.lua
+-- fishingOffset, from AlignFishingAnimationFrames): the casting left
+-- frames 8 left, the up line-out 8 up, the down line-out 8 down. Its own
+-- art is drawn the other way in the frame, so the DS art is too, which
+-- also gives the rod room
+local FISH_NUDGE = { [1] = { 8, 0 }, [2] = { 8, 0 }, [3] = { 8, 0 }, [5] = { 0, 8 }, [10] = { 0, -8 }, [11] = { 0, -8 } }
 local function dive(i) return { want("swim", G3[DIVE[i] or 0], 0), want("walk", G3[DIVE[i] or 0], 0) } end
 local function standing(kind) return function() return { want(kind, DOWN, 0) } end end
 
@@ -259,7 +265,7 @@ local DS_SHEETS = {
     ["bike.png"]         = { from = "bike", w = 32, h = 32, n = 9, at = bike, feet = 31 },
     ["surf.png"]         = { from = "walk", w = 32, h = 32, n = 12, at = surf, feet = 29 },
     ["fieldMove.png"]    = { from = "walk", w = 32, h = 32, n = 9, at = fieldMove, feet = 30 },
-    ["fishing.png"]      = { from = "walk", w = 32, h = 32, n = 12, at = fish, feet = 30 },
+    ["fishing.png"]      = { from = "walk", w = 32, h = 32, n = 12, at = fish, feet = 30, nudge = FISH_NUDGE },
     ["vsSeekerBike.png"] = { from = "bike", w = 32, h = 32, n = 6, at = standing("bike"), feet = 31 },
   },
   rse = {
@@ -268,7 +274,7 @@ local DS_SHEETS = {
     ["acroBike.png"]   = { from = "bike", w = 32, h = 32, n = 27, at = acro, feet = 31 },
     ["surf.png"]       = { from = "walk", w = 32, h = 32, n = 12, at = surf, feet = 30 },
     ["fieldMove.png"]  = { from = "walk", w = 32, h = 32, n = 5, at = fieldMove, feet = 30 },
-    ["fishing.png"]    = { from = "walk", w = 32, h = 32, n = 12, at = fish, feet = 30 },
+    ["fishing.png"]    = { from = "walk", w = 32, h = 32, n = 12, at = fish, feet = 30, nudge = FISH_NUDGE },
     ["underwater.png"] = { from = "walk", w = 32, h = 32, n = 9, at = dive, feet = 30, dive = true },
     ["watering.png"]   = { from = "walk", w = 32, h = 32, n = 9, at = function(i) return { walkAt("walk", i) } end, feet = 30 },
     ["decorating.png"] = { from = "walk", w = 32, h = 32, n = 1, at = standing("walk"), feet = 30 },
@@ -399,6 +405,8 @@ local function dsOverworld(mod, which, sheet)
         local low = lows[w.kind]
         local oy = low and (sheet.feet - low) or (sheet.h - src.h)
         local ox = math.floor((sheet.w - src.w) / 2)
+        local nudge = sheet.nudge and sheet.nudge[i]
+        if nudge then ox, oy = ox + nudge[1], oy + nudge[2] end
         local fx, fy = frameAt(src, f)
         local x0, x1 = math.max(0, -ox), math.min(src.w, sheet.w - ox)
         local y0, y1 = math.max(0, -oy), math.min(src.h, sheet.h - oy)
