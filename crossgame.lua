@@ -19,13 +19,15 @@
 -- goes behind them as usual. -Elvie
 --
 -- A look whose meta.json has "fromDS" ("ethan", "lyra", "silver", "lucas",
--- "dawn" or "barry") is that player or rival from the DS games, read from
--- the player's own HeartGold/SoulSilver or Diamond/Pearl/Platinum dump
+-- "dawn", "barry", "nate", "rosa", "hugh", "hilbert" or "hilda") is that
+-- player or rival from the DS games, read from the player's own
+-- HeartGold/SoulSilver, Diamond/Pearl/Platinum or Black 2/White 2 dump
 -- through Prism Importer (a separate mod; its exports hand out the
 -- sprites once the dump is imported from IMPORTER in PRISM). Those looks
--- are offered in every game. Walking, running and the bike come from the
--- overworld sheets; the battle pics are the DS trainer pics cut to 64x64.
--- The rest stands in with walking frames, as for the Gen 3 players above.
+-- are offered in every game. Walking, running, the bike, surfing,
+-- fishing and sending out a Pokemon come from the overworld sheets; the
+-- battle pics are the DS trainer pics cut to 64x64. What a dump has no
+-- art for stands in with standing frames, as for the Gen 3 players above.
 -- --------------------------------------------------
 
 local crossgame = {}
@@ -119,22 +121,44 @@ crossgame.playerOf = playerOf
 ---------------------------------------------------------------- DS players
 
 -- Prism Importer's ids for each one, first found wins: Platinum's own
--- pictures before Diamond/Pearl's, which a Platinum dump also has. Its
--- overworld sheets are 32 frames of 32x32, walking then running, each
--- facing up, down, left, right as stand, step, stand, step.
+-- sprites before Diamond/Pearl's, which a Platinum dump also has (its
+-- "hero" and "heroine" are the D/P outfits; pl_boy01c and pl_girl01c
+-- match Platinum's pics and bikes). Backs 00-02 are a dump's own
+-- players and rival; a Platinum dump keeps D/P's as 08-10. The
+-- B2W2 dump keeps people it has no name for by their object number, and
+-- has Hilbert and Hilda's overworld sprites (for the Memory Link) but no
+-- trainer pics of them, so their battle pics come from the game.
+-- Sheets: walk (walking, then running), bike, swim (sitting on the SURF
+-- Pokemon), fish, use (sending out a Pokemon, facing down)
 local DS = {
-  ethan  = { game = "hgss", name = "HG/SS", walk = { "hero" }, bike = { "cyclehero" },
-             front = { "front/pkmn_trainer_ethan" }, back = { "back/00" } },
-  lyra   = { game = "hgss", name = "HG/SS", walk = { "heroine" }, bike = { "cycleheroine" },
-             front = { "front/pkmn_trainer_lyra" }, back = { "back/01" } },
-  silver = { game = "hgss", name = "HG/SS", walk = { "gsrivel" },
-             front = { "front/rival" }, back = { "back/02" } },
-  lucas  = { game = "dppt", name = "D/P/Pt", walk = { "hero" }, bike = { "pl_cyclehero", "cyclehero" },
-             front = { "front/player_male", "front/dp_player_male" }, back = { "back/08", "back/00" } },
-  dawn   = { game = "dppt", name = "D/P/Pt", walk = { "heroine" }, bike = { "pl_cycheroine", "cycleheroine" },
-             front = { "front/player_female", "front/dp_player_female" }, back = { "back/09", "back/01" } },
-  barry  = { game = "dppt", name = "D/P/Pt", walk = { "rivel" },
-             front = { "front/rival" }, back = { "back/10", "back/02" } },
+  ethan   = { game = "hgss", gen = 4, name = "HG/SS", walk = { "hero" }, bike = { "cyclehero" },
+              swim = { "swimhero" }, fish = { "fishinghero" },
+              front = { "front/pkmn_trainer_ethan" }, back = { "back/00" } },
+  lyra    = { game = "hgss", gen = 4, name = "HG/SS", walk = { "heroine" }, bike = { "cycleheroine" },
+              swim = { "swimheroine" }, fish = { "fish_heroine" },
+              front = { "front/pkmn_trainer_lyra" }, back = { "back/01" } },
+  silver  = { game = "hgss", gen = 4, name = "HG/SS", walk = { "gsrivel" },
+              front = { "front/rival" }, back = { "back/02" } },
+  lucas   = { game = "dppt", gen = 4, name = "D/P/Pt", walk = { "pl_boy01c", "hero" }, bike = { "pl_cyclehero", "cyclehero" },
+              swim = { "pl_swimhiro" }, fish = { "pl_fishhero" }, use = { "pl_sphero" },
+              front = { "front/player_male", "front/dp_player_male" }, back = { "back/00" } },
+  dawn    = { game = "dppt", gen = 4, name = "D/P/Pt", walk = { "pl_girl01c", "heroine" }, bike = { "pl_cycheroine", "cycleheroine" },
+              swim = { "pl_swimhiroine" }, fish = { "pl_fheroine" }, use = { "pl_spheroine" },
+              front = { "front/player_female", "front/dp_player_female" }, back = { "back/01" } },
+  barry   = { game = "dppt", gen = 4, name = "D/P/Pt", walk = { "rivel" },
+              front = { "front/rival" }, back = { "back/02" } },
+  nate    = { game = "bw2", gen = 5, name = "B2W2", walk = { "hero" }, bike = { "232" },
+              swim = { "238" }, fish = { "239" }, use = { "237" },
+              front = { "front/pkmn_trainer_nate" }, back = { "back/pkmn_trainer_nate" } },
+  rosa    = { game = "bw2", gen = 5, name = "B2W2", walk = { "heroine" }, bike = { "241" },
+              swim = { "247" }, fish = { "248" }, use = { "246" },
+              front = { "front/pkmn_trainer_rosa" }, back = { "back/pkmn_trainer_rosa" } },
+  hugh    = { game = "bw2", gen = 5, name = "B2W2", walk = { "291" },
+              front = { "front/pkmn_trainer_rival" }, back = { "back/pkmn_trainer_rival" } },
+  hilbert = { game = "bw2", gen = 5, name = "B2W2", walk = { "001" }, bike = { "002" },
+              swim = { "158" }, fish = { "160" }, use = { "156" } },
+  hilda   = { game = "bw2", gen = 5, name = "B2W2", walk = { "004" }, bike = { "005" },
+              swim = { "159" }, fish = { "161" }, use = { "157" } },
 }
 crossgame.DS = DS
 
@@ -144,64 +168,110 @@ local function dsOf(meta)
 end
 crossgame.dsOf = dsOf
 
--- A DS frame: facing (0 up, 1 down, 2 left), k (0 stand, 1 and 3 the
--- steps), running or not
-local function ds(facing, k, run) return (run and 16 or 0) + facing * 4 + k end
+-- Where a frame is on each kind of DS sheet. Facings go up, down, left,
+-- right (B2W2's fishing has no right); "per" frames each. Walking and
+-- biking are stand, step, stand, step on the HG/SS and D/P/Pt sheets and
+-- stand, step, step on B2W2's, with running after walking. Swimming is a
+-- frame per facing on the Gen 4 sheets; B2W2's has four, sitting twice
+-- then upright twice. Fishing is the cast in four frames. Sending out a
+-- Pokemon only faces down. A sheet without running (the rivals') walks.
 local UP, DOWN, LEFT = 0, 1, 2
--- the Gen 3 walk order: stand down, up, left, then two steps each
-local DS_WALK = { [0] = ds(DOWN, 0), ds(UP, 0), ds(LEFT, 0), ds(DOWN, 1), ds(DOWN, 3),
-  ds(UP, 1), ds(UP, 3), ds(LEFT, 1), ds(LEFT, 3) }
-local DS_FRLG_WALK, DS_RSE_WALK = {}, {}
-for i = 0, 8 do DS_FRLG_WALK[i], DS_RSE_WALK[i] = DS_WALK[i], DS_WALK[i] end
--- FR/LG runs three frames a facing (9-11 down, 12-14 up, 15-17 left) and
--- shakes its head with the down steps (18, 19); R/S/E a stand per facing
--- (9-11), then two steps each (12-17)
-for n, facing in ipairs({ DOWN, UP, LEFT }) do
-  local at = 9 + (n - 1) * 3
-  DS_FRLG_WALK[at], DS_FRLG_WALK[at + 1], DS_FRLG_WALK[at + 2] =
-    ds(facing, 0, true), ds(facing, 1, true), ds(facing, 3, true)
-  DS_RSE_WALK[8 + n] = ds(facing, 0, true)
-  DS_RSE_WALK[12 + (n - 1) * 2], DS_RSE_WALK[13 + (n - 1) * 2] = ds(facing, 1, true), ds(facing, 3, true)
-end
-DS_FRLG_WALK[18], DS_FRLG_WALK[19] = ds(DOWN, 1), ds(DOWN, 3)
-local function acroOf(i) return DS_WALK[ACRO[i] or i] end
-local DS_ACRO = setmetatable({}, { __index = function(_, i) return acroOf(i) end })
--- a facing's standing frame, for sheets the DS games have no art for.
--- Surfing and other 9-frame orders go down, up, left, then two steps each
--- (surf adds its field move stands, 9-11); fishing is left, up, down in
--- fours (the line-out frames are 3, 7 and 11)
-local STAND_OF = { [0] = DS_WALK[0], [1] = DS_WALK[1], [2] = DS_WALK[2] }
-local function walkFacing(i)
-  if i < 3 then return i elseif i < 9 then return math.floor((i - 3) / 2) else return (i - 9) % 3 end
-end
-local DS_STAND = setmetatable({}, { __index = function(_, i) return STAND_OF[walkFacing(i)] end })
-local FISH_FACING = { [0] = 2, 1, 0 } -- left, up, down
-local DS_FISH = setmetatable({}, { __index = function(_, i) return STAND_OF[FISH_FACING[math.floor(i / 4)] or 0] end })
-local DS_FIRST = setmetatable({}, { __index = function() return ds(DOWN, 0) end })
-local DS_DIVE = setmetatable({}, { __index = function(_, i) return STAND_OF[DIVE[i] or 0] end })
+local GEO = {
+  [4] = { walk = { per = 4, slots = { [0] = 0, 1, 3 }, run = 16 },
+          bike = { per = 4, slots = { [0] = 0, 1, 3 } },
+          swim = { per = 1, slots = { [0] = 0 } },
+          fish = { per = 4, slots = { [0] = 0, 1, 2, 3 } },
+          use  = { per = 0, slots = { [0] = 0, 1, 2, 3 } } },
+  [5] = { walk = { per = 3, slots = { [0] = 0, 1, 2 }, run = 12 },
+          bike = { per = 3, slots = { [0] = 0, 1, 2 } },
+          swim = { per = 4, slots = { [0] = 0, 1, 2, 3 } },
+          fish = { per = 4, slots = { [0] = 0, 1, 2, 3 } },
+          use  = { per = 0, slots = { [0] = 0, 1, 2, 3 } } },
+}
 
--- What each sheet is made of, by running layout: the DS sheet, the frame
--- size and count here, which DS frame each frame is, and the row the
--- standing frames' feet go on (GAME_FEET in pack_gen3.py)
+-- A wanted frame: which sheet, facing, slot (0 the stand, 1 and 2 the
+-- steps on walking sheets) and whether it's running
+local function want(kind, facing, slot, run) return { kind = kind, facing = facing, slot = slot or 0, run = run } end
+
+-- Its frame number on a sheet of n frames, or nil
+local function dsIndex(geo, w, n)
+  local i = w.facing * geo.per + (geo.slots[w.slot] or geo.slots[0])
+  if w.run and geo.run and geo.run + i < n then return geo.run + i end
+  return i < n and i or nil
+end
+
+-- Gen 3's facings: down, up, left
+local G3 = { [0] = DOWN, UP, LEFT }
+-- Gen 3's 9-frame order: a stand per facing, then two steps each
+local function walkAt(kind, i, run)
+  if i < 3 then return want(kind, G3[i], 0, run) end
+  return want(kind, G3[math.floor((i - 3) / 2)], 1 + (i - 3) % 2, run)
+end
+local function standOf(i)
+  if i < 3 then return G3[i] elseif i < 9 then return G3[math.floor((i - 3) / 2)] else return G3[(i - 9) % 3] end
+end
+local function walkStand(i) return want("walk", standOf(i), 0) end
+
+-- What each frame of a Gen 3 sheet is, as wanted frames in order of
+-- preference. FR/LG runs three frames a facing (9-11 down, 12-14 up,
+-- 15-17 left) and shakes its head with the down steps (18, 19); R/S/E a
+-- stand per facing (9-11), then two steps each (12-17)
+local function frlgWalk(i)
+  if i < 9 then return { walkAt("walk", i) } end
+  if i >= 18 then return { walkAt("walk", 3 + (i - 18)) } end
+  local n, k = math.floor((i - 9) / 3), (i - 9) % 3
+  return { want("walk", G3[n], k, true) }
+end
+local function rseWalk(i)
+  if i < 9 then return { walkAt("walk", i) } end
+  if i < 12 then return { want("walk", G3[i - 9], 0, true) } end
+  return { want("walk", G3[math.floor((i - 12) / 2)], 1 + (i - 12) % 2, true) }
+end
+local function bike(i) return { walkAt("bike", i) } end
+local function acro(i) return { walkAt("bike", ACRO[i] or i) } end
+-- Surfing: sitting for the stands, the two sitting frames for the steps,
+-- and upright for 9-11 (getting on and off, field moves from the water)
+local function surf(i)
+  local slot = 0
+  if i >= 9 then slot = 2 elseif i >= 3 then slot = (i - 3) % 2 end
+  return { want("swim", standOf(i), slot), walkStand(i) }
+end
+-- Fishing is left, up, down in fours
+local FISH_FACING = { [0] = LEFT, UP, DOWN }
+local function fish(i)
+  local facing = FISH_FACING[math.floor(i / 4)] or DOWN
+  return { want("fish", facing, i % 4), want("walk", facing, 0) }
+end
+-- A field move: sending out a Pokemon for 0-4, FR/LG's VS Seeker stands
+local function fieldMove(i)
+  if i > 4 then return { want("walk", DOWN, 0) } end
+  return { want("use", DOWN, math.min(i, 3)), want("walk", DOWN, 0) }
+end
+local function dive(i) return { want("swim", G3[DIVE[i] or 0], 0), want("walk", G3[DIVE[i] or 0], 0) } end
+local function standing(kind) return function() return { want(kind, DOWN, 0) } end end
+
+-- What each sheet is made of, by running layout: the DS sheet it needs,
+-- the frame size and count here, the frames, and the row the standing
+-- frames' feet go on (GAME_FEET in pack_gen3.py)
 local DS_SHEETS = {
   frlg = {
-    ["walk.png"]         = { from = "walk", w = 32, h = 32, n = 20, frames = DS_FRLG_WALK, feet = 30 },
-    ["bike.png"]         = { from = "bike", w = 32, h = 32, n = 9, frames = DS_WALK, feet = 31 },
-    ["surf.png"]         = { from = "walk", w = 32, h = 32, n = 12, frames = DS_STAND, feet = 29 },
-    ["fieldMove.png"]    = { from = "walk", w = 32, h = 32, n = 9, frames = DS_FIRST, feet = 30 },
-    ["fishing.png"]      = { from = "walk", w = 32, h = 32, n = 12, frames = DS_FISH, feet = 30 },
-    ["vsSeekerBike.png"] = { from = "bike", w = 32, h = 32, n = 6, frames = DS_FIRST, feet = 31 },
+    ["walk.png"]         = { from = "walk", w = 32, h = 32, n = 20, at = frlgWalk, feet = 30 },
+    ["bike.png"]         = { from = "bike", w = 32, h = 32, n = 9, at = bike, feet = 31 },
+    ["surf.png"]         = { from = "walk", w = 32, h = 32, n = 12, at = surf, feet = 29 },
+    ["fieldMove.png"]    = { from = "walk", w = 32, h = 32, n = 9, at = fieldMove, feet = 30 },
+    ["fishing.png"]      = { from = "walk", w = 32, h = 32, n = 12, at = fish, feet = 30 },
+    ["vsSeekerBike.png"] = { from = "bike", w = 32, h = 32, n = 6, at = standing("bike"), feet = 31 },
   },
   rse = {
-    ["walk.png"]       = { from = "walk", w = 32, h = 32, n = 18, frames = DS_RSE_WALK, feet = 30 },
-    ["bike.png"]       = { from = "bike", w = 32, h = 32, n = 9, frames = DS_WALK, feet = 31 },
-    ["acroBike.png"]   = { from = "bike", w = 32, h = 32, n = 27, frames = DS_ACRO, feet = 31 },
-    ["surf.png"]       = { from = "walk", w = 32, h = 32, n = 12, frames = DS_STAND, feet = 30 },
-    ["fieldMove.png"]  = { from = "walk", w = 32, h = 32, n = 5, frames = DS_FIRST, feet = 30 },
-    ["fishing.png"]    = { from = "walk", w = 32, h = 32, n = 12, frames = DS_FISH, feet = 30 },
-    ["underwater.png"] = { from = "walk", w = 32, h = 32, n = 9, frames = DS_DIVE, feet = 30, dive = true },
-    ["watering.png"]   = { from = "walk", w = 32, h = 32, n = 9, frames = DS_WALK, feet = 30 },
-    ["decorating.png"] = { from = "walk", w = 32, h = 32, n = 1, frames = DS_FIRST, feet = 30 },
+    ["walk.png"]       = { from = "walk", w = 32, h = 32, n = 18, at = rseWalk, feet = 30 },
+    ["bike.png"]       = { from = "bike", w = 32, h = 32, n = 9, at = bike, feet = 31 },
+    ["acroBike.png"]   = { from = "bike", w = 32, h = 32, n = 27, at = acro, feet = 31 },
+    ["surf.png"]       = { from = "walk", w = 32, h = 32, n = 12, at = surf, feet = 30 },
+    ["fieldMove.png"]  = { from = "walk", w = 32, h = 32, n = 5, at = fieldMove, feet = 30 },
+    ["fishing.png"]    = { from = "walk", w = 32, h = 32, n = 12, at = fish, feet = 30 },
+    ["underwater.png"] = { from = "walk", w = 32, h = 32, n = 9, at = dive, feet = 30, dive = true },
+    ["watering.png"]   = { from = "walk", w = 32, h = 32, n = 9, at = function(i) return { walkAt("walk", i) } end, feet = 30 },
+    ["decorating.png"] = { from = "walk", w = 32, h = 32, n = 1, at = standing("walk"), feet = 30 },
   },
 }
 -- The battle pics: frame size, count, which pic, and how its frames map
@@ -224,8 +294,8 @@ local function importer(mod)
 end
 
 -- A DS sheet as { image, w, h, columns, n }, from the first id the dump
--- has
-local function dsSource(mod, which, kind)
+-- has. quiet for the sheets that only stand in for something
+local function dsSource(mod, which, kind, quiet)
   local key = "ds|" .. which .. "|" .. kind
   if cache[key] ~= nil then return cache[key] or nil end
   local spec = DS[which]
@@ -246,7 +316,7 @@ local function dsSource(mod, which, kind)
       end
     end
   end
-  if not data and spec[kind] and not warned[key] then
+  if not data and spec[kind] and not quiet and not warned[key] then
     warned[key] = true
     if not api then
       mod.log:info("no %s sprite for %s: Prism Importer isn't installed", kind, which:upper())
@@ -286,26 +356,56 @@ local function lowestRow(src, frames)
   return low
 end
 
--- An overworld sheet for the running layout: each frame centred, and the
--- whole sheet moved so the standing frames' feet are on the game's row
-local function dsOverworld(mod, which, sheet)
-  local src = dsSource(mod, which, sheet.from)
-  if not src then return nil end
-  local low = lowestRow(src, { sheet.frames[0], sheet.frames[1], sheet.frames[2] })
-  local dy = low and (sheet.feet - low) or 0
-  local out = love.image.newImageData(sheet.w, sheet.h * sheet.n)
-  local cw, ch = math.min(src.w, sheet.w), math.min(src.h, sheet.h)
-  local dx, sx = math.floor((sheet.w - cw) / 2), math.floor((src.w - cw) / 2)
+-- Which DS frame each frame of a sheet is, as "kind:frame" (or false),
+-- given how many frames each of that player's DS sheets has. For the
+-- checks in tools/wording.
+function crossgame.dsFrames(which, layout, file, counts)
+  local sheet = DS_SHEETS[layout] and DS_SHEETS[layout][file]
+  if not (sheet and DS[which]) then return nil end
+  local out = {}
   for i = 0, sheet.n - 1 do
-    local from = sheet.frames[i]
-    if from and from < src.n then
-      local fx, fy = frameAt(src, from)
-      -- rows that would land outside the frame are left off
-      local top, rows = 0, ch
-      if dy < 0 then top = -dy end
-      if dy > 0 then rows = ch - dy end
-      if rows - top > 0 then
-        out:paste(src.image, dx, i * sheet.h + (sheet.h - ch) + top + dy, fx + sx, fy + top, cw, rows - top)
+    out[i] = false
+    for _, w in ipairs(sheet.at(i)) do
+      local geo, n = GEO[DS[which].gen][w.kind], counts[w.kind]
+      local f = geo and n and dsIndex(geo, w, n)
+      if f then out[i] = w.kind .. ":" .. f break end
+    end
+  end
+  return out
+end
+
+-- An overworld sheet for the running layout: each frame centred, and
+-- each DS sheet moved so its standing frames' feet are on the game's row
+-- (whatever hangs below them, a fishing line, is cut off). A frame the
+-- dump has no art for takes the next one wanted, in the end a stand.
+local function dsOverworld(mod, which, sheet)
+  if not dsSource(mod, which, sheet.from) then return nil end
+  local gen = DS[which].gen
+  local out = love.image.newImageData(sheet.w, sheet.h * sheet.n)
+  local lows = {}
+  for i = 0, sheet.n - 1 do
+    for _, w in ipairs(sheet.at(i)) do
+      local src = dsSource(mod, which, w.kind, w.kind ~= sheet.from)
+      local geo = GEO[gen][w.kind]
+      local f = src and geo and dsIndex(geo, w, src.n)
+      if f then
+        if lows[w.kind] == nil then
+          local stands = {}
+          for _, facing in ipairs({ UP, DOWN, LEFT }) do
+            stands[#stands + 1] = dsIndex(geo, want(w.kind, facing, 0), src.n)
+          end
+          lows[w.kind] = lowestRow(src, stands) or false
+        end
+        local low = lows[w.kind]
+        local oy = low and (sheet.feet - low) or (sheet.h - src.h)
+        local ox = math.floor((sheet.w - src.w) / 2)
+        local fx, fy = frameAt(src, f)
+        local x0, x1 = math.max(0, -ox), math.min(src.w, sheet.w - ox)
+        local y0, y1 = math.max(0, -oy), math.min(src.h, sheet.h - oy)
+        if x1 > x0 and y1 > y0 then
+          out:paste(src.image, x0 + ox, i * sheet.h + y0 + oy, fx + x0, fy + y0, x1 - x0, y1 - y0)
+        end
+        break
       end
     end
   end

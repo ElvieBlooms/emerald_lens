@@ -513,6 +513,28 @@ do
     "fromDS bases are registered for both families")
   check(X.sourceName({ fromDS = "ethan" }) == "HG/SS dump" and X.sourceName({ fromGame = "may" }) == "R/S/E game",
     "the LENS line names where a read look comes from")
+  check(X.sourceName({ fromDS = "nate" }) == "B2W2 dump" and X.DS.hilbert.front == nil,
+    "B2W2 looks name their dump; Hilbert has no trainer pics in it")
+  local F = X.dsFrames
+  local silver = F("silver", "frlg", "walk.png", { walk = 16 })
+  check(silver[9] == "walk:4" and silver[10] == "walk:5" and silver[17] == "walk:11",
+    "a DS sheet with no running frames walks instead of leaving them blank")
+  local ethan = F("ethan", "frlg", "walk.png", { walk = 32 })
+  check(ethan[0] == "walk:4" and ethan[3] == "walk:5" and ethan[4] == "walk:7" and ethan[9] == "walk:20",
+    "HG/SS walking: stand, step, stand, step; running from 16")
+  local nate = F("nate", "rse", "walk.png", { walk = 24 })
+  check(nate[0] == "walk:3" and nate[3] == "walk:4" and nate[4] == "walk:5" and nate[9] == "walk:15"
+    and nate[12] == "walk:16", "B2W2 walking: stand, step, step; running from 12")
+  local surf4 = F("ethan", "rse", "surf.png", { walk = 32, swim = 4 })
+  check(surf4[0] == "swim:1" and surf4[1] == "swim:0" and surf4[2] == "swim:2" and surf4[11] == "swim:2",
+    "Gen 4 surfing sits, a frame per facing")
+  local surf5 = F("nate", "rse", "surf.png", { walk = 24, swim = 16 })
+  check(surf5[0] == "swim:4" and surf5[4] == "swim:5" and surf5[9] == "swim:6", "B2W2 surfing: sitting, upright for 9-11")
+  check(F("silver", "rse", "surf.png", { walk = 16 })[0] == "walk:4", "no swimming sheet: the standing frame")
+  local fish5 = F("rosa", "frlg", "fishing.png", { walk = 24, fish = 12 })
+  check(fish5[0] == "fish:8" and fish5[7] == "fish:3" and fish5[11] == "fish:7", "fishing: left, up, down in fours")
+  local fm = F("lucas", "frlg", "fieldMove.png", { walk = 32, use = 4 })
+  check(fm[0] == "use:0" and fm[4] == "use:3" and fm[5] == "walk:4", "field move: sending out, then FR/LG's stands")
   local before = ctxs.calls or 0
   options.characterFrlg = "DAWN"
   handlers["mod.options_changed"]({ mod = "emerald_lens", key = "characterFrlg" })
