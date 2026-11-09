@@ -568,6 +568,10 @@ function gen3.init(mod, ctx)
           end
         end
       end
+      -- the overworld has drawn the player: back to the plain frames, so
+      -- anything else that draws them (the Fly sequence, the Quest Log
+      -- recap) never gets the front parts without the blob
+      for record, images in pairs(overlaid) do record.image = images.plain end
       return result
     end
   end
