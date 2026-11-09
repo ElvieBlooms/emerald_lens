@@ -519,6 +519,10 @@ function gen3.init(mod, ctx)
   local function withPlain(record, plainData, overData)
     if not plainData then return end
     overlaid[record] = { over = record.image, plain = nearestImage(plainData), hop = overData and nearestImage(overData) }
+    -- plain until the overworld draws the blob under the player: other
+    -- screens that draw people (FR/LG's Quest Log recap) never do, and
+    -- would show the Pokemon's front parts with no blob
+    record.image = overlaid[record].plain
   end
   local okFx, FieldEffects = pcall(require, "src.core.game3.field_effects")
   if okFx and type(FieldEffects) == "table" and type(FieldEffects.drawBehind) == "function" then
