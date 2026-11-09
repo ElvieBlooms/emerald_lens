@@ -385,6 +385,41 @@ function gen12.init(mod, ctx, family, opts)
     return front and fitBox(front, CARD_W, CARD_H) or nil
   end
 
+  -- The front pic at 1/k size, in a 56x56 frame like the game's shrink
+  -- pics (gfx/player/shrink1.png, shrink2.png), bottom-centred
+  local function shrunk(front, k)
+    local fw, fh = front:getDimensions()
+    local w, h = math.floor(fw / k), math.floor(fh / k)
+    local out = love.image.newImageData(56, 56)
+    local ox, oy = math.floor((56 - w) / 2), 56 - h
+    for y = 0, h - 1 do
+      for x = 0, w - 1 do
+        out:setPixel(ox + x, oy + y, front:getPixel(x * k, y * k))
+      end
+    end
+    local img = love.graphics.newImage(out)
+    img:setFilter("nearest", "nearest")
+    return img
+  end
+
+  -- The standing frame facing down, with where its feet are
+  local function standing(walk, w, h)
+    local frame = love.image.newImageData(w, h)
+    frame:paste(walk, 0, 0, 0, 0, w, h)
+    local feet = h - 1
+    for y = h - 1, 0, -1 do
+      local found = false
+      for x = 0, w - 1 do
+        local _, _, _, a = frame:getPixel(x, y)
+        if a > 0 then found = true break end
+      end
+      if found then feet = y break end
+    end
+    local img = love.graphics.newImage(frame)
+    img:setFilter("nearest", "nearest")
+    return { image = img, w = w, h = h, feet = feet }
+  end
+
   local function build()
     if #bases == 0 then return nil end
     serial = serial + 1
@@ -401,6 +436,13 @@ function gen12.init(mod, ctx, family, opts)
         32, fh, 3, { anchorY = fh - (drop or 0), frameFor = function(facing) return STAND[facing] end })
     end
     out.front, out.frontColour = picOf("front")
+    if gen == 1 then
+      -- Oak's intro ends by shrinking the player's pic into the walking
+      -- sprite (OakSpeech's shrink): the look's own, both steps of it
+      local front = loadSheet("front")
+      if front then out.shrink1, out.shrink2 = shrunk(front, 2), shrunk(front, 4) end
+      if walk then out.introWalk = standing(walk, ww, wh) end
+    end
     out.back, out.backColour = picOf("back")
     local card = cardOf()
     if card then
@@ -605,6 +647,59 @@ function gen12.init(mod, ctx, family, opts)
     local top = math.floor(py + 12 - (sprite.anchorY or fh))
     return { x0, top, x0 + fw, top + fh - 8 }
   end
+  -- Oak's intro (src/ui/OakSpeech.lua): the pic shrinks through
+  -- shrinkPic1 and shrinkPic2 into the walking sprite. With a look on, it
+  -- shrinks the look's own front pic, in its own colours, and ends on the
+  -- look's standing frame
+  if gen == 1 then
+    local OakSpeech = engine("src.ui.OakSpeech")
+    if OakSpeech and type(OakSpeech.new) == "function" then
+      local new, update, draw = OakSpeech.new, OakSpeech.update, OakSpeech.draw
+      OakSpeech.new = function(...)
+        local speech = new(...)
+        if type(speech) == "table" and live and live.shrink1 then
+          speech.shrinkPic1, speech.shrinkPic2 = live.shrink1, live.shrink2
+          speech.emeraldLensWalk = live.introWalk
+        end
+        return speech
+      end
+      if type(update) == "function" then
+        OakSpeech.update = function(self, ...)
+          local result = update(self, ...)
+          -- the game draws its shrink pics in the screen's shades; ours keep
+          -- their colours, like the full pic before them
+          if self.shrink and self.pic and live
+              and (self.pic == self.shrinkPic1 or self.pic == self.shrinkPic2)
+              and self.shrinkPic1 == live.shrink1 then
+            self.picTrueColor = true
+          end
+          return result
+        end
+      end
+      if type(draw) == "function" then
+        OakSpeech.draw = function(self, ...)
+          local walk = self.walkVisible and self.emeraldLensWalk
+          if not walk then return draw(self, ...) end
+          self.walkVisible = false
+          local ok, err = pcall(draw, self, ...)
+          self.walkVisible = true
+          if not ok then error(err, 0) end
+          -- where the game's 16x16 sprite stands (64, 60), feet on its
+          -- bottom row, fading to white with the screen
+          local x = 64 + 8 - math.floor(walk.w / 2)
+          local y = 60 + 15 - walk.feet
+          love.graphics.setColor(1, 1, 1, self.fadeLevel and math.max(0, 1 - self.fadeLevel / 3) or 1)
+          love.graphics.draw(walk.image, x, y)
+          love.graphics.setColor(1, 1, 1, 1)
+          if not self.fadeLevel then
+            local okPF, PF = pcall(require, "src.render.PaletteFX")
+            if okPF and type(PF.markTrueColor) == "function" then PF.markTrueColor(x, y, walk.w, walk.h) end
+          end
+        end
+      end
+    end
+  end
+
   if gen == 1 then
     local Player = engine("src.world.Player")
     if Player and type(Player.draw) == "function" then
