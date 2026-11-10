@@ -348,7 +348,17 @@ function gen12.init(mod, ctx, family, opts)
     for _, base in ipairs(bases) do
       if base.gameBoy then
         for _, file in ipairs(GB_PICS[name]) do
-          if mod.assets:info(base.dir .. file) then return mod.assets:path(base.dir .. file), file:find("Color") ~= nil end
+          if mod.assets:info(base.dir .. file) then
+            local path, colour = mod.assets:path(base.dir .. file), file:find("Color") ~= nil
+            -- a pic with see-through inside the trainer (a Crystal Clear
+            -- import) gets it filled white, as a copy
+            local ok, data = pcall(love.image.newImageData, path)
+            if ok and data and gameboy and gameboy.fillHoles(data, name == "back") > 0 then
+              if name == "front" then return frontFile(data) or path, colour end
+              return publish(name, data, lookKey and gen12.backPath(mod.id, lookKey) or nil), colour
+            end
+            return path, colour
+          end
         end
       else
         local src, layout, _, _, dir = loadSheet(name, { base })
@@ -499,6 +509,8 @@ function gen12.init(mod, ctx, family, opts)
               { path = mod.assets:path(rel), scale = 1 })
           end
         end
+        -- and its filled copy, if it needs one
+        pcall(scales.register, scales, "emerald_lens_back_" .. cleanKey(key), { path = gen12.backPath(mod.id, key), scale = 1 })
       else
         pcall(scales.register, scales, "emerald_lens_back_" .. cleanKey(key), { path = gen12.backPath(mod.id, key), scale = 1 })
       end

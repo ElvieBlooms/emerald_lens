@@ -733,6 +733,44 @@ local function clearBackdrop(data)
   return data
 end
 
+-- See-through pixels inside the trainer turn white, as on the Game Boy,
+-- where a pic has no see-through at all. Some sheets (a Crystal Clear
+-- import) clear every white pixel, so a face or shirt would show the
+-- battle scene through it. Only see-through reached from the edges stays
+-- clear; a back pic is cut off at the bottom, so its bottom edge doesn't
+-- count. Returns how many pixels were filled. -Elvie
+function gameboy.fillHoles(data, isBack)
+  local w, h = data:getDimensions()
+  local seen, queue = {}, {}
+  local function push(x, y)
+    if x < 0 or y < 0 or x >= w or y >= h or seen[y * w + x] then return end
+    local _, _, _, a = data:getPixel(x, y)
+    if a >= 0.5 then return end
+    seen[y * w + x] = true
+    queue[#queue + 1] = y * w + x
+  end
+  for x = 0, w - 1 do
+    push(x, 0)
+    if not isBack then push(x, h - 1) end
+  end
+  for y = 0, h - 1 do push(0, y); push(w - 1, y) end
+  local i = 1
+  while queue[i] do
+    local x, y = queue[i] % w, math.floor(queue[i] / w)
+    push(x + 1, y); push(x - 1, y); push(x, y + 1); push(x, y - 1)
+    i = i + 1
+  end
+  local filled = 0
+  data:mapPixel(function(x, y, r, g, b, a)
+    if a < 0.5 and not seen[y * w + x] then
+      filled = filled + 1
+      return 1, 1, 1, 1
+    end
+    return r, g, b, a
+  end)
+  return filled
+end
+
 local picCache = {} -- ["red|back.png"] = ImageData or false -Elvie
 function romPic(mod, which, file)
   local list = which and ROM_PICS[which] and ROM_PICS[which][file]
@@ -803,6 +841,7 @@ function gameboy.load(mod, base, file, layout)
       note(mod, rel, "could not load %s; skipping it", rel)
       return nil
     end
+    gameboy.fillHoles(src, file == "back.png")
   else
     src = romPic(mod, romOf(registered[base]), file)
     if not src then return nil end
