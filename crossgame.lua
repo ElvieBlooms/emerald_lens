@@ -96,6 +96,23 @@ local SHEETS = {
     ["vsSeekerBike.png"] = { from = "bike", w = 32, h = 32, n = 6, frames = ALL_FIRST },
   },
 }
+-- Red and Leaf in FR/LG itself: not offered as looks there (they're the
+-- game's own players), but read the same way so their character's other
+-- looks fall back to them, whichever player the save is. Same layout, so
+-- frames stay where they are. R/S/E's are left out: the readers try
+-- Emerald first, which isn't Ruby or Sapphire's own May and Brendan.
+local HOME = {
+  frlg = {
+    ["walk.png"]         = { from = "walk", w = 16, h = 32, n = 20 },
+    ["bike.png"]         = { from = "bike", w = 32, h = 32, n = 9 },
+    ["surf.png"]         = { from = "surf", w = 16, h = 32, n = 12 },
+    ["fieldMove.png"]    = { from = "fieldMove", w = 16, h = 32, n = 9 },
+    ["fishing.png"]      = { from = "fishing", w = 32, h = 32, n = 12 },
+    ["vsSeekerBike.png"] = { from = "vsSeekerBike", w = 32, h = 32, n = 6,
+                             alt = { from = "bike", frames = ALL_FIRST } },
+  },
+}
+
 -- underwater: stand down, up, left, then two steps each, all the surf
 -- sitting frame for that facing (pack_gen3.py dive) -Elvie
 local DIVE = { [0] = 0, 1, 2, 0, 0, 1, 1, 2, 2 }
@@ -503,6 +520,14 @@ function crossgame.familyFor(meta)
   return PLAYERS[which].family == "frlg" and "rse" or "frlg"
 end
 
+-- The family whose own player this look is (FR/LG for red and leaf), when
+-- it's read in that game too (HOME); nil otherwise
+function crossgame.homeOf(meta)
+  local which = playerOf(meta)
+  local family = which and PLAYERS[which].family
+  return family and HOME[family] and family or nil
+end
+
 function crossgame.register(base, meta)
   registered[base] = playerOf(meta)
   dsRegistered[base] = dsOf(meta)
@@ -587,7 +612,8 @@ end
 -- The recipe for a file, with its source if the game is installed. -Elvie
 local function plan(mod, base, file, layout)
   local which = registered[base]
-  local sheet = which and SHEETS[layout] and SHEETS[layout][file]
+  local sheets = which and PLAYERS[which].family == layout and HOME or SHEETS
+  local sheet = which and sheets[layout] and sheets[layout][file]
   if not sheet then return nil end
   -- quiet when there's a stand-in to use instead -Elvie
   local src = source(mod, which, sheet.from, sheet.alt ~= nil)

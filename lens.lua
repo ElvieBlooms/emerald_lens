@@ -211,6 +211,10 @@ function lens.init(mod)
         end
         if cross and not family.gb then
           crossgame.register(SPRITES_DIR .. "/" .. key .. "/gen3/" .. family.id .. "/", meta)
+        elseif crossgame and crossgame.homeOf and crossgame.homeOf(meta) == family.id and not own then
+          -- RED FR/LG and LEAF FR/LG in FR/LG: not a look there, but the
+          -- character's other looks fall back to them (Elvie, 2026-11-11)
+          crossgame.register(SPRITES_DIR .. "/" .. key .. "/gen3/" .. family.id .. "/", meta)
         end
         if cross then
           crossFor[family.id][key] = true
