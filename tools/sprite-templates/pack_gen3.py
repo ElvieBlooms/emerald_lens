@@ -64,11 +64,13 @@ dive       Underwater art for sets that have none (most Gen 4 sets), in a
              python3 pack_gen3.py dive ../../assets/sprites/<folder>/gen3/rse
              python3 pack_gen3.py dive ../../assets/sprites/<folder>/gen3/rse --blob
              python3 pack_gen3.py dive ../../assets/sprites/<folder>/gen3/rse --underwater --from-walk
+           --run (with --from-walk) takes the first running frames instead.
 
 surfjump   surf.png frames 9-11 (hopping on and off, facing down, up, left)
            from the walk.png standing frames, feet lined up, for surf art
-           drawn with the Pokemon in, which has no hopping pose:
-             python3 pack_gen3.py surfjump rse ../../assets/sprites/<folder>/gen3/rse
+           drawn with the Pokemon in, which has no hopping pose. --run
+           takes the first running frame per facing instead (both legs):
+             python3 pack_gen3.py surfjump rse ../../assets/sprites/<folder>/gen3/rse --run
 
 blobs      Ready-made surf and dive blobs from a blob set (blobs/<set>/)
            into a packed look's gen3 folder: the FR/LG surfBlob.png into
@@ -1662,9 +1664,14 @@ def flybird(folder, kit, nudges=((0, 0), (0, 0)), out=None, force=False, bird=Tr
     print(f"  made    {os.path.basename(out)}")
     return True
 
-def stand_frames(folder, fam, src_name, out_w, out_h, out_below=0):
+# walk.png's first running frame per facing (down, up, left): both legs
+# out, where the standing frame hides one. R/S/E keeps one per facing at
+# 9-11, FR/LG three in a row per facing from 9.
+RUN_STANDS = {"frlg": (9, 12, 15), "rse": (9, 10, 11)}
+
+def stand_frames(folder, fam, src_name, out_w, out_h, out_below=0, picks=(0, 1, 2)):
     """Frames 0-2 of a sheet in folder (the standing or sitting frame facing
-    down, up and left), each set in an out_w x out_h frame, centred, with
+    down, up and left; or picks), each set in an out_w x out_h frame, centred, with
     its feet line out_below rows above the bottom. Bigger frames and
     frames.json are read too. None if the sheet isn't there or isn't a
     size the mod takes; the second value counts pixels that didn't fit."""
@@ -1679,7 +1686,7 @@ def stand_frames(folder, fam, src_name, out_w, out_h, out_below=0):
     FW, FH = size
     feet = FH - frames_below(folder).get(src_name, 0)
     out, lost = [], 0
-    for i in range(3):
+    for i in picks:
         src = im.crop((0, i * FH, FW, (i + 1) * FH))
         frame = Image.new("RGBA", (out_w, out_h), CLEAR)
         frame.paste(src, ((out_w - FW) // 2, (out_h - out_below) - feet))
@@ -1693,8 +1700,9 @@ def opaque(im):
 # Hopping on and off a surfing Pokemon uses surf.png frames 9-11 (facing
 # down, up, left). Sets drawn with the Pokemon in (fan games) have no
 # hopping pose, so the walking stand frames stand in. -Elvie
-def surfjump(family, folder):
-    """surf.png frames 9-11 from walk.png frames 0-2, feet lined up."""
+def surfjump(family, folder, run=False):
+    """surf.png frames 9-11 from walk.png frames 0-2 (run: the first running
+    frames, RUN_STANDS), feet lined up."""
     base = base_of(family)
     path = os.path.join(folder, "surf.png")
     if not os.path.isfile(path):
@@ -1707,7 +1715,8 @@ def surfjump(family, folder):
         print(f"  ERROR   surf.png is {im.width}x{im.height}, not a {base} surf.png")
         return False
     SW, SH = size
-    stands, lost = stand_frames(folder, base, "walk.png", SW, SH, frames_below(folder).get("surf.png", 0))
+    picks = RUN_STANDS[base] if run else (0, 1, 2)
+    stands, lost = stand_frames(folder, base, "walk.png", SW, SH, frames_below(folder).get("surf.png", 0), picks)
     if not stands:
         print(f"  ERROR   no walk.png the mod takes in {folder}")
         return False
@@ -1715,12 +1724,13 @@ def surfjump(family, folder):
         im.paste(stands[k], (0, fi * SH))
     im.save(path)
     note = f"; {lost} pixels of the walk frames didn't fit the surf frame" if lost else ""
-    print(f"  made    surf.png frames 9-11 from walk.png frames 0-2{note}")
+    print(f"  made    surf.png frames 9-11 from walk.png frames {'-'.join(str(p) for p in picks)}{note}")
     return True
 
-def dive(folder, blob=True, underwater=True, force=False, shade=True, from_walk=False):
+def dive(folder, blob=True, underwater=True, force=False, shade=True, from_walk=False, run=False):
     """diveBlob.png and/or underwater.png in a packed R/S/E look folder;
-    from_walk: the diver is the walking stand frames, not the surf ones."""
+    from_walk: the diver is the walking stand frames, not the surf ones
+    (run: the first running frames)."""
     if not os.path.isdir(folder):
         print(f"  ERROR   {folder} is not a folder")
         return False
@@ -1751,7 +1761,8 @@ def dive(folder, blob=True, underwater=True, force=False, shade=True, from_walk=
             # standard order: stand down, up, left, then two steps each;
             # every one is the facing's surf sitting (or walk standing)
             # frame, in the game's frame size around the player
-            stands, lost = stand_frames(folder, "rse", src_name, w, h)
+            picks = RUN_STANDS["rse"] if run and src_name == "walk.png" else (0, 1, 2)
+            stands, lost = stand_frames(folder, "rse", src_name, w, h, 0, picks)
             if not stands:
                 print(f"  skip    {name} ({src_name} isn't a size the mod takes)")
                 continue
@@ -1860,12 +1871,12 @@ if __name__ == "__main__":
             else:
                 sys.exit(f"  ERROR   unknown option {opts[k]}")
         sys.exit(0 if flybird(a[1], a[2], nudge, out, force, bird, tilts) else 1)
-    if len(a) >= 2 and a[0] == "dive" and set(a[2:]) <= {"--blob", "--underwater", "--force", "--no-shade", "--from-walk"}:
+    if len(a) >= 2 and a[0] == "dive" and set(a[2:]) <= {"--blob", "--underwater", "--force", "--no-shade", "--from-walk", "--run"}:
         both = not ({"--blob", "--underwater"} & set(a[2:]))
         sys.exit(0 if dive(a[1], both or "--blob" in a, both or "--underwater" in a, "--force" in a,
-                           "--no-shade" not in a, "--from-walk" in a) else 1)
-    if len(a) == 3 and a[0] == "surfjump" and base_of(a[1]) in ("frlg", "rse"):
-        sys.exit(0 if surfjump(a[1], a[2]) else 1)
+                           "--no-shade" not in a, "--from-walk" in a, "--run" in a) else 1)
+    if len(a) in (3, 4) and a[0] == "surfjump" and base_of(a[1]) in ("frlg", "rse") and set(a[3:]) <= {"--run"}:
+        sys.exit(0 if surfjump(a[1], a[2], "--run" in a) else 1)
     if len(a) == 3 and a[0] == "blank" and a[1] in SPECS:
         blank_sheet(a[1]).save(a[2])
         print(f"  wrote   {a[2]}")

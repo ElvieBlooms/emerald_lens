@@ -374,7 +374,10 @@ feet lined up, in whatever frame size `surf.png` has:
 
     python3 pack_gen3.py surfjump rse ../../assets/sprites/<folder>/gen3/rse
 
-Run it after `feet --match`, so it takes the matched standing frames.
+`--run` takes the first running frame for each facing instead, with both
+legs out (R/S/E frames 9-11, FR/LG 9, 12 and 15); `dive --from-walk --run`
+does the same for the diver. Run either after `feet --match`, so it takes
+the matched frames.
 
 ## Where frames sit (feet)
 
