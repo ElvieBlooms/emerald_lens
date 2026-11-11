@@ -82,6 +82,8 @@ function gen12.init(mod, ctx, family, opts)
   if not okGb then gameboy = nil end
   local okCross, crossgame = pcall(require, "mods.emerald_lens.crossgame")
   if not okCross then crossgame = nil end
+  local okG3, gen3 = pcall(require, "mods.emerald_lens.gen3")
+  if not okG3 then gen3 = nil end
   if not (love and love.graphics and love.image) then return nil end
   local GameVersion = engine("src.core.GameVersion")
   local Assets = engine("src.render.Assets")
@@ -130,6 +132,8 @@ function gen12.init(mod, ctx, family, opts)
   -- First folder whose copy of file is the right size, sheet by sheet;
   -- the sixth value is how many rows hang below the feet (Game Boy
   -- fishing frames) -Elvie
+  -- BIG: the sheets that may come with bigger frames (gen3.bigFrames)
+  local BIG = { walk = true, bike = true, fishing = true, surf = true }
   local function loadSheet(name, list)
     for _, base in ipairs(list or bases) do
       local size = SHEETS[base.layout][name]
@@ -163,6 +167,11 @@ function gen12.init(mod, ctx, family, opts)
           if (w == size[1] or (size[1] == 16 and w == 32)) and h == size[2] * size[3] then
             return data, base.layout, w, size[2], base.dir, 0
           end
+          local frameH, below
+          if BIG[name] and gen3 and gen3.bigFrames then
+            frameH, below = gen3.bigFrames(mod, base.dir, name .. ".png", w, h, size[1], size[2], size[3])
+          end
+          if frameH then return data, base.layout, w, frameH, base.dir, below end
           warnOnce(rel, "%s is %dx%d but needs %dx%d; skipping it", rel, w, h, size[1], size[2] * size[3])
         else
           warnOnce(rel, "could not load %s; skipping it", rel)
@@ -223,8 +232,10 @@ function gen12.init(mod, ctx, family, opts)
     return r
   end
 
-  local function walker(name, src, w, h)
-    return renderer(name, pick(src, w, h, WALK_ORDER), w, h, #WALK_ORDER, { frameFor = secondStep })
+  -- below: rows under the feet in bigger frames, so they stand on the tile
+  local function walker(name, src, w, h, below)
+    return renderer(name, pick(src, w, h, WALK_ORDER), w, h, #WALK_ORDER,
+      { frameFor = secondStep, anchorY = h - (below or 0) })
   end
 
   -- Rider offsets from surfBlob.json, read the same way as gen3.lua's -Elvie
@@ -252,34 +263,40 @@ function gen12.init(mod, ctx, family, opts)
   -- 32 wide and 40 tall with the tile's foot point at (16, 32). No blob,
   -- no surfing sheet: the game's own Seel or Lapras shows. kit: the
   -- folders to take the Pokemon from first.
+  -- A bigger surf.png (gen3.bigFrames) makes the frame bigger to match,
+  -- with the tile's foot point moved along.
   local SURF_W, SURF_H = 32, 40
   local function surfSheet(name, kit)
-    local rider, _, rw = loadSheet("surf")
+    local rider, _, rw, rh, _, rb = loadSheet("surf")
     if not rider then return nil end
     local blob, blobLayout, _, _, folder = loadSheet("surfBlob", kit)
     if not blob and kit ~= pikaFolders then blob, blobLayout, _, _, folder = loadSheet("surfBlob") end
     if not blob then return nil end
     local over = loadSheet("surfOverlay", { { dir = folder, layout = blobLayout } })
     local offsets = riderOffsets(folder) or {}
-    local out = love.image.newImageData(SURF_W, SURF_H * 3)
+    rh, rb = rh or 32, rb or 0
+    local T = math.max(0, rh - rb - 32)
+    local W, H = math.max(SURF_W, rw), math.max(SURF_H, 32 + rb) + T
+    local bx = (W - 32) / 2
+    local out = love.image.newImageData(W, H * 3)
     -- dx, dy inside the frame; anything past its edges is cut -Elvie
     local function put(src, sx, sy, w, h, top, dx, dy)
       for y = 0, h - 1 do
         for x = 0, w - 1 do
           local r, g, b, a = src:getPixel(sx + x, sy + y)
           local px, py = dx + x, dy + y
-          if a > 0 and px >= 0 and px < SURF_W and py >= 0 and py < SURF_H then out:setPixel(px, top + py, r, g, b, a) end
+          if a > 0 and px >= 0 and px < W and py >= 0 and py < H then out:setPixel(px, top + py, r, g, b, a) end
         end
       end
     end
     for facing = 0, 2 do
-      local top = facing * SURF_H
-      put(blob, 0, BLOB_FRAME[blobLayout][facing + 1] * 32, 32, 32, top, 0, 8)
+      local top = facing * H
+      put(blob, 0, BLOB_FRAME[blobLayout][facing + 1] * 32, 32, 32, top, bx, 8 + T)
       local o = offsets[facing + 1] or { 0, 0 }
-      put(rider, 0, facing * 32, rw, 32, top, (SURF_W - rw) / 2 + o[1], o[2])
-      if over then put(over, 0, facing * 32, 32, 32, top, 0, 8) end
+      put(rider, 0, facing * rh, rw, rh, top, (W - rw) / 2 + o[1], 32 + T - (rh - rb) + o[2])
+      if over then put(over, 0, facing * 32, 32, 32, top, bx, 8 + T) end
     end
-    return renderer(name, out, SURF_W, SURF_H, 3, { anchorX = 16, anchorY = 32,
+    return renderer(name, out, W, H, 3, { anchorX = W / 2, anchorY = 32 + T,
       frameFor = function(facing) return STAND[facing] end })
   end
 
@@ -434,16 +451,16 @@ function gen12.init(mod, ctx, family, opts)
     if #bases == 0 then return nil end
     serial = serial + 1
     local out = {}
-    local walk, _, ww, wh = loadSheet("walk")
-    if walk then out.walk = walker("walk", walk, ww, wh) end
-    local bike, _, bw, bh = loadSheet("bike")
-    if bike then out.bike = walker("bike", bike, bw, bh) end
+    local walk, _, ww, wh, _, wBelow = loadSheet("walk")
+    if walk then out.walk = walker("walk", walk, ww, wh, wBelow) end
+    local bike, _, bw, bh, _, bBelow = loadSheet("bike")
+    if bike then out.bike = walker("bike", bike, bw, bh, bBelow) end
     out.surf = surfSheet("surf", surfFolders)
     if #pikaFolders > 0 then out.surfPika = surfSheet("surfPika", pikaFolders) end
-    local fish, _, _, fh, _, drop = loadSheet("fishing")
+    local fish, _, fw, fh, _, drop = loadSheet("fishing")
     if fish then
-      out.fish = renderer("fishing", pick(fish, 32, fh, { FISH_FRAME.down, FISH_FRAME.up, FISH_FRAME.left }),
-        32, fh, 3, { anchorY = fh - (drop or 0), frameFor = function(facing) return STAND[facing] end })
+      out.fish = renderer("fishing", pick(fish, fw, fh, { FISH_FRAME.down, FISH_FRAME.up, FISH_FRAME.left }),
+        fw, fh, 3, { anchorY = fh - (drop or 0), frameFor = function(facing) return STAND[facing] end })
     end
     out.front, out.frontColour = picOf("front")
     if gen == 1 then
@@ -630,8 +647,9 @@ function gen12.init(mod, ctx, family, opts)
     end
     local sprites = gen == 2 and data.gen2Sprites or data.sprites
     local sprite = type(sprites) == "table" and sprites[spec.sprite]
-    local walk, _, ww, wh = loadSheet("walk", rivalBases)
+    local walk, _, ww, wh, _, below = loadSheet("walk", rivalBases)
     if type(sprite) == "table" and walk then
+      if below and below > 0 then setField(sprite, "anchorY", wh - below) end
       -- the Game Boy order, then the other step each way, which the rival's
       -- own renderer draws (SpriteRenderer.new below)
       local sheet = pick(walk, ww, wh, WALK_ORDER)

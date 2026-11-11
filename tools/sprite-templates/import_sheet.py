@@ -601,9 +601,13 @@ def place(sprite, w, h, bottom, warn, where):
 SURF_FOOT = {"frlg": 38, "rse": 40}
 
 def split_surf(family, sprite):
-    pw, ph, _ = P.spec(family, "surf.png")
     cw, ch = P.SURF_CELL
-    cell = place(sprite, cw, ch, SURF_FOOT[P.base_of(family)], [], "")
+    return split_surf_cell(family, place(sprite, cw, ch, SURF_FOOT[P.base_of(family)], [], ""))
+
+def split_surf_cell(family, cell):
+    """A surf cell already set in the game's 32x40 layout, cut into the
+    player's frame and the blob."""
+    pw, ph, _ = P.spec(family, "surf.png")
     px0 = P.SURF_TILE_AT[0] + (16 - pw) // 2
     player = cell.crop((px0, 0, px0 + pw, ph))
     blob = cell.copy()
@@ -685,9 +689,9 @@ def default_columns(key, n, one_row):
     base = {"fish": [0, 1, 2, 3], "surf": [0, 1, 3, 0]}.get(key, [0, 1, 3])
     return (base + [0] * n)[:n]
 
-def set_cell(cell, feet, w, h, bottom, warn, where):
+def set_cell(cell, feet, w, h, bottom, warn, where, dx=0):
     frame = Image.new("RGBA", (w, h), CLEAR)
-    x, y = (w - cell.width) // 2, bottom - feet
+    x, y = (w - cell.width) // 2 + dx, bottom - feet
     frame.paste(cell, (x, y), cell)
     bb = cell.getchannel("A").getbbox()
     if bb and (x + bb[0] < 0 or y + bb[1] < 0 or x + bb[2] > w or y + bb[3] > h):
@@ -701,6 +705,11 @@ def build_folder(folder, recipe):
     strips = {family: {}, extras: {}}
     warn, filled = [], Counter()
     layout = LAYOUTS[recipe.get("layout", "essentials")]
+
+    # "grow": true keeps whatever a frame would lose: those sheets are also
+    # written bigger (write_grown). {sheet: {frame: (cell, x, y)}}
+    grow = recipe.get("grow")
+    grown = {}
 
     def put(fam, name, index, frame):
         w, h, n = P.spec(fam, name)
@@ -731,6 +740,44 @@ def build_folder(folder, recipe):
         cells, (cw, ch), feet, s = load_grid(src, cols, nrows, recipe.get("scale"), recipe.get("background", "auto"))
         one_row = sum(1 for row in cells if any(c.getchannel("A").getbbox() for c in row)) == 1
         print(f"  file    {entry['file']}: {cols}x{nrows} cells of {cw}x{ch}, scale {s}x, feet on row {feet}")
+        if key == "surf" and entry.get("mount"):
+            # {"file": ..., "mount": true}: the Pokémon is drawn in with the
+            # player, as PSDK sets do. Each cell goes into the game's surf
+            # layout with the mount's lowest row on the blob's, then splits
+            # like a collage's surf sprite: the player's frame to surf.png,
+            # the rest to surfBlob.png.
+            sw, sh = P.SURF_CELL
+            sfoot = SURF_FOOT[P.base_of(family)]
+            blob = targets[extras]["surf blob"]
+            picks = entry.get("columns", {})
+            if grow:
+                grow_mount(family, fam, extras, cells, rows, cw, feet, targets[fam][key], blob, picks, put, grown)
+                continue
+            for facing, slots in targets[fam][key].items():
+                r = rows.index(facing)
+                cols_for = picks.get(facing) if isinstance(picks, dict) else picks
+                cols_for = cols_for or default_columns(key, len(slots), False)
+                # Mounts can be wider on one side than the other, so the
+                # facing is moved over just enough to keep it in the 32 px
+                # frame, the same amount for every frame so nothing jitters.
+                bbs = [b for b in (cells[r][c].getchannel("A").getbbox() for c in cols_for) if b]
+                x0 = (sw - cw) // 2
+                dx = 0
+                if bbs:
+                    left, right = min(b[0] for b in bbs) + x0, max(b[2] for b in bbs) + x0
+                    if right - left > sw:
+                        dx = (sw - (right - left)) // 2 - left
+                    elif left < 0:
+                        dx = -left
+                    elif right > sw:
+                        dx = sw - right
+                split = [split_surf_cell(family, set_cell(cells[r][c], feet, sw, sh, sfoot, warn, f"surf {facing}", dx))
+                         for c in cols_for]
+                for (name, idx), (player, _) in zip(slots, split):
+                    put(fam, name, idx, player)
+                for (name, idx), (_, b) in zip(blob.get(facing, []), split):
+                    put(extras, name, idx, b)
+            continue
         for facing, slots in targets[fam][key].items():
             r = 0 if facing == "frames" else rows.index(facing)
             picks = entry.get("columns", {})
@@ -738,8 +785,120 @@ def build_folder(folder, recipe):
             picks = picks or default_columns(key, len(slots), one_row or facing == "frames")
             for (name, idx), c in zip(slots, picks):
                 w, h, _ = P.spec(fam, name)
-                put(fam, name, idx, set_cell(cells[r][c], feet, w, h, foot(fam, name, h), warn, f"{key} {facing}"))
-    return family, strips, filled, warn
+                bottom = foot(fam, name, h)
+                put(fam, name, idx, set_cell(cells[r][c], feet, w, h, bottom, warn, f"{key} {facing}"))
+                if grow and fam == family and name not in P.BIG_NOT:
+                    grown.setdefault(name, {})[idx] = (cells[r][c], (w - cw) // 2, bottom - feet)
+    return family, strips, filled, warn, grown
+
+def grow_mount(family, fam, extras, cells, rows, cw, feet, surf, blob, picks, put, grown):
+    """A "mount" surf file with "grow": the Pokémon stays where the artist
+    drew it (centred on the tile). The blob still gets the 32x32 under the
+    player, as the game draws it; whatever the Pokémon has outside that
+    goes with the player into bigger surf.png frames (grown["surf.png"]).
+    The combined sheet gets the usual split, cut at the blob's edges."""
+    sw, sh = P.SURF_CELL
+    pw, ph, _ = P.spec(family, "surf.png")
+    x0, y0 = (sw - cw) // 2, SURF_FOOT[P.base_of(family)] - feet
+    jobs = []
+    for facing, slots in surf.items():
+        cols_for = picks.get(facing) if isinstance(picks, dict) else picks
+        cols_for = cols_for or default_columns("surf", len(slots), False)
+        jobs.append((facing, slots, [cells[rows.index(facing)][c] for c in cols_for]))
+    boxes = [(x0 + b[0], y0 + b[1], x0 + b[2], y0 + b[3])
+             for _, _, cs in jobs for c in cs for b in [c.getchannel("A").getbbox()] if b]
+    if not boxes:
+        return
+    side = max(0, -min(b[0] for b in boxes), max(b[2] for b in boxes) - sw)
+    top = max(0, -min(b[1] for b in boxes))
+    under = max(0, max(b[3] for b in boxes) - sh)
+    rx = side + P.SURF_TILE_AT[0] + (16 - pw) // 2
+    rider = (rx, top, rx + pw, top + ph)
+    bx, by = side + P.SURF_BLOB_AT[0], top + P.SURF_BLOB_AT[1]
+    pad = (sw + 2 * side, top + sh + under)
+    big, below = {}, 0
+    for facing, slots, cs in jobs:
+        split = []
+        for cell in cs:
+            canvas = Image.new("RGBA", pad, CLEAR)
+            canvas.paste(cell, (x0 + side, y0 + top), cell)
+            mount = canvas.copy()
+            ImageDraw.Draw(mount).rectangle((rider[0], rider[1], rider[2] - 1, rider[3] - 1), fill=CLEAR)
+            b = mount.crop((bx, by, bx + 32, by + 32))
+            player = canvas.copy()
+            player.paste(Image.new("RGBA", (32, 32), CLEAR), (bx, by))
+            player.paste(canvas.crop(rider), rider[:2])
+            bb = player.getchannel("A").getbbox()
+            if bb:
+                below = max(below, bb[3] - (top + ph))
+            split.append((canvas.crop(rider), b, player))
+        for (name, idx), (std, _, player) in zip(slots, split):
+            put(fam, name, idx, std)
+            big[idx] = player
+        for (name, idx), (_, b, _) in zip(blob.get(facing, []), split):
+            put(extras, name, idx, b)
+    W, H = pad[0], top + ph + below
+    if any(_outside(p, rider) for p in big.values()):
+        grown["surf.png"] = ("ready", W, H, below, {i: p.crop((0, 0, W, H)) for i, p in big.items()})
+
+def _outside(im, rect):
+    """Whether im has pixels outside rect."""
+    a = im.getchannel("A").copy()
+    ImageDraw.Draw(a).rectangle((rect[0], rect[1], rect[2] - 1, rect[3] - 1), fill=0)
+    return a.getbbox() is not None
+
+def write_grown(family, grown, out_dir):
+    """Sheets whose frames lost pixels in the game's size, again with frames
+    big enough to keep them (up to 64x64, see pack_gen3 big frames), in
+    out_dir/grown/, with frames.json for rows that hang below the feet. The
+    combined sheet keeps the cut version; copy these over the packed ones."""
+    below = {}
+    for name, frames in sorted(grown.items()):
+        w, h, n = P.spec(family, name)
+        if isinstance(frames, tuple) and frames[0] == "ready":
+            # frames already made at their size (grow_mount)
+            _, W, H, under, ready = frames
+            sheet = Image.new("RGBA", (W, H * n), CLEAR)
+            for idx, frame in ready.items():
+                sheet.paste(frame, (0, idx * H))
+            os.makedirs(os.path.join(out_dir, "grown"), exist_ok=True)
+            out = os.path.join(out_dir, "grown", name)
+            sheet.save(out)
+            if under:
+                below[name] = {"below": under}
+            print(f"  grown   {out}: {W}x{H} frames ({H - h - under} rows above, {under} below, {(W - w) // 2} each side)")
+            continue
+        boxes = [(x + bb[0], y + bb[1], x + bb[2], y + bb[3])
+                 for cell, x, y in frames.values() for bb in [cell.getchannel("A").getbbox()] if bb]
+        if not boxes:
+            continue
+        top = max(0, -min(b[1] for b in boxes))
+        under = max(0, max(b[3] for b in boxes) - h)
+        side = max(0, -min(b[0] for b in boxes), max(b[2] for b in boxes) - w)
+        if not (top or under or side):
+            continue
+        W, H = w + 2 * side, h + top + under
+        if W > P.BIG_MAX or H > P.BIG_MAX:
+            print(f"  warning grown {name}: needs {W}x{H} frames, more than {P.BIG_MAX}x{P.BIG_MAX}; cut to fit")
+            side = min(side, (P.BIG_MAX - w) // 2)
+            top = min(top, P.BIG_MAX - h - min(under, P.BIG_MAX - h))
+            under = min(under, P.BIG_MAX - h - top)
+            W, H = w + 2 * side, h + top + under
+        sheet = Image.new("RGBA", (W, H * n), CLEAR)
+        for idx, (cell, x, y) in frames.items():
+            frame = Image.new("RGBA", (W, H), CLEAR)
+            frame.paste(cell, (x + side, y + top), cell)
+            sheet.paste(frame, (0, idx * H))
+        os.makedirs(os.path.join(out_dir, "grown"), exist_ok=True)
+        out = os.path.join(out_dir, "grown", name)
+        sheet.save(out)
+        if under:
+            below[name] = {"below": under}
+        print(f"  grown   {out}: {W}x{H} frames ({top} rows above, {under} below, {side} each side)")
+    if below:
+        with open(os.path.join(out_dir, "grown", "frames.json"), "w") as f:
+            json.dump(below, f, indent=2)
+            f.write("\n")
 
 def build(src, recipe_path, out_dir):
     recipe = json.load(open(recipe_path))
@@ -748,7 +907,10 @@ def build(src, recipe_path, out_dir):
         sys.exit(f"recipe family must be frlg, rse, frlg_wide, rse_wide or gb, not {family}")
     piece_image.cells = ()
     if os.path.isdir(src) and "files" in recipe:
-        return write_out(*build_folder(src, recipe), out_dir)
+        family, strips, filled, warn, grown = build_folder(src, recipe)
+        ok = write_out(family, strips, filled, warn, out_dir)
+        write_grown(family, grown, out_dir)
+        return ok
     if os.path.isdir(src):
         im, found, cells, rows = load_numbered_folder(src, recipe)
         pieces = split_boxes([found[str(i)] for i in range(1, len(found) + 1)], recipe.get("split"))
@@ -773,6 +935,11 @@ def build(src, recipe_path, out_dir):
     strips = {family: {}, extras: {}}
     warn, filled = [], Counter()
     shrink_keys = {k.lower() for k in recipe.get("shrink", [])}
+
+    # "grow": true keeps whatever a frame would lose: those sheets are also
+    # written bigger (write_grown). {sheet: {frame: (cell, x, y)}}
+    grow = recipe.get("grow")
+    grown = {}
 
     def put(fam, name, index, frame):
         w, h, n = P.spec(fam, name)

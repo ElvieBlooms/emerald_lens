@@ -57,10 +57,18 @@ dive       Underwater art for sets that have none (most Gen 4 sets), in a
            packed R/S/E look folder. --blob makes diveBlob.png from the
            folder's surfBlob.png, recolored dark like the game's own diver;
            --underwater fills underwater.png with the surf.png sitting
-           frames, washed navy (--no-shade keeps their colours). Both by
-           default; files already there are kept unless --force:
+           frames, washed navy (--no-shade keeps their colours), or with
+           --from-walk the walk.png standing frames (for surf art drawn
+           with the Pokemon in). Both by default; files already there are
+           kept unless --force:
              python3 pack_gen3.py dive ../../assets/sprites/<folder>/gen3/rse
              python3 pack_gen3.py dive ../../assets/sprites/<folder>/gen3/rse --blob
+             python3 pack_gen3.py dive ../../assets/sprites/<folder>/gen3/rse --underwater --from-walk
+
+surfjump   surf.png frames 9-11 (hopping on and off, facing down, up, left)
+           from the walk.png standing frames, feet lined up, for surf art
+           drawn with the Pokemon in, which has no hopping pose:
+             python3 pack_gen3.py surfjump rse ../../assets/sprites/<folder>/gen3/rse
 
 blobs      Ready-made surf and dive blobs from a blob set (blobs/<set>/)
            into a packed look's gen3 folder: the FR/LG surfBlob.png into
@@ -1137,6 +1145,34 @@ GAME_FEET = {
   },
 }
 
+# Overworld frames may come bigger than the game's own, up to 64x64 with an
+# even width (gen3.lua bigFrames): extra rows go on top, unless the folder's
+# frames.json says how many hang below the feet ({"fishing.png": {"below":
+# 8}}). Underwater frames stay the game's size (the dive blob is placed
+# against them).
+BIG_MAX = 64
+BIG_NOT = ("underwater.png",)
+
+def frames_below(folder):
+    """{sheet: rows below the feet} from a folder's frames.json."""
+    try:
+        data = json.load(open(os.path.join(folder, "frames.json")))
+    except (OSError, ValueError):
+        return {}
+    return {k: max(0, int(round(v.get("below", 0)))) for k, v in data.items() if isinstance(v, dict)}
+
+def frame_size(im, w, h, n, name=None):
+    """(frame width, frame height) of a sheet of n frames: the game's size
+    (or 32 wide for 16-wide frames), or bigger; None if neither."""
+    if im.height == h * n and im.width in (w, 32):
+        return im.width, h
+    if name in BIG_NOT or im.height % n:
+        return None
+    W, H = im.width, im.height // n
+    if w <= W <= BIG_MAX and W % 2 == 0 and h <= H <= BIG_MAX:
+        return W, H
+    return None
+
 def feet_rows(family, name, index):
     """The rows the game's frame sits on, as a tuple (empty if not listed)."""
     rows = GAME_FEET.get(base_of(family), {}).get(name)
@@ -1191,20 +1227,25 @@ def feet(family, folder, match=False):
     base = base_of(family)
     changed = found = 0
     too_tall = []
+    below = frames_below(folder)
     for name in GAME_FEET.get(base, {}):
         path = os.path.join(folder, name)
         if not os.path.isfile(path):
             continue
         w, h, n = spec(base, name)
         im = Image.open(path).convert("RGBA")
-        if im.height != h * n or im.width not in (w, 32):
+        size = frame_size(im, w, h, n, name)
+        if not size:
             print(f"  skip    {name} ({im.width}x{im.height} isn't a {base} {name})")
             continue
-        W = im.width
-        frames = [im.crop((0, i * h, W, (i + 1) * h)) for i in range(n)]
+        # bigger frames (see big_frames): the game's rows move down by the
+        # rows added on top
+        W, H = size
+        top = H - h - below.get(name, 0)
+        frames = [im.crop((0, i * H, W, (i + 1) * H)) for i in range(n)]
         boxes = [f.getchannel("A").getbbox() for f in frames]
         fits = lambda i, dx, dy: (boxes[i][0] + dx >= 0 and boxes[i][2] + dx <= W
-                                  and boxes[i][1] + dy >= 0 and boxes[i][3] + dy <= h)
+                                  and boxes[i][1] + dy >= 0 and boxes[i][3] + dy <= H)
 
         # A frame that's a copy of an earlier one stands in for art the set
         # doesn't have (tricks drawn as the riding frame): it moves with its
@@ -1219,7 +1260,7 @@ def feet(family, folder, match=False):
 
         moves, why, stuck = {}, {}, []
         for i in range(n):
-            want = feet_rows(base, name, i)
+            want = tuple(r + top for r in feet_rows(base, name, i))
             if i in copy_of or not want or not boxes[i] or boxes[i][3] - 1 in want:
                 continue
             got = boxes[i][3] - 1
@@ -1242,7 +1283,7 @@ def feet(family, folder, match=False):
                 # the set keeps its own bob. Sideways only when the heads
                 # match closely. -Elvie
                 feet_dy = moves.get(st, (0, 0))[1]
-                room = min(h - boxes[i][3] - (dy + 1) for i, (_, _, dy) in regs.items())
+                room = min(H - boxes[i][3] - (dy + 1) for i, (_, _, dy) in regs.items())
                 sdy = min(feet_dy, room)
                 plan = None
                 if sdy >= feet_dy - 1 and boxes[st][1] + sdy >= 0:
@@ -1292,9 +1333,9 @@ def feet(family, folder, match=False):
             # frame by frame, so nothing spills into a neighbour
             clean = Image.new("RGBA", im.size, CLEAR)
             for i in range(n):
-                cell = Image.new("RGBA", (W, h), CLEAR)
+                cell = Image.new("RGBA", (W, H), CLEAR)
                 cell.paste(frames[i], moves.get(i, (0, 0)))
-                clean.paste(cell, (0, i * h))
+                clean.paste(cell, (0, i * H))
             clean.save(path)
             changed += len(moves)
             print(f"  moved   {name}: {len(moves)} frame{'s' if len(moves) != 1 else ''}")
@@ -1621,8 +1662,65 @@ def flybird(folder, kit, nudges=((0, 0), (0, 0)), out=None, force=False, bird=Tr
     print(f"  made    {os.path.basename(out)}")
     return True
 
-def dive(folder, blob=True, underwater=True, force=False, shade=True):
-    """diveBlob.png and/or underwater.png in a packed R/S/E look folder."""
+def stand_frames(folder, fam, src_name, out_w, out_h, out_below=0):
+    """Frames 0-2 of a sheet in folder (the standing or sitting frame facing
+    down, up and left), each set in an out_w x out_h frame, centred, with
+    its feet line out_below rows above the bottom. Bigger frames and
+    frames.json are read too. None if the sheet isn't there or isn't a
+    size the mod takes; the second value counts pixels that didn't fit."""
+    path = os.path.join(folder, src_name)
+    if not os.path.isfile(path):
+        return None, 0
+    w, h, n = spec(fam, src_name)
+    im = Image.open(path).convert("RGBA")
+    size = frame_size(im, w, h, n, src_name)
+    if not size:
+        return None, 0
+    FW, FH = size
+    feet = FH - frames_below(folder).get(src_name, 0)
+    out, lost = [], 0
+    for i in range(3):
+        src = im.crop((0, i * FH, FW, (i + 1) * FH))
+        frame = Image.new("RGBA", (out_w, out_h), CLEAR)
+        frame.paste(src, ((out_w - FW) // 2, (out_h - out_below) - feet))
+        lost += opaque(src) - opaque(frame)
+        out.append(frame)
+    return out, lost
+
+def opaque(im):
+    return sum(1 for a in im.getchannel("A").getdata() if a)
+
+# Hopping on and off a surfing Pokemon uses surf.png frames 9-11 (facing
+# down, up, left). Sets drawn with the Pokemon in (fan games) have no
+# hopping pose, so the walking stand frames stand in. -Elvie
+def surfjump(family, folder):
+    """surf.png frames 9-11 from walk.png frames 0-2, feet lined up."""
+    base = base_of(family)
+    path = os.path.join(folder, "surf.png")
+    if not os.path.isfile(path):
+        print(f"  ERROR   no surf.png in {folder}")
+        return False
+    w, h, n = spec(base, "surf.png")
+    im = Image.open(path).convert("RGBA")
+    size = frame_size(im, w, h, n, "surf.png")
+    if not size:
+        print(f"  ERROR   surf.png is {im.width}x{im.height}, not a {base} surf.png")
+        return False
+    SW, SH = size
+    stands, lost = stand_frames(folder, base, "walk.png", SW, SH, frames_below(folder).get("surf.png", 0))
+    if not stands:
+        print(f"  ERROR   no walk.png the mod takes in {folder}")
+        return False
+    for k, fi in enumerate((9, 10, 11)):
+        im.paste(stands[k], (0, fi * SH))
+    im.save(path)
+    note = f"; {lost} pixels of the walk frames didn't fit the surf frame" if lost else ""
+    print(f"  made    surf.png frames 9-11 from walk.png frames 0-2{note}")
+    return True
+
+def dive(folder, blob=True, underwater=True, force=False, shade=True, from_walk=False):
+    """diveBlob.png and/or underwater.png in a packed R/S/E look folder;
+    from_walk: the diver is the walking stand frames, not the surf ones."""
     if not os.path.isdir(folder):
         print(f"  ERROR   {folder} is not a folder")
         return False
@@ -1631,31 +1729,38 @@ def dive(folder, blob=True, underwater=True, force=False, shade=True):
     if blob:
         jobs.append(("diveBlob.png", "surfBlob.png", "rse_extras"))
     if underwater:
-        jobs.append(("underwater.png", "surf.png", "rse"))
+        jobs.append(("underwater.png", "walk.png" if from_walk else "surf.png", "rse"))
     for name, src_name, fam in jobs:
         out = os.path.join(folder, name)
         if os.path.exists(out) and not force:
             print(f"  skip    {name} (already there; --force to replace it)")
             continue
         src = os.path.join(folder, src_name)
-        sw, sh, sn = spec(fam, src_name)
         if not os.path.isfile(src):
             print(f"  skip    {name} (no {src_name} in this folder to make it from)")
             continue
-        im = Image.open(src).convert("RGBA")
-        if im.size != (sw, sh * sn):
-            print(f"  skip    {name} ({src_name} is {im.width}x{im.height}, expected {sw}x{sh * sn})")
-            continue
         w, h, n = spec(fam, name)
         if name == "diveBlob.png":
+            sw, sh, sn = spec(fam, src_name)
+            im = Image.open(src).convert("RGBA")
+            if im.size != (sw, sh * sn):
+                print(f"  skip    {name} ({src_name} is {im.width}x{im.height}, expected {sw}x{sh * sn})")
+                continue
             strip = dive_tint(im)
         else:
             # standard order: stand down, up, left, then two steps each;
-            # every one is the surf sitting frame for that facing
+            # every one is the facing's surf sitting (or walk standing)
+            # frame, in the game's frame size around the player
+            stands, lost = stand_frames(folder, "rse", src_name, w, h)
+            if not stands:
+                print(f"  skip    {name} ({src_name} isn't a size the mod takes)")
+                continue
+            if lost:
+                print(f"  note    {lost} pixels of {src_name} fall outside the {w}x{h} underwater frames")
             strip = Image.new("RGBA", (w, h * n), CLEAR)
             for fi in range(n):
                 facing = fi if fi < 3 else (fi - 3) // 2
-                strip.paste(im.crop((0, facing * sh, sw, (facing + 1) * sh)), (0, fi * h))
+                strip.paste(stands[facing], (0, fi * h))
             if shade:
                 strip = dive_shade(strip)
         if not strip.getbbox():
@@ -1755,10 +1860,12 @@ if __name__ == "__main__":
             else:
                 sys.exit(f"  ERROR   unknown option {opts[k]}")
         sys.exit(0 if flybird(a[1], a[2], nudge, out, force, bird, tilts) else 1)
-    if len(a) >= 2 and a[0] == "dive" and set(a[2:]) <= {"--blob", "--underwater", "--force", "--no-shade"}:
+    if len(a) >= 2 and a[0] == "dive" and set(a[2:]) <= {"--blob", "--underwater", "--force", "--no-shade", "--from-walk"}:
         both = not ({"--blob", "--underwater"} & set(a[2:]))
         sys.exit(0 if dive(a[1], both or "--blob" in a, both or "--underwater" in a, "--force" in a,
-                           "--no-shade" not in a) else 1)
+                           "--no-shade" not in a, "--from-walk" in a) else 1)
+    if len(a) == 3 and a[0] == "surfjump" and base_of(a[1]) in ("frlg", "rse"):
+        sys.exit(0 if surfjump(a[1], a[2]) else 1)
     if len(a) == 3 and a[0] == "blank" and a[1] in SPECS:
         blank_sheet(a[1]).save(a[2])
         print(f"  wrote   {a[2]}")

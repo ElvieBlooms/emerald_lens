@@ -11,6 +11,8 @@ local okGameboy, gameboy = pcall(require, "mods.emerald_lens.gameboy")
 if not okGameboy then gameboy = nil end
 local okCross, crossgame = pcall(require, "mods.emerald_lens.crossgame")
 if not okCross then crossgame = nil end
+local okGen3, gen3 = pcall(require, "mods.emerald_lens.gen3")
+if not okGen3 then gen3 = nil end
 
 local LAYER = "emerald_lens"
 local HELP_BG = { 0 / 255, 123 / 255, 197 / 255, 1 } -- same blue as the OPTION menu -Elvie
@@ -42,6 +44,8 @@ end
 
 -- Loads a sheet from the first folder in bases with a usable size. A
 -- Game Boy look's is made to size (layout: "frlg" or "rse"). -Elvie
+-- ok(w, h, base, mod, layout) says whether the size is usable; whatever
+-- it returns comes back as the second value.
 local function loadFirst(mod, bases, file, ok, layout)
   if not (love and love.image and love.graphics) then return nil end
   for _, base in ipairs(bases) do
@@ -56,17 +60,29 @@ local function loadFirst(mod, bases, file, ok, layout)
       data = crossgame.load(mod, base, file, layout)
       loaded = data ~= nil
     end
-    if loaded and data and ok(data:getDimensions()) then
+    local w, h
+    if loaded and data then w, h = data:getDimensions() end
+    local fits = w and ok(w, h, base, mod, layout)
+    if fits then
       local image = love.graphics.newImage(data)
       image:setFilter("nearest", "nearest")
-      return image
+      return image, fits
     end
   end
   return nil
 end
 
 local function isFront(w, h) return w == 64 and h == 64 end
-local function isWalk(w, h) return (w == 16 or w == 32) and h >= 9 * 32 and h % 32 == 0 end
+-- { frame height, rows below the feet }: 32-tall frames, or bigger ones
+-- (gen3.bigFrames)
+local function isWalk(w, h, base, mod, layout)
+  if (w == 16 or w == 32) and h >= 9 * 32 and h % 32 == 0 then return { 32, 0 } end
+  local frameH, below
+  if gen3 and gen3.bigFrames then
+    frameH, below = gen3.bigFrames(mod, base, "walk.png", w, h, 16, 32, layout == "frlg" and 20 or 18)
+  end
+  return frameH and { frameH, below } or nil
+end
 
 function screen.new(mod, model)
   local S = { isMenu = true }
@@ -80,8 +96,8 @@ function screen.new(mod, model)
       got = {
         front = loadFirst(mod, preview.bases, preview.frontFile or "front.png", isFront, preview.layout)
           or (preview.frontFile and loadFirst(mod, preview.bases, "front.png", isFront, preview.layout)),
-        walk = loadFirst(mod, preview.bases, "walk.png", isWalk, preview.layout),
       }
+      got.walk, got.walkFrame = loadFirst(mod, preview.bases, "walk.png", isWalk, preview.layout)
       images[key] = got
     end
     return got
@@ -248,12 +264,14 @@ function screen.new(mod, model)
     if got.front then love.graphics.draw(got.front, at and at.frontX or FRONT_X, at and at.frontY or FRONT_Y) end
     if got.walk then
       local w = got.walk:getWidth()
+      local fh, below = got.walkFrame and got.walkFrame[1] or 32, got.walkFrame and got.walkFrame[2] or 0
       local scale = at and (w <= 16 and 2 or 1) or WALK_SCALE
       local x = at and at.walkX or WALK_X
-      local y = at and (at.walkBottom - 32 * scale) or WALK_Y
+      -- bigger frames keep the feet where a 32-tall frame's are
+      local y = (at and (at.walkBottom - 32 * scale) or WALK_Y) - (fh - 32 - below) * scale
       local turn = WALK[math.floor(clock / TURN_TIME) % #WALK + 1]
       local frame = turn[math.floor(clock / STEP_TIME) % 4 + 1]
-      local quad = love.graphics.newQuad(0, frame * 32, w, 32, got.walk:getDimensions())
+      local quad = love.graphics.newQuad(0, frame * fh, w, fh, got.walk:getDimensions())
       if turn.flip then
         love.graphics.draw(got.walk, quad, x + w * scale / 2, y, 0, -scale, scale)
       else

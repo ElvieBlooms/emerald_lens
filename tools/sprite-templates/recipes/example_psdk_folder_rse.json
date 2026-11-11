@@ -1,0 +1,17 @@
+{
+  "family": "rse_wide",
+  "layout": "essentials",
+  "grow": true,
+  "note": "Aethestode's Yellow from a Pokemon SDK fan game: one 4x4 charset per action (rows down, left, right, up), unpacked from pokemonsdk/master/character. The surf sheets have the Pokemon drawn in, so they're split with mount.",
+  "files": {
+    "walk": "hero_01_yellow_f_walk.png",
+    "run": "hero_01_yellow_f_run.png",
+    "mach bike": "hero_01_yellow_f_cycle_roll.png",
+    "acro bike": "hero_01_yellow_f_cycle_roll.png",
+    "fish": "hero_01_yellow_f_fish.png",
+    "surf": {
+      "file": "hero_01_yellow_f_surf.png",
+      "mount": true
+    }
+  }
+}

@@ -355,10 +355,26 @@ sprites. `dive` makes a start from a packed R/S/E look folder's surf art:
   surf ones), with a navy wash so the diver looks underwater: navy
   (#001971) laid over the sprite at 60%. `--no-shade` keeps the surf
   colours.
+- `--from-walk` takes the `walk.png` standing frames instead, for surf art
+  drawn with the Pokémon in (fan games), where the sitting frame would
+  bring bits of the Pokémon along. Pair it with a ready-made dive blob
+  (`blobs ... --dive`).
 - With neither, it does both. A file that's already there is kept unless
   you add `--force`.
 
 A recipe can fill the `dive blob` section too, like `surf blob`.
+
+### Hopping on and off (surfjump)
+
+The game uses `surf.png` frames 9-11 (facing down, up, left) while the
+player hops on and off. Surf art drawn with the Pokémon in has no hopping
+pose, so the folder importer fills them with the sitting frame, Pokémon
+and all. `surfjump` puts the `walk.png` standing frames there instead,
+feet lined up, in whatever frame size `surf.png` has:
+
+    python3 pack_gen3.py surfjump rse ../../assets/sprites/<folder>/gen3/rse
+
+Run it after `feet --match`, so it takes the matched standing frames.
 
 ## Where frames sit (feet)
 
@@ -586,6 +602,18 @@ section instead of numbering sprites:
   artist put them: the row the feet stand on lines up with ours.
 - Essentials surf sprites don't include the blob, so the game's own blob
   (or your `surfBlob.png`) is used.
+- Sets that draw the Pokémon in with the player (Pokémon SDK games do) take
+  `"surf": {"file": "...", "mount": true}`. Each cell is set in the game's
+  surf layout with the mount's lowest row on the blob's, then split: the
+  player's frame goes to surf.png, the rest to surfBlob.png, like a collage's
+  surf sprite (see surf placement). In game it looks the same as the
+  original, except for the moment you hop on or off.
+
+Pokémon SDK games keep their graphics packed in `pokemonsdk/master/`
+(`character` for overworld sheets, `battler` for battle sprites). Their
+hero sheets are the same 4x4 grid once unpacked;
+`recipes/example_psdk_folder_rse.json` / `_frlg.json` are worked examples
+(Aethestode's Yellow).
 
 `recipes/example_essentials_folder_rse.json` / `_frlg.json` are worked
 examples.
@@ -665,6 +693,28 @@ overworld sprites are 17-20 pixels wide, for example. The mod takes either
 width. Use `frlg_wide` or `rse_wide` in place of `frlg` or `rse` in any
 command (`reference` centres the game's own art in the wider frames), and in
 an importer recipe's `"family"`.
+
+## Bigger frames (nothing cut off)
+
+The mod also takes overworld sheets with bigger frames than the game's, up
+to 64x64 with an even width (not underwater): extra rows go on top,
+and a `frames.json` next to the sheet says how many rows hang below the
+feet, `{ "fishing.png": { "below": 7 } }`.
+
+- A folder recipe with `"grow": true` keeps whatever a frame would lose:
+  any sheet whose art goes past the game's frame is also written to
+  `<out>/grown/` with frames just big enough (the same on both sides, so
+  it stays centred), plus `frames.json` when rows hang below. The combined
+  sheet keeps the cut version, so after `pack`, copy everything in
+  `grown/` into the look's `gen3/<family>/` folder.
+- With `"mount": true` surf files, `"grow"` keeps the Pokémon centred on the
+  tile where the artist drew it, instead of moving a facing over to fit.
+  The blob still gets the 32x32 under the player; anything the Pokémon
+  has outside it goes into wider `surf.png` frames, drawn with the player.
+- `dive --underwater` reads a bigger `surf.png` too, taking the game-size
+  frame around the player.
+- `feet` reads bigger frames and `frames.json`, so run `feet --match`
+  after copying them in.
 
 ## Too big for the frame: shrink
 

@@ -203,7 +203,9 @@ Gen 3 sprites are always full color.
 
 In `walk.png`, draw the standing frames with the feet one row above the bottom and the steps a row lower, as the game does, or the walk won't bob like everyone else's (`pack_gen3.py feet` checks and fixes this, and where every other sheet's frames sit; see the tools README).
 
-The 16-wide sheets (`walk.png`, `decorating.png`, and FRLG's `surf.png` and `fieldMove.png`) can also be drawn 32 wide, for characters bigger than the game's own, such as Gen 4 sprites. The game draws them centred on the tile with the feet on its bottom edge, so they just stand a little wider. Any other size is still skipped.
+The 16-wide sheets (`walk.png`, `decorating.png`, and FRLG's `surf.png` and `fieldMove.png`) can also be drawn 32 wide, for characters bigger than the game's own, such as Gen 4 sprites. The game draws them centred on the tile with the feet on its bottom edge, so they just stand a little wider.
+
+**Bigger frames.** Every overworld sheet except `underwater.png` can also have bigger frames, up to 64x64 with an even width, for a tall hat, a big mount or a long fishing rod. In `surf.png` that's how a Pokémon wider than the 32x32 `surfBlob.png` keeps its edges: they're drawn with the player, around the blob. Keep the same number of frames, just bigger; the frame size is worked out from the sheet. The game still draws each frame centred on the tile with the feet where its own frame has them, so the extra rows go on top. Rows that hang below the feet (a rod over the water) need a `frames.json` next to the sheet saying how many: `{ "fishing.png": { "below": 7 } }`. The same goes for Gen 1/2 for walking, biking, fishing and surfing. Any other size is still skipped. Reflections in water mirror the whole frame, so a rod hanging below shows a little in the reflection.
 
 ### Extras
 Also optional, in the same folders and with the same fallback. They aren't the player, but the game only draws them for the player:

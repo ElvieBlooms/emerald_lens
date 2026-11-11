@@ -148,6 +148,32 @@ function gen3.fifteen(src)
   return out
 end
 
+-- Overworld frames bigger than the game's own, up to 64x64 with an even
+-- width. The game draws any size centred on the tile with the feet where
+-- its own frame has them (OwSprites.draw, the reflections and the cable
+-- car all read the frame's own size), so a tall hat or a long rod gets
+-- room instead of being cut. The extra rows go on top, unless the sheet's
+-- folder has a frames.json saying how many hang below the feet:
+--   { "fishing.png": { "below": 8 } }
+-- w x h is the whole sheet; returns the frame height and the rows below,
+-- or nil when it isn't a bigger copy of frames baseW x baseH.
+gen3.BIG_MAX = 64
+function gen3.bigFrames(mod, base, file, w, h, baseW, baseH, frames)
+  if not frames or frames < 1 or h % frames ~= 0 then return nil end
+  local frameH = h / frames
+  if w < baseW or w > gen3.BIG_MAX or w % 2 ~= 0 then return nil end
+  if frameH < baseH or frameH > gen3.BIG_MAX then return nil end
+  if w == baseW and frameH == baseH then return nil end
+  local below = 0
+  local ok, text = pcall(mod.read, mod, base .. "frames.json")
+  if ok and type(text) == "string" then
+    local entry = text:match('"' .. (file:gsub("%p", "%%%0")) .. '"%s*:%s*(%b{})')
+    local n = entry and tonumber(entry:match('"below"%s*:%s*(%-?[%d%.eE+]+)'))
+    if n then below = math.max(0, math.min(frameH - baseH, math.floor(n + 0.5))) end
+  end
+  return frameH, below
+end
+
 -- ctx comes from lens.lua: { folderKeys, genderMode, fitSave, spritesDir }, with
 -- folderKeys in fallback order, the selected look first. nil means OFF:
 -- everything passes through to the game's own art. Returns a handle whose
@@ -239,7 +265,9 @@ function gen3.init(mod, ctx)
   -- size (or altW wide, where a wider frame is allowed); a missing or
   -- wrong-size copy moves on to the next folder. Hands back the ImageData
   -- too, since water reflections recolor from it, and the width found. -Elvie
-  local function loadImage(file, expectW, expectH, altW, only, chain)
+  -- frames: how many frames the sheet holds, for overworld sheets that may
+  -- come bigger (gen3.bigFrames); the 6th value is then the frame height.
+  local function loadImage(file, expectW, expectH, altW, only, chain, frames)
     if not (love and love.image and love.graphics) then return nil end
     for _, base in ipairs(only and { only } or chain or bases) do
       local rel = base .. file
@@ -270,8 +298,16 @@ function gen3.init(mod, ctx)
             image:setFilter("nearest", "nearest")
             return image, data, rel, w
           end
-          warnOnce(rel, "%s is %dx%d but this slot needs %dx%d%s; skipping it",
-            rel, w, h, expectW, expectH, altW and (" or %dx%d"):format(altW, expectH) or "")
+          local frameH, below
+          if frames then frameH, below = gen3.bigFrames(mod, base, file, w, h, expectW, expectH / frames, frames) end
+          if frameH then
+            local image = love.graphics.newImage(data)
+            image:setFilter("nearest", "nearest")
+            return image, data, rel, w, below, frameH
+          end
+          warnOnce(rel, "%s is %dx%d but this slot needs %dx%d%s%s; skipping it",
+            rel, w, h, expectW, expectH, altW and (" or %dx%d"):format(altW, expectH) or "",
+            frames and (", or %d bigger frames up to %dx%d"):format(frames, gen3.BIG_MAX, gen3.BIG_MAX) or "")
         end
       elseif crossgame and crossgame.isBase(base) then
         -- a player from the other Gen 3 games, laid out for this one -Elvie
@@ -589,13 +625,22 @@ function gen3.init(mod, ctx)
       local w, h, n = vanilla.width, vanilla.height, vanilla.frameCount
       if not (w and h and n) then return nil end
       local rows = math.max(n, sheetFrames or n)
-      local image, data, rel, gotW, drop = loadImage(file, w, h * rows, w == 16 and 32 or nil, nil, chain)
+      -- Underwater frames stay the game's size: the dive blob is placed
+      -- against them. Surf frames can be bigger, for a Pokémon wider than
+      -- the 32x32 blob: its edges come with the player.
+      local big = file ~= "underwater.png" and rows or nil
+      local image, data, rel, gotW, drop, frameH = loadImage(file, w, h * rows, w == 16 and 32 or nil, nil, chain, big)
       if not image then return nil end
       w = gotW or w
       local plainSurf, overSurf
       local record = {}
       for k, v in pairs(vanilla) do record[k] = v end
-      if drop and drop > 0 then
+      if frameH and frameH ~= h then
+        -- bigger frames (gen3.bigFrames): rows below the feet draw lower
+        h = frameH
+        record.height = h
+        record.drawOffY = (vanilla.drawOffY or 0) + (drop or 0)
+      elseif drop and drop > 0 then
         -- taller frames drawn lower, so the player stays put -Elvie
         h = h + drop
         record.height = h
