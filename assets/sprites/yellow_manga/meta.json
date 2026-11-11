@@ -1,0 +1,32 @@
+{
+  "label": "MANGA",
+  "character": "YELLOW",
+  "genderMode": "girl",
+  "generation": 2,
+  "credit": [
+    "Art by LilieBiehlina3siste",
+    "Yellow: Satoshi Tajiri, Hidenori Kusaka"
+  ],
+  "overworldColors": [
+    [
+      255,
+      255,
+      255
+    ],
+    [
+      255,
+      255,
+      0
+    ],
+    [
+      255,
+      8,
+      8
+    ],
+    [
+      24,
+      24,
+      24
+    ]
+  ]
+}
