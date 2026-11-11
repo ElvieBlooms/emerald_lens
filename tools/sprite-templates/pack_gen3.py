@@ -1695,7 +1695,8 @@ def stand_frames(folder, fam, src_name, out_w, out_h, out_below=0, picks=(0, 1, 
     return out, lost
 
 def opaque(im):
-    return sum(1 for a in im.getchannel("A").getdata() if a)
+    alpha = im.getchannel("A").histogram()
+    return sum(alpha) - alpha[0]
 
 # Hopping on and off a surfing Pokemon uses surf.png frames 9-11 (facing
 # down, up, left). Sets drawn with the Pokemon in (fan games) have no

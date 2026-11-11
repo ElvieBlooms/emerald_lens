@@ -1,0 +1,32 @@
+{
+  "label": "GBC",
+  "character": "PEACH",
+  "genderMode": "girl",
+  "generation": 2,
+  "credit": [
+    "Art by Bani"
+  ],
+  "overworldColors": [
+    [
+      255,
+      255,
+      255
+    ],
+    [
+      251,
+      190,
+      145
+    ],
+    [
+      255,
+      98,
+      149
+    ],
+    [
+      0,
+      0,
+      0
+    ]
+  ],
+  "fishRod": "gen2"
+}
