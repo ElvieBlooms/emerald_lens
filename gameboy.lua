@@ -28,6 +28,12 @@
 -- up, then the one for left, drawn as Gen 1's, or as Gen 2's with
 -- "fishRod": "gen2" in meta.json; Emerald Lens only) over the game's
 -- rod. -Elvie
+--
+-- Field moves: overworldFieldMove.png (16 wide, one to four 16x16 poses
+-- facing down, one under the next; Emerald Lens only) makes
+-- fieldMove.png. The move plays the standing frame facing down, then the
+-- poses in order, holding the last; FR/LG's VS Seeker raises the first
+-- and the last, then swaps between them while it scans.
 -- --------------------------------------------------
 
 local gameboy = {}
@@ -60,6 +66,17 @@ local OW_FILES = {
 local OWN_OF = { walk = "overworldWalk.png", bike = "overworldBike.png",
   surf = "overworldSurf.png", dive = "overworldSurf.png" }
 local OWN_FISH = { down = "overworldFishFront.png", up = "overworldFishBack.png", left = "overworldFishSide.png" }
+local OWN_FIELD_MOVE = "overworldFieldMove.png"
+-- fieldMove.png per family: frame size, then each frame as the walk's
+-- standing frame facing down ("stand") or a pose of the file, counted
+-- from 1 (past the last one, the last; "last" is always the last). R/S/E's
+-- move is frames 0-4; FR/LG adds the VS Seeker in 5-8, which plays 0, 1,
+-- 5, 6, then 7 and 8 back and forth (ow_sprites.lua VS_SEEKER_SEQ,
+-- object_event_anims.h:642).
+local FIELD_MOVE = {
+  frlg = { 16, { "stand", 1, 2, 3, 4, 1, "last", "last", 1 } },
+  rse = { 32, { "stand", 1, 2, 3, 4 } },
+}
 local OWN_ROD = "overworldFishRod.png"
 -- Each trainer's sprites: per kind, { games, sprite id, colours for a
 -- game with none } in order; the first installed game is used. -Elvie
@@ -181,7 +198,7 @@ gameboy.romOf = romOf
 -- What makes a folder a Game Boy look: Crystal Lens battle art, its
 -- overworld files, or a romOverworld. -Elvie
 local ART = { "front.png", "frontColor.png", "back.png", "backColor.png", "overworldWalk.png", "overworldBike.png",
-  "overworldSurf.png" }
+  "overworldSurf.png", "overworldFieldMove.png" }
 function gameboy.hasArt(mod, base, meta)
   if romOf(meta) then return true end
   for _, name in ipairs(ART) do
@@ -223,6 +240,10 @@ function gameboy.has(mod, base, file)
   if file == "fishing.png" then
     local walk = mod.assets:info(base .. OWN_OF.walk) or (which ~= nil and fromRom(mod, which, "walk") ~= nil)
     return walk and fishParts(mod, base) ~= nil
+  end
+  if file == "fieldMove.png" then
+    local walk = mod.assets:info(base .. OWN_OF.walk) or (which ~= nil and fromRom(mod, which, "walk") ~= nil)
+    return walk and mod.assets:info(base .. OWN_FIELD_MOVE) ~= nil or false
   end
   local own = OW_FILES[file]
   if not own then return false end
@@ -430,6 +451,38 @@ local function sheet(mod, base, kind, layout)
     for y = 0, 15 do
       for x = 0, 15 do
         local r, g, b, a = src:getPixel(f[2] and 15 - x or x, f[1] * 16 + y)
+        if a > 0 then out:setPixel(x0 + x, y0 + y, r, g, b, a) end
+      end
+    end
+  end
+  return out
+end
+
+-- fieldMove.png from overworldFieldMove.png (FIELD_MOVE), each 16x16
+-- frame centred with its feet on the standing row, like walking
+local function fieldMove(mod, base, layout)
+  local plan = FIELD_MOVE[layout]
+  local rel = base .. OWN_FIELD_MOVE
+  if not plan or not mod.assets:info(rel) then return nil end
+  local walk = frames(mod, base, "walk")
+  local ok, data = pcall(love.image.newImageData, mod.assets:path(rel))
+  if not (walk and ok and data) then return nil end
+  local dw, dh = data:getDimensions()
+  local n = math.floor(dh / 16)
+  if dw ~= 16 or dh % 16 ~= 0 or n < 1 or n > 4 then
+    note(mod, rel, "%s is %dx%d; it needs 16 wide and 16, 32, 48 or 64 tall (one to four poses)", rel, dw, dh)
+    return nil
+  end
+  local poses = colourise(data, colorsOf(registered[base] or {}, CRYSTAL_COLORS), true)
+  local w, list = plan[1], plan[2]
+  local out = love.image.newImageData(w, 32 * #list)
+  for i, which in ipairs(list) do
+    local src, sy = poses, (math.min(tonumber(which) or n, n) - 1) * 16
+    if which == "stand" then src, sy = walk, S * 16 end
+    local x0, y0 = (w - 16) / 2, (i - 1) * 32 + STAND_ROW - 15
+    for y = 0, 15 do
+      for x = 0, 15 do
+        local r, g, b, a = src:getPixel(x, sy + y)
         if a > 0 then out:setPixel(x0 + x, y0 + y, r, g, b, a) end
       end
     end
@@ -827,6 +880,7 @@ function gameboy.load(mod, base, file, layout)
   if OW_FILES[file] then return sheet(mod, base, file:sub(1, 4), layout) end
   if MOUNT[file] then return mount(mod, base, file, layout) end
   if file == "fishing.png" then return fishing(mod, base) end
+  if file == "fieldMove.png" then return fieldMove(mod, base, layout) end
   if file == "surfBlob.png" then
     -- see-through: the Game Boy Pokémon is the whole picture -Elvie
     if not (BLOB[layout] and gameboy.has(mod, base, file)) then return nil end

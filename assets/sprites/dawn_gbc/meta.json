@@ -1,0 +1,31 @@
+{
+  "label": "GBC",
+  "character": "DAWN",
+  "genderMode": "girl",
+  "generation": 2,
+  "credit": [
+    "Art by Trainerdx"
+  ],
+  "overworldColors": [
+    [
+      255,
+      255,
+      255
+    ],
+    [
+      248,
+      152,
+      80
+    ],
+    [
+      226,
+      67,
+      111
+    ],
+    [
+      0,
+      0,
+      1
+    ]
+  ]
+}

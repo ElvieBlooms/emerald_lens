@@ -20,7 +20,10 @@ sheet, use the `gb` family: `gb_sheet.png` (blank recipe
 `overworldSurf` (the same six frames, for surfing and diving), the three
 `overworldFish*` bottom halves (16x8) and `overworldFishRod` (two 8x8 rod
 tiles: down and up, then left). `overworldSurf` and `overworldFishRod` are
-Emerald Lens's own; Crystal Lens ignores them. Packing `gb` writes the
+Emerald Lens's own; Crystal Lens ignores them. So is `overworldFieldMove`
+(16 wide, one to four 16x16 poses facing down, played after the standing
+frame for field moves and the VS Seeker); it isn't on `gb_sheet.png` yet,
+so save it as its own file. Packing `gb` writes the
 files to the look folder's top level, where Crystal Lens keeps them:
 
     python3 pack_gen3.py pack gb gb_sheet.png ../../assets/sprites/mylook
