@@ -34,6 +34,16 @@
 -- fieldMove.png. The move plays the standing frame facing down, then the
 -- poses in order, holding the last; FR/LG's VS Seeker raises the first
 -- and the last, then swaps between them while it scans.
+--
+-- Full colour: every overworld file above can also come as a Color
+-- version (overworldWalkColor.png and so on, Emerald Lens only), used as
+-- it's drawn, with no shades or overworldColors, the way frontColor.png
+-- is for the front pic. Crystal Lens keeps reading the grey ones.
+--
+-- Throw: backThrow.png (64x320, Emerald Lens only) is a full Gen 3 back
+-- pic for the Gen 3 games: standing, then four throw frames, FR/LG's
+-- order. R/S/E plays three of them. backColor.png stays the Game Boy
+-- games' back pic.
 -- --------------------------------------------------
 
 local gameboy = {}
@@ -123,6 +133,12 @@ local PALETTES = {
 }
 -- Crystal Lens's own overworld colours, for a folder's overworld files. -Elvie
 local CRYSTAL_COLORS = { { 255, 255, 255 }, { 255, 173, 99 }, { 1, 99, 198 }, { 0, 0, 0 } }
+-- A file's full-colour version: overworldWalk.png -> overworldWalkColor.png
+local function colourName(rel) return (rel:gsub("%.png$", "Color.png")) end
+-- backThrow.png's frames for each family's back.png: FR/LG standing then
+-- the throw, R/S/E three throw frames then standing
+local THROW = "backThrow.png"
+local THROW_FRAMES = { frlg = { 0, 1, 2, 3, 4 }, rse = { 1, 2, 4, 0 } }
 
 -- Each Gen 3 frame: { Game Boy frame, mirrored, step }. Steps sit a row
 -- lower than standing, like the game's own. Down and up step between a
@@ -198,7 +214,7 @@ gameboy.romOf = romOf
 -- What makes a folder a Game Boy look: Crystal Lens battle art, its
 -- overworld files, or a romOverworld. -Elvie
 local ART = { "front.png", "frontColor.png", "back.png", "backColor.png", "overworldWalk.png", "overworldBike.png",
-  "overworldSurf.png", "overworldFieldMove.png" }
+  "overworldSurf.png", "overworldFieldMove.png", "overworldWalkColor.png", "overworldBikeColor.png", "backThrow.png" }
 function gameboy.hasArt(mod, base, meta)
   if romOf(meta) then return true end
   for _, name in ipairs(ART) do
@@ -226,32 +242,38 @@ local function colorsOf(meta, fallback)
   return fallback
 end
 
+-- A folder's own overworld file, grey or in colour
+local function hasOwn(mod, rel)
+  return mod.assets:info(rel) ~= nil or mod.assets:info(colourName(rel)) ~= nil
+end
+
 local romPic -- below, with the battle pics -Elvie
 function gameboy.has(mod, base, file)
   local which = romOf(registered[base])
   if SOURCES[file] and sourceOf(mod, base, file) then return true end
+  if file == "back.png" and mod.assets:info(base .. THROW) then return true end
   if (SOURCES[file] or file:find("^rival%u")) and which then return romPic(mod, which, file) ~= nil end
   if SOURCES[file] then return false end
   -- surf art and the left-out blob only with something to surf on -Elvie
   if MOUNT[file] or file == "surfBlob.png" then
-    if mod.assets:info(base .. OWN_OF.surf) then return true end
+    if hasOwn(mod, base .. OWN_OF.surf) then return true end
     return which ~= nil and fromRom(mod, which, mountKind(which, file)) ~= nil
   end
   if file == "fishing.png" then
-    local walk = mod.assets:info(base .. OWN_OF.walk) or (which ~= nil and fromRom(mod, which, "walk") ~= nil)
+    local walk = hasOwn(mod, base .. OWN_OF.walk) or (which ~= nil and fromRom(mod, which, "walk") ~= nil)
     return walk and fishParts(mod, base) ~= nil
   end
   if file == "fieldMove.png" then
-    local walk = mod.assets:info(base .. OWN_OF.walk) or (which ~= nil and fromRom(mod, which, "walk") ~= nil)
-    return walk and mod.assets:info(base .. OWN_FIELD_MOVE) ~= nil or false
+    local walk = hasOwn(mod, base .. OWN_OF.walk) or (which ~= nil and fromRom(mod, which, "walk") ~= nil)
+    return walk and hasOwn(mod, base .. OWN_FIELD_MOVE) or false
   end
   local own = OW_FILES[file]
   if not own then return false end
-  if mod.assets:info(base .. own) then return true end
+  if hasOwn(mod, base .. own) then return true end
   if which ~= nil and fromRom(mod, which, file:sub(1, 4)) ~= nil then return true end
   -- no bike of its own: borrowed from the game's, with a walk to go on top
   if file == "bike.png" then
-    local walk = mod.assets:info(base .. OWN_OF.walk) or (which ~= nil and fromRom(mod, which, "walk") ~= nil)
+    local walk = hasOwn(mod, base .. OWN_OF.walk) or (which ~= nil and fromRom(mod, which, "walk") ~= nil)
     return walk and fromRom(mod, bikeOf(registered[base] or {}), "bike") ~= nil or false
   end
   return false
@@ -330,6 +352,23 @@ local function colourise(data, colors, ranked)
   return data
 end
 
+-- A folder's full-colour file as it's drawn: half see-through pixels are
+-- see-through, like the grey files. nil if it has none.
+local function colourFile(mod, rel)
+  local c = colourName(rel)
+  if not mod.assets:info(c) then return nil end
+  local ok, data = pcall(love.image.newImageData, mod.assets:path(c))
+  if not (ok and data) then
+    note(mod, c, "could not load %s; skipping it", c)
+    return nil
+  end
+  data:mapPixel(function(_, _, r, g, b, a)
+    if a < 0.5 then return 0, 0, 0, 0 end
+    return r, g, b, 1
+  end)
+  return data
+end
+
 -- A trainer's sprite sheet from an installed game: grey, plus colours
 -- (the game's own for Gen 2, else Gen 2's). nil if no game has it. The
 -- sprite record names its sheet and, in Gen 2, which object palette it
@@ -384,6 +423,8 @@ end
 local function frames(mod, base, kind)
   local meta = registered[base] or {}
   local own = OWN_OF[kind] and base .. OWN_OF[kind]
+  local colour = own and colourFile(mod, own)
+  if colour then return colour end
   if own and mod.assets:info(own) then
     local ok, data = pcall(love.image.newImageData, mod.assets:path(own))
     if ok and data then return colourise(data, colorsOf(meta, CRYSTAL_COLORS), true) end
@@ -415,7 +456,7 @@ local function bikeFrames(mod, base)
   if not grey then return nil end
   -- the walk's own colours, so both halves match
   local fallback = CRYSTAL_COLORS
-  if not mod.assets:info(base .. OWN_OF.walk) and romOf(meta) then
+  if not hasOwn(mod, base .. OWN_OF.walk) and romOf(meta) then
     local _, romColors = fromRom(mod, romOf(meta), "walk")
     fallback = romColors or fallback
   end
@@ -463,9 +504,11 @@ end
 local function fieldMove(mod, base, layout)
   local plan = FIELD_MOVE[layout]
   local rel = base .. OWN_FIELD_MOVE
-  if not plan or not mod.assets:info(rel) then return nil end
+  if not plan or not hasOwn(mod, rel) then return nil end
   local walk = frames(mod, base, "walk")
-  local ok, data = pcall(love.image.newImageData, mod.assets:path(rel))
+  local colour = colourFile(mod, rel)
+  local ok, data = true, colour
+  if not colour then ok, data = pcall(love.image.newImageData, mod.assets:path(rel)) end
   if not (walk and ok and data) then return nil end
   local dw, dh = data:getDimensions()
   local n = math.floor(dh / 16)
@@ -473,7 +516,7 @@ local function fieldMove(mod, base, layout)
     note(mod, rel, "%s is %dx%d; it needs 16 wide and 16, 32, 48 or 64 tall (one to four poses)", rel, dw, dh)
     return nil
   end
-  local poses = colourise(data, colorsOf(registered[base] or {}, CRYSTAL_COLORS), true)
+  local poses = colour or colourise(data, colorsOf(registered[base] or {}, CRYSTAL_COLORS), true)
   local w, list = plan[1], plan[2]
   local out = love.image.newImageData(w, 32 * #list)
   for i, which in ipairs(list) do
@@ -496,7 +539,7 @@ local function mount(mod, base, file, layout)
   if not size then return nil end
   local which = romOf(registered[base])
   -- the folder's own surf art first, else the game's Pokémon -Elvie
-  local src = frames(mod, base, mod.assets:info(base .. OWN_OF.surf) and "surf" or mountKind(which, file))
+  local src = frames(mod, base, hasOwn(mod, base .. OWN_OF.surf) and "surf" or mountKind(which, file))
   if not src then return nil end
   local sw, sh = src:getDimensions()
   if sw ~= 16 or sh < 16 * 6 then return nil end
@@ -623,21 +666,24 @@ function fishParts(mod, base)
   if fishCache[base] ~= nil then return fishCache[base] or nil end
   local which = romOf(registered[base])
   local pose, own, rod, gen = {}, {}, nil, nil
+  -- own[part] is true for a grey tile, "colour" for one drawn in colour
   for facing, name in pairs(OWN_FISH) do
-    local data = ownImage(mod, base .. name)
+    local colour = colourFile(mod, base .. name)
+    local data = colour or ownImage(mod, base .. name)
     local w, h = 0, 0
     if data then w, h = data:getDimensions() end
-    if data and w == 16 and h == 8 then pose[facing], own[facing] = data, true
+    if data and w == 16 and h == 8 then pose[facing], own[facing] = data, colour and "colour" or true
     elseif data then note(mod, base .. name, "%s%s is %dx%d; it needs 16x8", base, name, w, h) end
   end
-  local rodData = ownImage(mod, base .. OWN_ROD)
+  local rodColour = colourFile(mod, base .. OWN_ROD)
+  local rodData = rodColour or ownImage(mod, base .. OWN_ROD)
   if rodData then
     local w, h = rodData:getDimensions()
     if w == 8 and h == 16 then
       -- placed as Gen 1's rod, or Gen 2's (a Crystal Clear sheet's) -Elvie
       local meta = registered[base] or {}
       rod, gen, own.rod = { [0] = crop(rodData, 0, 0, 8, 8), [1] = crop(rodData, 0, 8, 8, 8) },
-        meta.fishRod == "gen2" and 2 or 1, true
+        meta.fishRod == "gen2" and 2 or 1, rodColour and "colour" or true
     else
       note(mod, base .. OWN_ROD, "%s%s is %dx%d; it needs 8x16", base, OWN_ROD, w, h)
     end
@@ -678,7 +724,7 @@ local function fishing(mod, base)
     return nil
   end
   -- the walk's colours, and the folder's own shades for its own tiles -Elvie
-  local ownWalk = mod.assets:info(base .. OWN_OF.walk)
+  local ownWalk = hasOwn(mod, base .. OWN_OF.walk)
   local colors
   if ownWalk then
     colors = colorsOf(meta, CRYSTAL_COLORS)
@@ -687,15 +733,18 @@ local function fishing(mod, base)
     colors = colorsOf(meta, romColors or PALETTES.red)
   end
   local mine = {}
-  if ownWalk then mine[#mine + 1] = ownImage(mod, base .. OWN_OF.walk) end
-  for facing in pairs(OWN_FISH) do if art.own[facing] then mine[#mine + 1] = art.pose[facing] end end
-  if art.own.rod then mine[#mine + 1] = art.rod[0]; mine[#mine + 1] = art.rod[1] end
+  if mod.assets:info(base .. OWN_OF.walk) then mine[#mine + 1] = ownImage(mod, base .. OWN_OF.walk) end
+  for facing in pairs(OWN_FISH) do if art.own[facing] == true then mine[#mine + 1] = art.pose[facing] end end
+  if art.own.rod == true then mine[#mine + 1] = art.rod[0]; mine[#mine + 1] = art.rod[1] end
   local shades = #mine > 0 and rankedShades(mine) or nil
-  local pose, rod = {}, {}
-  for facing, tile in pairs(art.pose) do
-    pose[facing] = colourise(tile:clone(), colors, art.own[facing] and shades or false)
+  -- tiles drawn in colour stay as they are
+  local function tinted(tile, own)
+    if own == "colour" then return tile end
+    return colourise(tile:clone(), colors, own and shades or false)
   end
-  for i, tile in pairs(art.rod) do rod[i] = colourise(tile:clone(), colors, art.own.rod and shades or false) end
+  local pose, rod = {}, {}
+  for facing, tile in pairs(art.pose) do pose[facing] = tinted(tile, art.own[facing]) end
+  for i, tile in pairs(art.rod) do rod[i] = tinted(tile, art.own.rod) end
   local offsets = ROD[art.gen]
   local H = 32 + FISH_DROP
   local out = love.image.newImageData(32, H * 12)
@@ -863,6 +912,22 @@ function romPic(mod, which, file)
   return pic
 end
 
+-- back.png from a folder's backThrow.png, frames in each family's order
+local function throw(mod, base, layout)
+  local rel = base .. THROW
+  local order = THROW_FRAMES[layout]
+  local data = order and ownImage(mod, rel)
+  if not data then return nil end
+  local w, h = data:getDimensions()
+  if w ~= 64 or h ~= 64 * 5 then
+    note(mod, rel, "%s is %dx%d; it needs 64x320 (standing, then four throw frames)", rel, w, h)
+    return nil
+  end
+  local out = love.image.newImageData(64, 64 * #order)
+  for i, f in ipairs(order) do out:paste(data, 0, (i - 1) * 64, 0, f * 64, 64, 64) end
+  return out
+end
+
 -- The Gen 3 file as ImageData, or nil if the folder has no art for it.
 -- layout ("frlg" or "rse") sets the frame counts. -Elvie
 -- Like crossgame.retry: forget the misses (a game that wasn't imported,
@@ -881,6 +946,10 @@ function gameboy.load(mod, base, file, layout)
   if MOUNT[file] then return mount(mod, base, file, layout) end
   if file == "fishing.png" then return fishing(mod, base) end
   if file == "fieldMove.png" then return fieldMove(mod, base, layout) end
+  if file == "back.png" then
+    local thrown = throw(mod, base, layout)
+    if thrown then return thrown end
+  end
   if file == "surfBlob.png" then
     -- see-through: the Game Boy Pokémon is the whole picture -Elvie
     if not (BLOB[layout] and gameboy.has(mod, base, file)) then return nil end

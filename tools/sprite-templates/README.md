@@ -23,7 +23,11 @@ tiles: down and up, then left). `overworldSurf` and `overworldFishRod` are
 Emerald Lens's own; Crystal Lens ignores them. So is `overworldFieldMove`
 (16 wide, one to four 16x16 poses facing down, played after the standing
 frame for field moves and the VS Seeker); it isn't on `gb_sheet.png` yet,
-so save it as its own file. Packing `gb` writes the
+so save it as its own file. Any of the overworld files can also have a
+full-colour copy beside it (`overworldWalkColor.png` and so on), used as
+drawn in Emerald Lens, and `backThrow.png` (64x320: standing, then four
+throw frames) is a Gen 3-size back pic with its throw; neither is on the
+sheet, and Crystal Lens ignores both. Packing `gb` writes the
 files to the look folder's top level, where Crystal Lens keeps them:
 
     python3 pack_gen3.py pack gb gb_sheet.png ../../assets/sprites/mylook
