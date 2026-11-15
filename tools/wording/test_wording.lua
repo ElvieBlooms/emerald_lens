@@ -503,8 +503,10 @@ do
   handlers["mod.options_changed"]({ mod = "emerald_lens", key = "characterFrlg" })
   check(ctxs[#ctxs].folderKeys[1] == "may_x", "a fromGame look is offered in the other family (Emerald's May in FR/LG)")
   local X = package.loaded["mods.emerald_lens.crossgame"]
-  check(X and X.isBase("assets/sprites/may_x/gen3/frlg/") and not X.isBase("assets/sprites/red_x/gen3/frlg/"),
-    "fromGame bases are registered for the other family only")
+  -- since 1.1.0 RED's and LEAF's own FR/LG art is registered in FR/LG too,
+  -- as the fallback for their looks there
+  check(X and X.isBase("assets/sprites/may_x/gen3/frlg/") and X.isBase("assets/sprites/red_x/gen3/frlg/"),
+    "fromGame bases: the other family, and RED's home game as a fallback")
   options.characterFrlg = "ETHAN"
   handlers["mod.options_changed"]({ mod = "emerald_lens", key = "characterFrlg" })
   check(ctxs[#ctxs].folderKeys[1] == "ethan_x" and ctxs[#ctxs].genderMode == "boy",
