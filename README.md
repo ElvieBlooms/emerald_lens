@@ -268,6 +268,8 @@ The surf blob and bird have no boy or girl version, so they're only used when yo
 * RED and LEAF (FR/LG), BRENDAN and MAY (EMERALD): read from your own FireRed/LeafGreen or Emerald/Ruby/Sapphire, nothing shipped; Round dive blob by Elvie
 * ETHAN, LYRA, SILVER (HG/SS DS), LUCAS, DAWN, BARRY, NATE, ROSA, HUGH, HILBERT and HILDA: read from your own DS dumps through Prism Importer, nothing shipped
 * HILBERT, HILDA, NATE and ROSA: HGSS (Gen 4 style) by DiegoWT, Round dive blob by Elvie
+* RED: RGBY by hyo, based on Poffin_Case's FR/LG-style overworlds; LIBERTY by tebited15, from LibertyTwins (Round dive blob by Elvie)
+* LEAF: LIBERTY by tebited15, from LibertyTwins; Round dive blob by Elvie
 * Crystal Clear (GBC) looks: LEAF (GBC and SYGNA) by Bani, BRENDAN (GBC) by Hyo, MAY (GBC) by isactuallyabear
 * YELLOW (MANGA and MANGA NH, Game Boy looks of her manga design): by LilieBiehlina3siste; Yellow by Satoshi Tajiri and Hidenori Kusaka
 * PEACH: GBC (Game Boy look, Crystal Clear) by Bani; HGSS (Gen 4 style) from Slawter666, Round dive blob by Elvie
