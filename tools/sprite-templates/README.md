@@ -189,6 +189,11 @@ Need a fresh blank sheet? `python3 pack_gen3.py blank rse rse_sheet.png`
 The look folder also needs a `meta.json` (label, character, genderMode, and
 `"generation": 4` for DS-style art; see the mod README). If the art is
 someone else's, add their name under `"credit"` so it travels with the folder.
+A look that only covers part of the set (walking sprites and an intro, say)
+can name where the rest comes from with `"borrow"`, a character or a look's
+folder for everything (`"default"`) or for one kind of art (`"overworld"`,
+`"battle"`, `"front"`, `"intro"`, `"mapIcon"`, `"extras"`); see the mod README.
+Players can also mix looks themselves on the LENS screen (A on LOOK).
 The in-game **LENS** screen shows `credit` under the look (and in full on its
 CREDITS page),
 along with its `front.png` and a walking preview from `walk.png`, so it's a

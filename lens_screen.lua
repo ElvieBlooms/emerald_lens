@@ -18,6 +18,8 @@ local LAYER = "emerald_lens"
 local HELP_BG = { 0 / 255, 123 / 255, 197 / 255, 1 } -- same blue as the OPTION menu -Elvie
 local HELP = "{DPAD_LEFTRIGHT}CHANGE {B_BUTTON}EXIT"
 local CREDITS_HELP = "{DPAD_UPDOWN}SCROLL {B_BUTTON}BACK"
+local MIX_HELP = "{DPAD_LEFTRIGHT}CHANGE {A_BUTTON}MIX {B_BUTTON}EXIT"
+local SUB_HELP = "{DPAD_LEFTRIGHT}CHANGE {B_BUTTON}BACK"
 
 -- Window(1, 3, 28, 16): 8..232 x 24..152 inside the frame. -Elvie
 local LABEL_X, VALUE_X, ROW_Y0, ROW_STEP = 16, 80, 26, 13
@@ -89,22 +91,32 @@ function screen.new(mod, model)
   local state -- nil while closed -Elvie
   local images = {} -- [front file and chain] = { front, walk } -Elvie
 
+  -- frontBases and walkBases, when the look has a MIX: each through its
+  -- own chain -Elvie
   local function previewImages(preview)
-    local key = (preview.frontFile or "") .. "|" .. table.concat(preview.bases, "|")
+    local fronts, walks = preview.frontBases or preview.bases, preview.walkBases or preview.bases
+    local key = (preview.frontFile or "") .. "|" .. table.concat(fronts, "|") .. "||" .. table.concat(walks, "|")
     local got = images[key]
     if got == nil then
       got = {
-        front = loadFirst(mod, preview.bases, preview.frontFile or "front.png", isFront, preview.layout)
-          or (preview.frontFile and loadFirst(mod, preview.bases, "front.png", isFront, preview.layout)),
+        front = loadFirst(mod, fronts, preview.frontFile or "front.png", isFront, preview.layout)
+          or (preview.frontFile and loadFirst(mod, fronts, "front.png", isFront, preview.layout)),
       }
-      got.walk, got.walkFrame = loadFirst(mod, preview.bases, "walk.png", isWalk, preview.layout)
+      got.walk, got.walkFrame = loadFirst(mod, walks, "walk.png", isWalk, preview.layout)
       images[key] = got
     end
     return got
   end
 
+  -- On a MIX page (state.sub) its rows; with nothing to mix any more
+  -- (the character set to OFF), back to the main rows -Elvie
   local function rows()
-    local list = model.rows()
+    local list
+    if state.sub and model.subRows then
+      list = model.subRows(state.sub)
+      if #list == 0 then state.sub, state.index = nil, state.mainIndex or 1 end
+    end
+    if not state.sub then list = model.rows() end
     if state.index > #list then state.index = #list end
     return list
   end
@@ -231,6 +243,10 @@ function screen.new(mod, model)
     if input:wasPressed("up") then state.index = (state.index - 2) % #list + 1
     elseif input:wasPressed("down") then state.index = state.index % #list + 1
     elseif row and row.page and input:wasPressed("a") then openCredits()
+    elseif row and row.sub and not state.sub and model.subRows and input:wasPressed("a") then
+      state.sub, state.mainIndex, state.index = row.sub, state.index, 1
+    elseif state.sub and input:wasPressed("b") then
+      state.sub, state.index = nil, state.mainIndex or 1
     elseif input:wasPressed("left") then if row then step(row, -1) end
     elseif input:wasPressed("right") or input:wasPressed("a") then if row then step(row, 1) end
     elseif input:wasPressed("b") or input:wasPressed("start") then S.close()
@@ -332,9 +348,11 @@ function screen.new(mod, model)
     local FrlgFont = engine("src.ui.game3.frlg_font")
     if not (Window and FrlgFont) then return end
     if state.credits then return drawCredits(Window, FrlgFont) end
-    drawChrome(Window, FrlgFont, model.title(), HELP)
-
     local list = rows()
+    local current = list[state.index]
+    local help = state.sub and SUB_HELP or (current and current.sub and model.subRows and MIX_HELP) or HELP
+    drawChrome(Window, FrlgFont, state.sub and model.subTitle and model.subTitle(state.sub) or model.title(), help)
+
     for i, row in ipairs(list) do
       local y = ROW_Y0 + (i - 1) * ROW_STEP
       Window.printPx(row.label, LABEL_X, y, { colors = FrlgFont.COLOR.NORMAL })

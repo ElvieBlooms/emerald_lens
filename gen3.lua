@@ -89,6 +89,21 @@ local EXTRAS = {
   rse  = { surfBlob = { 32, 96 },  bird = { 32, 32 }, diveBlob = { 32, 96 }, surfOverlay = { 32, 96 } },
 }
 
+-- MIX: which kind of art each file is, so a player can wear one look's
+-- overworld sprites with another's battle pics, say. lens.lua hands over
+-- a chain per kind (ctx.groups); a file not listed here, or a kind with
+-- no chain, goes through the look's own. -Elvie
+gen3.GROUPS = { "overworld", "battle", "front", "intro", "mapIcon", "extras" }
+gen3.GROUP_OF = {
+  ["front.png"] = "front", ["rivalEarly.png"] = "front", ["rivalLate.png"] = "front", ["rivalChampion.png"] = "front",
+  ["back.png"] = "battle",
+  ["intro.png"] = "intro",
+  ["mapIcon.png"] = "mapIcon",
+  ["flyBird.png"] = "overworld", ["diveBlob.png"] = "overworld",
+  ["surfBlob.png"] = "extras", ["surfOverlay.png"] = "extras", ["bird.png"] = "extras", ["bag.png"] = "extras",
+}
+for _, state in ipairs(OW_STATES) do gen3.GROUP_OF[state.file] = "overworld" end
+
 local FRAME = 64 * 64 * 4 -- one 64x64 RGBA frame of the FRLG Fly sheet
 
 -- Logs a bad file once instead of every frame it's requested. -Elvie
@@ -207,6 +222,16 @@ function gen3.init(mod, ctx)
   -- The rival's chain, the same way; empty when the rival is OFF. -Elvie
   local rivalBases, rivalPresent = {}, {}
   local rivalPicFile, rivalPicImage -- below, with the trainer pics
+  -- MIX (ctx.groups / ctx.rival.groups): a chain per kind of art, picked
+  -- on the LENS screen or borrowed in meta.json. A file whose kind has
+  -- none goes through the look's own chain. -Elvie
+  local groupBases, rivalGroupBases = {}, {}
+  local function chainOf(file)
+    return groupBases[gen3.GROUP_OF[file] or ""] or bases
+  end
+  local function rivalChainOf(file)
+    return rivalGroupBases[gen3.GROUP_OF[file] or ""] or rivalBases
+  end
 
   -- The gender the player picked, read the same way the engine's battle
   -- code does. nil before there's a save (the intro). -Elvie
@@ -269,7 +294,7 @@ function gen3.init(mod, ctx)
   -- come bigger (gen3.bigFrames); the 6th value is then the frame height.
   local function loadImage(file, expectW, expectH, altW, only, chain, frames)
     if not (love and love.image and love.graphics) then return nil end
-    for _, base in ipairs(only and { only } or chain or bases) do
+    for _, base in ipairs(only and { only } or chain or chainOf(file)) do
       local rel = base .. file
       -- A Game Boy look's pics are fitted to size as they load. Some
       -- come with extra rows below each 32-tall frame (fishing: the rod
@@ -726,7 +751,7 @@ function gen3.init(mod, ctx)
       if record ~= nil then return record or vanilla end
       local rival = rivalOwFiles()[tonumber(graphicsId)]
       if rival then
-        record = build(vanilla, rival.file, rivalBases, rival.frames) or false
+        record = build(vanilla, rival.file, rivalChainOf(rival.file), rival.frames) or false
       else
         if not owFile then resolveOwFiles() end
         local file
@@ -771,7 +796,7 @@ function gen3.init(mod, ctx)
   -- Per folder, so a look's own front.png comes before another look's
   -- rivalLate.png. -Elvie
   rivalPicImage = function(names, w, h)
-    for _, base in ipairs(rivalBases) do
+    for _, base in ipairs(rivalChainOf(frontRel)) do
       for _, name in ipairs(names) do
         local image, data = loadImage(name, w, h, nil, base)
         if image then return image, data end
@@ -1007,7 +1032,7 @@ function gen3.init(mod, ctx)
         if has(introRel) and introImage == nil then introImage = loadImage(introRel, 64, 96) or false end
         -- Oak shows the rival too, in the same 64x96 portrait format. -Elvie
         if rivalHas(introRel) and rivalIntro == nil then
-          rivalIntro = loadImage(introRel, 64, 96, nil, nil, rivalBases) or false
+          rivalIntro = loadImage(introRel, 64, 96, nil, nil, rivalChainOf(introRel)) or false
         end
         if type(assets) == "table" and ((has(introRel) and introImage) or rivalIntro) then
           local copy = {}
@@ -1036,7 +1061,7 @@ function gen3.init(mod, ctx)
         local image = originalGet(key, ...)
         if key ~= "rival" then return image end
         if rivalHas("walk.png") and rivalNaming == nil then
-          local wide, data, _, w = loadImage("walk.png", 16, FRLG_WALK_FRAMES * 32, 32, nil, rivalBases)
+          local wide, data, _, w = loadImage("walk.png", 16, FRLG_WALK_FRAMES * 32, 32, nil, rivalChainOf("walk.png"))
           if wide and w == 32 then
             local narrow = love.image.newImageData(16, FRLG_WALK_FRAMES * 32)
             narrow:paste(data, 0, 0, 8, 0, 16, FRLG_WALK_FRAMES * 32)
@@ -1204,17 +1229,29 @@ function gen3.init(mod, ctx)
 
     -- FRLG and RSE sheets differ in size, so each family gets its own
     -- folder: <folder>/gen3/frlg/ or <folder>/gen3/rse/. -Elvie
-    bases = {}
-    local seen = {}
-    for _, key in ipairs(folderKeys) do
-      if key and not seen[key] then
-        seen[key] = true
-        bases[#bases + 1] = baseOf(newCtx.spritesDir, key, newCtx.gameBoy)
+    local function basesOf(keys, dir, gameBoy)
+      local list, seen = {}, {}
+      for _, key in ipairs(keys) do
+        if key and not seen[key] then
+          seen[key] = true
+          list[#list + 1] = baseOf(dir, key, gameBoy)
+        end
       end
+      return list
     end
+    -- MIX: a chain per kind of art, when lens.lua has one -Elvie
+    local function groupsOf(groups, dir, gameBoy)
+      local out = {}
+      for group, keys in pairs(type(groups) == "table" and groups or {}) do
+        if type(keys) == "table" and #keys > 0 then out[group] = basesOf(keys, dir, gameBoy) end
+      end
+      return out
+    end
+    bases = basesOf(folderKeys, newCtx and newCtx.spritesDir, newCtx and newCtx.gameBoy)
+    groupBases = #slots > 0 and groupsOf(newCtx.groups, newCtx.spritesDir, newCtx.gameBoy) or {}
 
     surfBase = nil
-    for _, base in ipairs(bases) do
+    for _, base in ipairs(chainOf("surf.png")) do
       if exists(base, "surf.png") then surfBase = base break end
     end
 
@@ -1226,7 +1263,7 @@ function gen3.init(mod, ctx)
         "surfOverlay.png" }
       for _, state in ipairs(OW_STATES) do files[#files + 1] = state.file end
       for _, file in ipairs(files) do
-        for _, base in ipairs(bases) do
+        for _, base in ipairs(chainOf(file)) do
           if exists(base, file) then present[file] = true end
         end
       end
@@ -1234,18 +1271,15 @@ function gen3.init(mod, ctx)
 
     -- The rival's chain: ctx.rival = { folderKeys } from lens.lua, or nil
     -- for OFF. -Elvie
-    rivalBases, rivalPresent = {}, {}
+    rivalBases, rivalPresent, rivalGroupBases = {}, {}, {}
     local rival = newCtx and newCtx.rival
     if rival then
-      local seenRival = {}
-      for _, key in ipairs(rival.folderKeys or {}) do
-        if key and not seenRival[key] then
-          seenRival[key] = true
-          rivalBases[#rivalBases + 1] = baseOf(rival.spritesDir or newCtx.spritesDir, key, rival.gameBoy)
-        end
+      rivalBases = basesOf(rival.folderKeys or {}, rival.spritesDir or newCtx.spritesDir, rival.gameBoy)
+      if #rivalBases > 0 then
+        rivalGroupBases = groupsOf(rival.groups, rival.spritesDir or newCtx.spritesDir, rival.gameBoy)
       end
       for _, file in ipairs(RIVAL_FILES) do
-        for _, base in ipairs(rivalBases) do
+        for _, base in ipairs(rivalChainOf(file)) do
           if exists(base, file) then rivalPresent[file] = true end
         end
       end

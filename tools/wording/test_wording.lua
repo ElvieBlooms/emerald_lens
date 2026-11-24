@@ -805,5 +805,148 @@ do
   check(unlocked.frenemies, "achievements: Blue wearing a look (Frenemies)")
 end
 
+-- MIX: a chain per kind of art, from the LENS screen's picks (player and
+-- rival) and a look's "borrow" in meta.json, and gen3.lua loading each
+-- file through its kind's chain
+-- --------------------------------------------------
+do
+  local folders = {
+    kris = '{"label":"KRIS","character":"KRIS","genderMode":"girl"}',
+    ash = '{"label":"ASH","character":"ASH","genderMode":"boy"}',
+    ranger = '{"label":"RED RANGER","character":"RANGER","genderMode":"boy","borrow":{"default":"ASH","battle":"kris"}}',
+  }
+  local options, rows, handlers, ctxs = {}, nil, {}, {}
+  package.loaded["mods.emerald_lens.gen3"] = { init = function(_, ctx)
+    ctxs[#ctxs + 1] = ctx
+    return { configure = function(c) ctxs[#ctxs + 1] = c end }
+  end }
+  package.loaded["mods.emerald_lens.wording"] = { init = function() return { configure = function() end, refresh = function() end } end }
+  local layers = {}
+  package.loaded["src.ui.game3.stack"] = {
+    push = function(id, m) layers[#layers + 1] = { id = id, mod = m } end,
+    pop = function(id) for i = #layers, 1, -1 do if layers[i].id == id then table.remove(layers, i) end end end,
+    has = function(id) for _, l in ipairs(layers) do if l.id == id then return true end end return false end,
+    onClear = function() end,
+  }
+  local mod = {
+    id = "emerald_lens",
+    assets = {
+      list = function(_, dir) return dir == "assets/sprites" and { "kris", "ash", "ranger" } or {} end,
+      info = function(_, rel)
+        if rel:match("meta%.json$") then return { type = "file" } end
+        if rel:match("%.png$") then return nil end
+        return { type = "directory" }
+      end,
+    },
+    read = function(_, path) return folders[path:match("sprites/([^/]+)/")] end,
+    log = { warn = function() end, info = function() end },
+    options = { define = function(_, r) rows = r end, get = function(_, key) return options[key] end },
+    events = { on = function(_, name, fn) handlers[name] = fn end },
+    hooks = { wrap = function(_, name, fn) handlers[name] = fn end },
+  }
+  version = "firered"
+  options.characterFrlg = "RANGER"
+  dofile("lens.lua").init(mod)
+  local function same(a, b) return table.concat(a or {}, ",") == table.concat(b or {}, ",") end
+  local ctx = ctxs[#ctxs]
+  check(ctx and same(ctx.folderKeys, { "ranger", "ash" }), "MIX: borrow default: the rest from ASH: " .. table.concat(ctx and ctx.folderKeys or {}, ","))
+  check(same(ctx.groups.battle, { "ranger", "kris" }), "MIX: borrow battle: from KRIS's look")
+  check(ctx.groups.overworld == nil, "MIX: nothing picked or borrowed for overworld: the look's own chain")
+
+  options.mixFrlg_RANGER_overworld = "kris"
+  handlers["mod.options_changed"]({ mod = "emerald_lens", key = "mixFrlg_RANGER_overworld" })
+  ctx = ctxs[#ctxs]
+  check(same(ctx.groups.overworld, { "kris", "ranger", "ash" }), "MIX: a pick comes first, then the look and what it borrows")
+  options.mixFrlg_RANGER_battle = "ash"
+  handlers["mod.options_changed"]({ mod = "emerald_lens", key = "mixFrlg_RANGER_battle" })
+  check(same(ctxs[#ctxs].groups.battle, { "ash", "ranger", "kris" }), "MIX: a pick goes before what the look borrows")
+  options.mixFrlg_RANGER_front = "gone"
+  handlers["mod.options_changed"]({ mod = "emerald_lens", key = "mixFrlg_RANGER_front" })
+  check(ctxs[#ctxs].groups.front == nil, "MIX: a look that isn't there is AUTO")
+
+  options.rivalFrlg, options.rivalMixFrlg_KRIS_front, options.rivalMixFrlg_KRIS_battle = "KRIS", "ash", "ash"
+  handlers["mod.options_changed"]({ mod = "emerald_lens", key = "rivalMixFrlg_KRIS_front" })
+  ctx = ctxs[#ctxs]
+  check(ctx.rival and same(ctx.rival.groups.front, { "ash", "kris" }), "MIX: the rival's own picks")
+  check(ctx.rival.groups.battle == nil, "MIX: the rival has no back pic to mix")
+
+  -- the LENS screen: A on LOOK opens MIX: YOU, its rows set the picks
+  local game = { options = {}, mods = { modOptions = {}, events = { emit = function(_, _, p) handlers["mod.options_changed"](p) end } } }
+  function game:writeOptions() end
+  mod.options.get = function(_, key)
+    local t = game.mods.modOptions.emerald_lens
+    if t and t[key] ~= nil then return t[key] end
+    return options[key]
+  end
+  local optionRows = handlers["ui.options.rows"](function() return {} end, game, {})
+  optionRows[#optionRows].activate(game)
+  local screen = layers[#layers].mod
+  local function press(key) return { wasPressed = function(_, k) return k == key end } end
+  screen.handleInput(press("down")) -- LOOK
+  screen.handleInput(press("a"))
+  local drawn = {}
+  package.loaded["src.ui.game3.window"] = { printPx = function(t) drawn[#drawn + 1] = t end, cursorPx = function() end,
+    userFrame = function() end, template = function() end }
+  package.loaded["src.ui.game3.frlg_font"] = { measure = function(t) return #t * 5 end, draw = function(t) drawn[#drawn + 1] = t end,
+    COLOR = {}, drawGlyph = function() end }
+  local loveBefore = love
+  love = { graphics = { setColor = function() end, rectangle = function() end, draw = function() end } }
+  screen.draw()
+  local text = table.concat(drawn, "|")
+  check(text:find("MIX: YOU", 1, true) and text:find("OVERWORLD|KRIS", 1, true) and text:find("BATTLE|ASH", 1, true)
+    and text:find("INTRO", 1, true), "MIX: YOU lists each kind with its pick: " .. text)
+  screen.handleInput(press("down")) -- BATTLE
+  screen.handleInput(press("left"))
+  check(game.mods.modOptions.emerald_lens.mixFrlg_RANGER_battle == "auto", "MIX: left from the first look is AUTO")
+  check(ctxs[#ctxs].groups.battle and same(ctxs[#ctxs].groups.battle, { "ranger", "kris" }), "MIX: AUTO goes back to what the look borrows")
+  screen.handleInput(press("b"))
+  drawn = {}
+  screen.draw()
+  check(table.concat(drawn, "|"):find("RED RANGER +", 1, true), "MIX: B goes back, and LOOK shows a + while something's mixed")
+  screen.handleInput(press("up")) -- CHARACTER
+  screen.handleInput(press("up")) -- wraps round to CREDITS
+  screen.handleInput(press("a"))
+  drawn = {}
+  screen.draw()
+  text = table.concat(drawn, "|")
+  check(text:find("YOU: RANGER: RED RANGER", 1, true) and text:find("RIVAL, FRONT PIC: ASH", 1, true),
+    "credits: the look's own label, and looks mixed in: " .. text)
+  screen.handleInput(press("b"))
+  screen.handleInput(press("b"))
+  check(#layers == 0, "MIX: B again closes the screen")
+  package.loaded["src.ui.game3.window"], package.loaded["src.ui.game3.frlg_font"] = nil, nil
+  love = loveBefore
+
+  -- gen3.lua: each file through its kind's chain
+  local files = { ["assets/sprites/ranger/gen3/frlg/walk.png"] = { 16, 640 },
+    ["assets/sprites/ranger/gen3/frlg/back.png"] = { 64, 320 },
+    ["assets/sprites/kris/gen3/frlg/back.png"] = { 64, 320 },
+    ["assets/sprites/kris/gen3/frlg/front.png"] = { 64, 64 },
+    ["assets/sprites/ash/gen3/frlg/front.png"] = { 64, 64 } }
+  local oldLove = love
+  love = { image = { newImageData = function(path)
+      local size = files[path]
+      return { getDimensions = function() return size[1], size[2] end, path = path }
+    end },
+    graphics = { newImage = function(data) return { setFilter = function() end, path = data.path } end } }
+  local TrainerPic = { back = function() return { w = 64, h = 320 } end, front = function() return { w = 64, h = 64 } end }
+  package.loaded["src.core.game3.trainer_pic"] = TrainerPic
+  local g3mod = { id = "emerald_lens", game = { session = { gender = 0 } },
+    assets = { info = function(_, rel) return files[rel] and { type = "file" } or nil end, path = function(_, rel) return rel end },
+    read = function() return nil end, log = { info = function() end, warn = function() end } }
+  local okG3, gen3real = pcall(dofile, "gen3.lua")
+  local h = okG3 and gen3real.init(g3mod, { folderKeys = { "ranger", "ash" }, genderMode = "boy", spritesDir = "assets/sprites",
+    groups = { battle = { "kris", "ranger" }, front = { "ash", "ranger" } } })
+  local back = h and TrainerPic.back(0)
+  check(back and back.image and back.image.path == "assets/sprites/kris/gen3/frlg/back.png", "gen3: the back pic through BATTLE's chain")
+  local front = h and TrainerPic.front(135)
+  check(front and front.image and front.image.path == "assets/sprites/ash/gen3/frlg/front.png", "gen3: the front pic through FRONT PIC's chain")
+  h.configure({ folderKeys = { "ranger", "ash" }, genderMode = "boy", spritesDir = "assets/sprites" })
+  back = TrainerPic.back(0)
+  check(back and back.image and back.image.path == "assets/sprites/ranger/gen3/frlg/back.png", "gen3: no MIX, the look's own back")
+  love = oldLove
+  package.loaded["src.core.game3.trainer_pic"] = nil
+end
+
 print(("%d passed, %d failed"):format(passed, failed))
 os.exit(failed == 0 and 0 or 1)

@@ -626,6 +626,96 @@ function lens.init(mod)
     return character
   end
 
+  -- MIX
+  -- One look's overworld sprites with another's battle pics, say. Each
+  -- kind of art (gen3.GROUPS) gets a chain of its own: the look picked
+  -- for it on the LENS screen (and that look's own fallback), then the
+  -- player's look, then what its meta.json "borrow" names, then the
+  -- character's other looks. "borrow" is for looks that only draw some
+  -- of the art, so the rest doesn't drop to the game's own player:
+  --   "borrow": { "default": "ASH", "battle": "kris_blue" }
+  -- A value is a character (its default look in this game) or a look's
+  -- folder. "default" is for every kind not named. The rival gets its
+  -- own picks. Only the Gen 3 games. -Elvie
+  local MIX_GROUPS = {
+    { id = "overworld", label = "OVERWORLD", rival = true },
+    { id = "battle", label = "BATTLE" },
+    { id = "front", label = "FRONT PIC", rival = true },
+    { id = "intro", label = "INTRO", rival = true, only = "frlg" },
+    { id = "mapIcon", label = "MAP ICON" },
+    { id = "extras", label = "EXTRAS" },
+  }
+  local AUTO = "auto"
+  local characterOfLook = {}
+  for character, entries in pairs(allFolders) do
+    for _, entry in ipairs(entries) do characterOfLook[entry.key] = character end
+  end
+  local function mixGroups(family, rival)
+    local out = {}
+    for _, group in ipairs(MIX_GROUPS) do
+      if (not rival or group.rival) and (not group.only or group.only == family.id) then out[#out + 1] = group end
+    end
+    return out
+  end
+  local function mixKey(family, character, group, rival)
+    return (rival and "rivalMix" or "mix") .. family.suffix .. "_" .. characterKey(character) .. "_" .. group
+  end
+  -- The look picked for a kind of art, or nil for AUTO (or a look that's
+  -- gone)
+  local function mixPick(family, character, group, rival)
+    local value = mod.options:get(mixKey(family, character, group, rival))
+    local owner = type(value) == "string" and characterOfLook[value]
+    if not owner or not lookFolders[family.id][owner] then return nil end
+    for _, entry in ipairs(lookFolders[family.id][owner]) do
+      if entry.key == value then return value end
+    end
+    return nil
+  end
+  -- A "borrow" value as a chain: a character from its default look in
+  -- this game, a look from itself
+  local function borrowChain(family, value)
+    if type(value) ~= "string" or value == "" then return nil end
+    if allFolders[value] then
+      local looks = lookFolders[family.id][value]
+      local first = looks and (lookDefaults[family.id .. ":" .. value] or looks[1].key) or allFolders[value][1].key
+      return chainFor(value, first)
+    end
+    local upper = value:upper()
+    if allFolders[upper] then return borrowChain(family, upper) end
+    if characterOfLook[value] then return chainFor(characterOfLook[value], value) end
+    return nil
+  end
+  local function append(list, more)
+    for _, key in ipairs(more or {}) do list[#list + 1] = key end
+    return list
+  end
+  -- The look's chain with what it borrows, and a chain per kind of art
+  -- where that kind is picked or borrowed on its own
+  local function mixedChain(family, character, selected, rival)
+    local own = chainFor(character, selected)
+    local rest = {}
+    for i = 2, #own do rest[#rest + 1] = own[i] end
+    local borrow = (metaFor[selected] or {}).borrow
+    if type(borrow) ~= "table" then borrow = {} end
+    local default = borrowChain(family, borrow.default)
+    local folderKeys = append(append({ selected }, default), rest)
+    local groups, mixed = {}, {}
+    if not family.gb then
+      for _, group in ipairs(mixGroups(family, rival)) do
+        local pick = mixPick(family, character, group.id, rival)
+        local lent = borrowChain(family, borrow[group.id])
+        if pick or lent then
+          local list = pick and chainFor(characterOfLook[pick], pick) or {}
+          append(list, { selected })
+          append(list, lent or default)
+          groups[group.id] = append(list, rest)
+          if pick then mixed[#mixed + 1] = group end
+        end
+      end
+    end
+    return folderKeys, groups, mixed
+  end
+
 
   local handle
   -- With Crystal Lens leading, its pick (see the end of init); restarting
@@ -677,14 +767,15 @@ function lens.init(mod)
     end
     if character then
       local selected = selectedLook(running, character)
-      ctx.folderKeys = chainFor(character, selected)
+      ctx.folderKeys, ctx.groups = mixedChain(running, character, selected)
       ctx.lookKey = selected
       ctx.genderMode = genderModeOf(selected)
       ctx.fitSave = fitsSave(running) or nil
     end
     local rival = currentRival(running)
     if rival then
-      ctx.rival = { folderKeys = chainFor(rival, selectedLook(running, rival, true)), gameBoy = gameBoyFor[running.id] }
+      local keys, groups = mixedChain(running, rival, selectedLook(running, rival, true), true)
+      ctx.rival = { folderKeys = keys, groups = groups, gameBoy = gameBoyFor[running.id] }
     end
     if not character and not rival and not kit then return nil end
     return ctx
@@ -735,7 +826,7 @@ function lens.init(mod)
     local gb = running and gameBoyFor[running.id] or {}
     local names = rival and { "rivalEarly", "front" } or { "front" }
     for _, name in ipairs(names) do
-      for _, key in ipairs(chainFor(character, look)) do
+      for _, key in ipairs((mixedChain(running, character, look, rival))) do
         local files = gb[key] and { SPRITES_DIR .. "/" .. key .. "/" .. name .. "Color.png", SPRITES_DIR .. "/" .. key .. "/" .. name .. ".png" } or {}
         if not gb[key] then
           for _, art in ipairs(running.art) do files[#files + 1] = SPRITES_DIR .. "/" .. key .. "/gen3/" .. art .. "/" .. name .. ".png" end
@@ -745,7 +836,7 @@ function lens.init(mod)
         end
       end
     end
-    for _, key in ipairs(chainFor(character, look)) do
+    for _, key in ipairs((mixedChain(running, character, look, rival))) do
       if out.walk or out.walkGb then break end
       if gb[key] then
         local rel = SPRITES_DIR .. "/" .. key .. "/overworldWalk.png"
@@ -780,7 +871,7 @@ function lens.init(mod)
     local rival = currentRival(running)
     if not rival then return nil end
     local look = selectedLook(running, rival, true)
-    return { folderKeys = chainFor(rival, look), spritesDir = SPRITES_DIR,
+    return { folderKeys = (mixedChain(running, rival, look, true)), spritesDir = SPRITES_DIR,
       gameBoy = gameBoyFor[running.id], genderMode = genderModeOf(look) }
   end
 
@@ -837,7 +928,7 @@ function lens.init(mod)
           -- SURF is this mod's own row
           crystalPick = function()
             local kit = surfKitOf(running)
-            return { folderKeys = chainFor(character, folder), lookKey = folder, genderMode = genderModeOf(folder),
+            return { folderKeys = (mixedChain(running, character, folder)), lookKey = folder, genderMode = genderModeOf(folder),
               fitSave = true, spritesDir = SPRITES_DIR, surfKit = kit and (SURF_DIR .. "/" .. kit .. "/") or nil,
               gameBoy = gameBoyFor[running.id] }
           end
@@ -846,7 +937,7 @@ function lens.init(mod)
         configureRival = function(key)
           local folder = folderOf(key)
           local character = folder and characterOf[folder]
-          handle.configureRival(character and { folderKeys = chainFor(character, folder), spritesDir = SPRITES_DIR,
+          handle.configureRival(character and { folderKeys = (mixedChain(running, character, folder)), spritesDir = SPRITES_DIR,
             gameBoy = gameBoyFor[running.id], genderMode = genderModeOf(folder) } or nil)
         end,
         preview = function(key)
@@ -934,7 +1025,7 @@ function lens.init(mod)
     end
   end
 
-  local function labelOf(list, value)
+  local function choiceLabel(list, value)
     for _, choice in ipairs(list) do
       if choice[2] == value then return choice[1] end
     end
@@ -944,7 +1035,7 @@ function lens.init(mod)
   local function screenRows()
     local f, rows = running, {}
     local function add(row)
-      row.valueLabel = row.valueLabel or labelOf(row.choices, row.value)
+      row.valueLabel = row.valueLabel or choiceLabel(row.choices, row.value)
       rows[#rows + 1] = row
     end
     local characters = pairsOf(choicesFor[f.id])
@@ -953,8 +1044,12 @@ function lens.init(mod)
     add({ key = "character" .. f.suffix, label = "CHARACTER", who = "player",
       choices = characters, value = character or OFF })
     if character then
-      add({ key = lookKey(f, character), label = "LOOK", who = "player",
-        choices = pairsOf(lookFolders[f.id][character]), value = selectedLook(f, character) })
+      -- A opens MIX for this look; a + after the name says something's mixed in
+      local look = selectedLook(f, character)
+      local _, _, mixed = mixedChain(f, character, look)
+      local choices = pairsOf(lookFolders[f.id][character])
+      add({ key = lookKey(f, character), label = "LOOK", who = "player", sub = "mix",
+        choices = choices, value = look, valueLabel = choiceLabel(choices, look) .. (#mixed > 0 and " +" or "") })
       -- an enby look already fits either save, so it has no GENDER row -Elvie
       local mode = genderModeOf(selectedLook(f, character))
       if mode ~= "enby" then
@@ -968,8 +1063,11 @@ function lens.init(mod)
     local rival = currentRival(f)
     add({ key = "rival" .. f.suffix, label = "RIVAL", who = "rival", choices = rivals, value = rival or OFF })
     if rival then
-      add({ key = rivalLookKey(f, rival), label = "RIVAL LOOK", who = "rival",
-        choices = pairsOf(lookFolders[f.id][rival]), value = selectedLook(f, rival, true) })
+      local look = selectedLook(f, rival, true)
+      local _, _, mixed = mixedChain(f, rival, look, true)
+      local choices = pairsOf(lookFolders[f.id][rival])
+      add({ key = rivalLookKey(f, rival), label = "RIVAL LOOK", who = "rival", sub = "rivalMix",
+        choices = choices, value = look, valueLabel = choiceLabel(choices, look) .. (#mixed > 0 and " +" or "") })
     end
     add({ key = "text" .. f.suffix, label = "TEXT", who = "text",
       choices = { { "ON", "on" }, { "OFF", "off" } },
@@ -1001,6 +1099,23 @@ function lens.init(mod)
     return (g == 1 or g == "female" or g == "F") and "girl" or "boy"
   end
 
+  local function lookName(character, key)
+    local label = labelOf(metaFor[key] or {}, key)
+    return label == character and character or (character .. ": " .. label)
+  end
+
+  -- What each kind of art covers, for the MIX page
+  local MIX_ABOUT = {
+    overworld = "Walking, bikes, surfing, fishing.",
+    battle = "The back pic and the throw.",
+    front = running and running.id == "rse" and "Trainer card, Birch's intro." or "The trainer card.",
+    frontRival = "The battle pic.",
+    intro = "Oak's intro.",
+    introRival = "Oak's intro, as his grandkid.",
+    mapIcon = "The town map marker.",
+    extras = "Bag, surf blob, Fly bird.",
+  }
+
   local function creditLines(key, lines)
     local credit = (metaFor[key] or {}).credit
     if type(credit) == "string" then credit = { credit } end
@@ -1010,12 +1125,19 @@ function lens.init(mod)
     end
   end
 
-  local function basesOf(character, look)
+  local function basesFor(keys)
     local bases = {}
-    for _, key in ipairs(chainFor(character, look)) do
+    for _, key in ipairs(keys) do
       bases[#bases + 1] = SPRITES_DIR .. "/" .. key .. (gameBoyFor[running.id][key] and "/" or ("/gen3/" .. running.id .. "/"))
     end
     return bases
+  end
+  -- The preview's folders: the front pic and the walker each through
+  -- their own chain, so a MIX shows -Elvie
+  local function previewOf(character, look, rival)
+    local keys, groups = mixedChain(running, character, look, rival)
+    return { bases = basesFor(keys), frontBases = basesFor(groups.front or keys),
+      walkBases = basesFor(groups.overworld or keys), layout = running.id }
   end
 
   -- A line saying more looks come with Prism Importer or another dump,
@@ -1052,8 +1174,29 @@ function lens.init(mod)
         lines[#lines + 1] = { text = "Read from your " .. (crossgame.sourceName(metaFor[look], f.id) or "game") .. "." }
       end
       creditLines(look, lines)
-      return { bases = basesOf(rival, look), frontFile = f.id == "frlg" and "rivalEarly.png" or nil,
-        lines = lines, layout = f.id }
+      local p = previewOf(rival, look, true)
+      p.frontFile, p.lines = f.id == "frlg" and "rivalEarly.png" or nil, lines
+      return p
+    end
+    local mixWho, mixGroup = who:match("^(%a+):(%a+)$")
+    if mixWho then
+      -- a MIX row: what that kind of art covers, and whose it is
+      local rival = mixWho == "rivalMix"
+      local character = rival and currentRival(f) or currentCharacter(f)
+      if not character then return { lines = {} } end
+      local look = selectedLook(f, character, rival)
+      local pick = mixPick(f, character, mixGroup, rival)
+      lines[1] = { text = MIX_ABOUT[mixGroup .. (rival and "Rival" or "")] or MIX_ABOUT[mixGroup] or "" }
+      if pick then
+        lines[2] = { text = "From " .. lookName(characterOfLook[pick], pick) .. "." }
+        creditLines(pick, lines)
+      else
+        lines[2] = { text = "The look's own, as it falls back." }
+      end
+      local p = previewOf(character, look, rival)
+      if rival and f.id == "frlg" then p.frontFile = "rivalEarly.png" end
+      p.lines = lines
+      return p
     end
     if who == "surf" then
       local kit = surfKitOf(f)
@@ -1069,7 +1212,9 @@ function lens.init(mod)
       local character = currentCharacter(f)
       if not character then return { lines = lines } end
       local look = selectedLook(f, character)
-      return { bases = basesOf(character, look), lines = lines, layout = f.id }
+      local p = previewOf(character, look)
+      p.lines = lines
+      return p
     end
     local character = currentCharacter(f)
     if who == "text" then
@@ -1105,15 +1250,13 @@ function lens.init(mod)
       local more = moreLooks()
       if more then lines[#lines + 1] = { text = more } end
     end
-    return { bases = basesOf(character, look), lines = lines, layout = f.id }
+    local p = previewOf(character, look)
+    p.lines = lines
+    return p
   end
 
   -- The credits page: the player's and the rival's looks, every other
   -- look this family offers, then the mod itself. -Elvie
-  local function lookName(character, key)
-    local label = labelOf(metaFor[key] or {}, key)
-    return label == character and character or (character .. ": " .. label)
-  end
 
   local function screenCredits()
     local f, out, listed = running, {}, {}
@@ -1128,6 +1271,15 @@ function lens.init(mod)
     local character, rival = currentCharacter(f), currentRival(f)
     if character then addLook("YOU: ", character, selectedLook(f, character)) end
     if rival then addLook("RIVAL: ", rival, selectedLook(f, rival, true)) end
+    -- looks mixed in, under the kind of art they're for -Elvie
+    for _, who in ipairs({ { character, false, "YOU" }, { rival, true, "RIVAL" } }) do
+      if who[1] then
+        for _, group in ipairs(mixGroups(f, who[2])) do
+          local pick = mixPick(f, who[1], group.id, who[2])
+          if pick and not listed[pick] then addLook(who[3] .. ", " .. group.label .. ": ", characterOfLook[pick], pick) end
+        end
+      end
+    end
     for _, choice in ipairs(choicesFor[f.id]) do
       for _, entry in ipairs(lookFolders[f.id][choice.key]) do
         if not listed[entry.key] then addLook("", choice.key, entry.key) end
@@ -1148,6 +1300,32 @@ function lens.init(mod)
     return out
   end
 
+  -- The MIX page for the player's look (sub "mix") or the rival's
+  -- ("rivalMix"): a row per kind of art, AUTO or any look this game
+  -- offers -Elvie
+  local function mixRows(sub)
+    local f, rows = running, {}
+    local rival = sub == "rivalMix"
+    local character = rival and currentRival(f) or currentCharacter(f)
+    if not character then return rows end
+    local choices = { { "AUTO", AUTO } }
+    for _, choice in ipairs(choicesFor[f.id]) do
+      for _, entry in ipairs(lookFolders[f.id][choice.key]) do
+        choices[#choices + 1] = { lookName(choice.key, entry.key), entry.key }
+      end
+    end
+    for _, group in ipairs(mixGroups(f, rival)) do
+      local value = mixPick(f, character, group.id, rival) or AUTO
+      rows[#rows + 1] = { key = mixKey(f, character, group.id, rival), label = group.label,
+        who = sub .. ":" .. group.id, choices = choices, value = value,
+        valueLabel = choiceLabel(choices, value) }
+    end
+    return rows
+  end
+  local function mixTitle(sub)
+    return sub == "rivalMix" and "MIX: RIVAL" or "MIX: YOU"
+  end
+
   local lensScreen
   if running and defaults[running.id] and not running.gb then
     lensScreen = require("mods.emerald_lens.lens_screen").new(mod, {
@@ -1156,6 +1334,8 @@ function lens.init(mod)
       set = setOption,
       preview = screenPreview,
       credits = screenCredits,
+      subRows = mixRows,
+      subTitle = mixTitle,
     })
   end
 
@@ -1210,7 +1390,7 @@ function lens.init(mod)
   local function gbRows()
     local f, rows = running, {}
     local function add(row)
-      row.valueLabel = row.valueLabel or labelOf(row.choices, row.value)
+      row.valueLabel = row.valueLabel or choiceLabel(row.choices, row.value)
       rows[#rows + 1] = row
     end
     local characters = pairsOf(choicesFor[f.id])
@@ -1296,13 +1476,16 @@ function lens.init(mod)
     -- change the sprites. -Elvie
     local lookPrefix = running and ("look" .. running.suffix .. "_")
     local rivalPrefix = running and ("rivalLook" .. running.suffix .. "_")
+    local mixPrefix = running and ("mix" .. running.suffix .. "_")
+    local rivalMixPrefix = running and ("rivalMix" .. running.suffix .. "_")
     mod.events:on("mod.options_changed", function(change)
       if type(change) ~= "table" or change.mod ~= mod.id or type(change.key) ~= "string" then return end
       local key = change.key
       if key:sub(1, 9) == "character" or key:sub(1, 4) == "look" then updateGender() end
       local rivalKey = key == "rival" .. running.suffix or key:sub(1, #rivalPrefix) == rivalPrefix
       if handle and (key == "character" .. running.suffix or key:sub(1, #lookPrefix) == lookPrefix
-          or key == "gender" .. running.suffix or key == "surf" .. running.suffix or rivalKey) then
+          or key == "gender" .. running.suffix or key == "surf" .. running.suffix or rivalKey
+          or key:sub(1, #mixPrefix) == mixPrefix or key:sub(1, #rivalMixPrefix) == rivalMixPrefix) then
         handle.configure(crystalPick and crystalPick() or resolve())
       end
       -- the Game Boy games' rival is set apart from the player
