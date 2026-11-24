@@ -27,6 +27,9 @@ local VALUE_W = 76
 local FRONT_X, FRONT_Y = 160, 24
 local WALK_X, WALK_Y, WALK_SCALE = 192, 88, 2 -- centre and top of the walker, drawn 2x -Elvie
 local INFO_W, WIN_BOTTOM = 152, 152 -- info lines start under the last row -Elvie
+-- A MIX page has more rows than fit with its info lines, so it shows
+-- this many at a time and scrolls, with little arrows when there's more
+local SHOWN = 7
 local CREDITS_W, CREDITS_ROWS = 208, 9
 
 -- Walk preview: down, left, up, right, each stand, step, stand, step.
@@ -244,7 +247,7 @@ function screen.new(mod, model)
     elseif input:wasPressed("down") then state.index = state.index % #list + 1
     elseif row and row.page and input:wasPressed("a") then openCredits()
     elseif row and row.sub and not state.sub and model.subRows and input:wasPressed("a") then
-      state.sub, state.mainIndex, state.index = row.sub, state.index, 1
+      state.sub, state.mainIndex, state.index, state.subTop = row.sub, state.index, 1, 1
     elseif state.sub and input:wasPressed("b") then
       state.sub, state.index = nil, state.mainIndex or 1
     elseif input:wasPressed("left") then if row then step(row, -1) end
@@ -353,20 +356,40 @@ function screen.new(mod, model)
     local help = state.sub and SUB_HELP or (current and current.sub and model.subRows and MIX_HELP) or HELP
     drawChrome(Window, FrlgFont, state.sub and model.subTitle and model.subTitle(state.sub) or model.title(), help)
 
-    for i, row in ipairs(list) do
-      local y = ROW_Y0 + (i - 1) * ROW_STEP
+    local shown = #list
+    state.top = 1
+    if state.sub and #list > SHOWN then
+      shown = SHOWN
+      state.subTop = math.max(1, math.min(state.subTop or 1, state.index, #list - shown + 1))
+      if state.index > state.subTop + shown - 1 then state.subTop = state.index - shown + 1 end
+      state.top = state.subTop
+    end
+    for slot = 1, shown do
+      local row = list[state.top + slot - 1]
+      local y = ROW_Y0 + (slot - 1) * ROW_STEP
       Window.printPx(row.label, LABEL_X, y, { colors = FrlgFont.COLOR.NORMAL })
       local value = fit(FrlgFont, row.valueLabel or "", VALUE_W)
       local changes = row.choices and #row.choices > 1 or row.page
       Window.printPx(value, VALUE_X, y,
         { colors = changes and FrlgFont.COLOR.OPTION_VALUE or FrlgFont.COLOR.NORMAL })
     end
-    Window.cursorPx(LABEL_X - 8, ROW_Y0 + (state.index - 1) * ROW_STEP)
+    Window.cursorPx(LABEL_X - 8, ROW_Y0 + (state.index - state.top) * ROW_STEP)
+    if shown < #list then
+      love.graphics.setColor(0.38, 0.38, 0.38, 1)
+      if state.top > 1 then
+        love.graphics.polygon("fill", VALUE_X - 7, ROW_Y0 + 8, VALUE_X - 1, ROW_Y0 + 8, VALUE_X - 4, ROW_Y0 + 4)
+      end
+      if state.top + shown - 1 < #list then
+        local y = ROW_Y0 + (shown - 1) * ROW_STEP
+        love.graphics.polygon("fill", VALUE_X - 7, y + 6, VALUE_X - 1, y + 6, VALUE_X - 4, y + 10)
+      end
+      love.graphics.setColor(1, 1, 1, 1)
+    end
 
     local selected = list[state.index]
     local preview = model.preview(selected and selected.who or "player", state.game)
     drawPreview(preview, nil, state.clock)
-    local y = ROW_Y0 + #list * ROW_STEP + 2
+    local y = ROW_Y0 + shown * ROW_STEP + 2
     for _, line in ipairs(fitting(preview.lines or {}, math.floor((WIN_BOTTOM - y) / ROW_STEP))) do
       if y + ROW_STEP > WIN_BOTTOM then break end
       local colors = line.red and FrlgFont.COLOR.RED or FrlgFont.COLOR.NORMAL

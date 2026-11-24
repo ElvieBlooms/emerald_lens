@@ -813,7 +813,7 @@ do
   local folders = {
     kris = '{"label":"KRIS","character":"KRIS","genderMode":"girl"}',
     ash = '{"label":"ASH","character":"ASH","genderMode":"boy"}',
-    ranger = '{"label":"RED RANGER","character":"RANGER","genderMode":"boy","borrow":{"default":"ASH","battle":"kris"}}',
+    ranger = '{"label":"RED RANGER","character":"RANGER","genderMode":"boy","borrow":{"default":"ASH","battle":"kris","overworld":"kris"}}',
   }
   local options, rows, handlers, ctxs = {}, nil, {}, {}
   package.loaded["mods.emerald_lens.gen3"] = { init = function(_, ctx)
@@ -851,12 +851,15 @@ do
   local ctx = ctxs[#ctxs]
   check(ctx and same(ctx.folderKeys, { "ranger", "ash" }), "MIX: borrow default: the rest from ASH: " .. table.concat(ctx and ctx.folderKeys or {}, ","))
   check(same(ctx.groups.battle, { "ranger", "kris" }), "MIX: borrow battle: from KRIS's look")
-  check(ctx.groups.overworld == nil, "MIX: nothing picked or borrowed for overworld: the look's own chain")
+  check(ctx.groups.front == nil, "MIX: nothing picked or borrowed for the front pic: the look's own chain")
+  check(same(ctx.groups.fishing, { "ranger", "kris" }) and same(ctx.groups.walk, { "ranger", "kris" }),
+    "MIX: borrow overworld covers every overworld kind")
 
-  options.mixFrlg_RANGER_overworld = "kris"
-  handlers["mod.options_changed"]({ mod = "emerald_lens", key = "mixFrlg_RANGER_overworld" })
+  options.mixFrlg_RANGER_walk = "kris"
+  handlers["mod.options_changed"]({ mod = "emerald_lens", key = "mixFrlg_RANGER_walk" })
   ctx = ctxs[#ctxs]
-  check(same(ctx.groups.overworld, { "kris", "ranger", "ash" }), "MIX: a pick comes first, then the look and what it borrows")
+  check(same(ctx.groups.walk, { "kris", "ranger" }), "MIX: a pick comes first, then the look and what it borrows")
+  check(same(ctx.groups.bike, { "ranger", "kris" }), "MIX: a pick only changes its own kind")
   options.mixFrlg_RANGER_battle = "ash"
   handlers["mod.options_changed"]({ mod = "emerald_lens", key = "mixFrlg_RANGER_battle" })
   check(same(ctxs[#ctxs].groups.battle, { "ash", "ranger", "kris" }), "MIX: a pick goes before what the look borrows")
@@ -865,10 +868,12 @@ do
   check(ctxs[#ctxs].groups.front == nil, "MIX: a look that isn't there is AUTO")
 
   options.rivalFrlg, options.rivalMixFrlg_KRIS_front, options.rivalMixFrlg_KRIS_battle = "KRIS", "ash", "ash"
+  options.rivalMixFrlg_KRIS_bike = "ash"
   handlers["mod.options_changed"]({ mod = "emerald_lens", key = "rivalMixFrlg_KRIS_front" })
   ctx = ctxs[#ctxs]
   check(ctx.rival and same(ctx.rival.groups.front, { "ash", "kris" }), "MIX: the rival's own picks")
   check(ctx.rival.groups.battle == nil, "MIX: the rival has no back pic to mix")
+  check(ctx.rival.groups.bike == nil, "MIX: FR/LG's rival only walks, so there's no bike to mix")
 
   -- the LENS screen: A on LOOK opens MIX: YOU, its rows set the picks
   local game = { options = {}, mods = { modOptions = {}, events = { emit = function(_, _, p) handlers["mod.options_changed"](p) end } } }
@@ -890,12 +895,17 @@ do
   package.loaded["src.ui.game3.frlg_font"] = { measure = function(t) return #t * 5 end, draw = function(t) drawn[#drawn + 1] = t end,
     COLOR = {}, drawGlyph = function() end }
   local loveBefore = love
-  love = { graphics = { setColor = function() end, rectangle = function() end, draw = function() end } }
+  love = { graphics = { setColor = function() end, rectangle = function() end, draw = function() end, polygon = function() end } }
   screen.draw()
   local text = table.concat(drawn, "|")
-  check(text:find("MIX: YOU", 1, true) and text:find("OVERWORLD|KRIS", 1, true) and text:find("BATTLE|ASH", 1, true)
-    and text:find("INTRO", 1, true), "MIX: YOU lists each kind with its pick: " .. text)
-  screen.handleInput(press("down")) -- BATTLE
+  check(text:find("MIX: YOU", 1, true) and text:find("WALK|KRIS", 1, true) and text:find("BATTLE|ASH", 1, true)
+    and not text:find("INTRO", 1, true), "MIX: YOU lists the first seven kinds with their picks: " .. text)
+  for _ = 1, 8 do screen.handleInput(press("down")) end -- INTRO
+  drawn = {}
+  screen.draw()
+  text = table.concat(drawn, "|")
+  check(text:find("INTRO", 1, true) and not text:find("WALK", 1, true), "MIX: the rows scroll: " .. text)
+  for _ = 1, 2 do screen.handleInput(press("up")) end -- BATTLE
   screen.handleInput(press("left"))
   check(game.mods.modOptions.emerald_lens.mixFrlg_RANGER_battle == "auto", "MIX: left from the first look is AUTO")
   check(ctxs[#ctxs].groups.battle and same(ctxs[#ctxs].groups.battle, { "ranger", "kris" }), "MIX: AUTO goes back to what the look borrows")

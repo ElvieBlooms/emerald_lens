@@ -637,13 +637,21 @@ function lens.init(mod)
   -- A value is a character (its default look in this game) or a look's
   -- folder. "default" is for every kind not named. The rival gets its
   -- own picks. Only the Gen 3 games. -Elvie
+  -- rival: the families where the rival has that art (FR/LG's Blue only
+  -- walks; R/S/E's rival has no Oak intro). overworld: what "borrow"'s
+  -- "overworld" covers
   local MIX_GROUPS = {
-    { id = "overworld", label = "OVERWORLD", rival = true },
+    { id = "walk", label = "WALK", rival = { frlg = true, rse = true }, overworld = true },
+    { id = "bike", label = "BIKE", rival = { rse = true }, overworld = true },
+    { id = "surf", label = "SURF", rival = { rse = true }, overworld = true },
+    { id = "fishing", label = "FISHING", overworld = true },
+    { id = "fieldMove", label = "FIELD MOVE", rival = { rse = true }, overworld = true },
+    { id = "fly", label = "FLY", overworld = true },
     { id = "battle", label = "BATTLE" },
-    { id = "front", label = "FRONT PIC", rival = true },
-    { id = "intro", label = "INTRO", rival = true, only = "frlg" },
+    { id = "front", label = "FRONT PIC", rival = { frlg = true, rse = true } },
+    { id = "intro", label = "INTRO", rival = { frlg = true }, only = "frlg" },
     { id = "mapIcon", label = "MAP ICON" },
-    { id = "extras", label = "EXTRAS" },
+    { id = "bag", label = "BAG" },
   }
   local AUTO = "auto"
   local characterOfLook = {}
@@ -653,7 +661,9 @@ function lens.init(mod)
   local function mixGroups(family, rival)
     local out = {}
     for _, group in ipairs(MIX_GROUPS) do
-      if (not rival or group.rival) and (not group.only or group.only == family.id) then out[#out + 1] = group end
+      if (not rival or (group.rival and group.rival[family.id])) and (not group.only or group.only == family.id) then
+        out[#out + 1] = group
+      end
     end
     return out
   end
@@ -703,12 +713,16 @@ function lens.init(mod)
     if not family.gb then
       for _, group in ipairs(mixGroups(family, rival)) do
         local pick = mixPick(family, character, group.id, rival)
-        local lent = borrowChain(family, borrow[group.id])
+        local lent = borrowChain(family, borrow[group.id] or (group.overworld and borrow.overworld or nil))
         if pick or lent then
           local list = pick and chainFor(characterOfLook[pick], pick) or {}
           append(list, { selected })
           append(list, lent or default)
-          groups[group.id] = append(list, rest)
+          local seen, unique = {}, {}
+          for _, key in ipairs(append(list, rest)) do
+            if not seen[key] then seen[key], unique[#unique + 1] = true, key end
+          end
+          groups[group.id] = unique
           if pick then mixed[#mixed + 1] = group end
         end
       end
@@ -1106,14 +1120,22 @@ function lens.init(mod)
 
   -- What each kind of art covers, for the MIX page
   local MIX_ABOUT = {
-    overworld = "Walking, bikes, surfing, fishing.",
+    walk = "Walking and running.",
+    bike = running and running.id == "rse" and "Mach and Acro Bikes." or "The bike.",
+    bikeRival = "Mach and Acro Bikes.",
+    surf = running and running.id == "rse" and "Surfing and diving." or "Surfing.",
+    surfRival = "Surfing.",
+    fishing = "Fishing.",
+    fieldMove = running and running.id == "rse" and "Field moves, watering." or "Field moves, VS Seeker.",
+    fieldMoveRival = "Field moves.",
+    fly = "Flying, and the bird.",
+    bag = "The bag.",
     battle = "The back pic and the throw.",
     front = running and running.id == "rse" and "Trainer card, Birch's intro." or "The trainer card.",
     frontRival = "The battle pic.",
     intro = "Oak's intro.",
     introRival = "Oak's intro, as his grandkid.",
     mapIcon = "The town map marker.",
-    extras = "Bag, surf blob, Fly bird.",
   }
 
   local function creditLines(key, lines)
@@ -1137,7 +1159,7 @@ function lens.init(mod)
   local function previewOf(character, look, rival)
     local keys, groups = mixedChain(running, character, look, rival)
     return { bases = basesFor(keys), frontBases = basesFor(groups.front or keys),
-      walkBases = basesFor(groups.overworld or keys), layout = running.id }
+      walkBases = basesFor(groups.walk or keys), layout = running.id }
   end
 
   -- A line saying more looks come with Prism Importer or another dump,

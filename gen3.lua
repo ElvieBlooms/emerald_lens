@@ -93,16 +93,21 @@ local EXTRAS = {
 -- overworld sprites with another's battle pics, say. lens.lua hands over
 -- a chain per kind (ctx.groups); a file not listed here, or a kind with
 -- no chain, goes through the look's own. -Elvie
-gen3.GROUPS = { "overworld", "battle", "front", "intro", "mapIcon", "extras" }
+gen3.GROUPS = { "walk", "bike", "surf", "fishing", "fieldMove", "fly", "battle", "front", "intro", "mapIcon", "bag" }
 gen3.GROUP_OF = {
+  ["walk.png"] = "walk", ["decorating.png"] = "walk",
+  ["bike.png"] = "bike", ["acroBike.png"] = "bike", ["vsSeekerBike.png"] = "bike",
+  ["surf.png"] = "surf", ["underwater.png"] = "surf", ["diveBlob.png"] = "surf",
+  ["surfBlob.png"] = "surf", ["surfOverlay.png"] = "surf",
+  ["fishing.png"] = "fishing",
+  ["fieldMove.png"] = "fieldMove", ["watering.png"] = "fieldMove",
+  ["flyBird.png"] = "fly", ["bird.png"] = "fly",
   ["front.png"] = "front", ["rivalEarly.png"] = "front", ["rivalLate.png"] = "front", ["rivalChampion.png"] = "front",
   ["back.png"] = "battle",
   ["intro.png"] = "intro",
   ["mapIcon.png"] = "mapIcon",
-  ["flyBird.png"] = "overworld", ["diveBlob.png"] = "overworld",
-  ["surfBlob.png"] = "extras", ["surfOverlay.png"] = "extras", ["bird.png"] = "extras", ["bag.png"] = "extras",
+  ["bag.png"] = "bag",
 }
-for _, state in ipairs(OW_STATES) do gen3.GROUP_OF[state.file] = "overworld" end
 
 local FRAME = 64 * 64 * 4 -- one 64x64 RGBA frame of the FRLG Fly sheet
 

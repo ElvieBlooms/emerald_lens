@@ -191,8 +191,9 @@ The look folder also needs a `meta.json` (label, character, genderMode, and
 someone else's, add their name under `"credit"` so it travels with the folder.
 A look that only covers part of the set (walking sprites and an intro, say)
 can name where the rest comes from with `"borrow"`, a character or a look's
-folder for everything (`"default"`) or for one kind of art (`"overworld"`,
-`"battle"`, `"front"`, `"intro"`, `"mapIcon"`, `"extras"`); see the mod README.
+folder for everything (`"default"`) or for one kind of art (`"walk"`, `"bike"`,
+`"surf"`, `"fishing"`, `"fieldMove"`, `"fly"`, `"battle"`, `"front"`, `"intro"`,
+`"mapIcon"`, `"bag"`, or `"overworld"` for the first six); see the mod README.
 Players can also mix looks themselves on the LENS screen (A on LOOK).
 The in-game **LENS** screen shows `credit` under the look (and in full on its
 CREDITS page),
