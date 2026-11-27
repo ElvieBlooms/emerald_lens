@@ -42,6 +42,30 @@ local WALK = {
 }
 local STEP_TIME, TURN_TIME = 8 / 60, 64 / 60
 
+-- On a MIX row the walker shows that kind of art (preview.sheet): its
+-- file and frame count in each game, base frame size, and what to play,
+-- turn by turn like WALK. Fishing casts and waits facing each way; the
+-- field move and Fly just play through.
+local CAST = function(f) return { f, f + 1, f + 2, f + 3, f + 2, f + 3, f + 2, f + 3 } end
+local SHEETS = {
+  bike = { file = "bike.png", frlg = 9, rse = 9, w = 32, h = 32, anim = WALK },
+  surf = { file = "surf.png", frlg = 12, rse = 12, w = 16, h = 32, anim = WALK },
+  fishing = { file = "fishing.png", frlg = 12, rse = 12, w = 32, h = 32,
+    anim = { CAST(8), CAST(0), CAST(4), (function() local t = CAST(0); t.flip = true; return t end)() } },
+  fieldMove = { file = "fieldMove.png", frlg = 9, rse = 5, w = 16, h = 32,
+    anim = { frlg = { { 0, 1, 2, 3, 4, 4, 4, 4 } }, rse = { { 0, 1, 2, 3, 4, 4, 4, 4 } } } },
+  fly = { frlg = { file = "flyBird.png", count = 2, w = 64, h = 64, anim = { { 0, 1 } } },
+    rse = { file = "bird.png", count = 1, w = 32, h = 32, anim = { { 0 } } } },
+}
+local function sheetFor(kind, layout)
+  local sheet = kind and SHEETS[kind]
+  if not sheet then return nil end
+  if sheet[layout] and type(sheet[layout]) == "table" and sheet[layout].file then sheet = sheet[layout] end
+  local anim = sheet.anim
+  if anim and anim[layout] then anim = anim[layout] end
+  return { file = sheet.file, count = sheet.count or sheet[layout], w = sheet.w, h = sheet.h, anim = anim }
+end
+
 local function engine(name)
   local ok, m = pcall(require, name)
   return ok and m or nil
@@ -78,6 +102,19 @@ local function loadFirst(mod, bases, file, ok, layout)
 end
 
 local function isFront(w, h) return w == 64 and h == 64 end
+-- any sheet: its frames at the game's size (16-wide ones may be 32), or
+-- bigger ones (gen3.bigFrames)
+local function sheetCheck(sheet)
+  return function(w, h, base, mod)
+    local frameH = h / sheet.count
+    if frameH == sheet.h and (w == sheet.w or (sheet.w == 16 and w == 32)) then return { frameH, 0 } end
+    local bigH, below
+    if gen3 and gen3.bigFrames then
+      bigH, below = gen3.bigFrames(mod, base, sheet.file, w, h, sheet.w, sheet.h, sheet.count)
+    end
+    return bigH and { bigH, below } or nil
+  end
+end
 -- { frame height, rows below the feet }: 32-tall frames, or bigger ones
 -- (gen3.bigFrames)
 local function isWalk(w, h, base, mod, layout)
@@ -98,14 +135,21 @@ function screen.new(mod, model)
   -- own chain -Elvie
   local function previewImages(preview)
     local fronts, walks = preview.frontBases or preview.bases, preview.walkBases or preview.bases
+    local sheet = sheetFor(preview.sheet, preview.layout)
     local key = (preview.frontFile or "") .. "|" .. table.concat(fronts, "|") .. "||" .. table.concat(walks, "|")
+      .. "|" .. (sheet and sheet.file or "walk.png")
     local got = images[key]
     if got == nil then
       got = {
         front = loadFirst(mod, fronts, preview.frontFile or "front.png", isFront, preview.layout)
           or (preview.frontFile and loadFirst(mod, fronts, "front.png", isFront, preview.layout)),
       }
-      got.walk, got.walkFrame = loadFirst(mod, walks, "walk.png", isWalk, preview.layout)
+      if sheet then
+        got.walk, got.walkFrame = loadFirst(mod, walks, sheet.file, sheetCheck(sheet), preview.layout)
+        got.anim = sheet.anim
+      else
+        got.walk, got.walkFrame = loadFirst(mod, walks, "walk.png", isWalk, preview.layout)
+      end
       images[key] = got
     end
     return got
@@ -284,12 +328,20 @@ function screen.new(mod, model)
     if got.walk then
       local w = got.walk:getWidth()
       local fh, below = got.walkFrame and got.walkFrame[1] or 32, got.walkFrame and got.walkFrame[2] or 0
-      local scale = at and (w <= 16 and 2 or 1) or WALK_SCALE
+      -- (anything wider than 32, Fly's 64-wide frames or big fishing
+      -- frames, at 1x so it stays in the window)
+      local scale = at and (w <= 16 and 2 or 1) or (w > 32 and 1 or WALK_SCALE)
       local x = at and at.walkX or WALK_X
       -- bigger frames keep the feet where a 32-tall frame's are
       local y = (at and (at.walkBottom - 32 * scale) or WALK_Y) - (fh - 32 - below) * scale
-      local turn = WALK[math.floor(clock / TURN_TIME) % #WALK + 1]
-      local frame = turn[math.floor(clock / STEP_TIME) % 4 + 1]
+      -- (and inside the window: Fly and big fishing frames reach further)
+      if not at then
+        y = math.min(y, WIN_BOTTOM - fh * scale)
+        if scale < WALK_SCALE then y = WIN_BOTTOM - 2 - fh * scale end
+      end
+      local anim = got.anim or WALK
+      local turn = anim[math.floor(clock / TURN_TIME) % #anim + 1]
+      local frame = turn[math.floor(clock / STEP_TIME) % #turn + 1]
       local quad = love.graphics.newQuad(0, frame * fh, w, fh, got.walk:getDimensions())
       if turn.flip then
         love.graphics.draw(got.walk, quad, x + w * scale / 2, y, 0, -scale, scale)

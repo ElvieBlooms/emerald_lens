@@ -846,7 +846,10 @@ do
   }
   version = "firered"
   options.characterFrlg = "RANGER"
+  local realScreen, model = package.loaded["mods.emerald_lens.lens_screen"], nil
+  package.loaded["mods.emerald_lens.lens_screen"] = { new = function(m, mdl) model = mdl return realScreen.new(m, mdl) end }
   dofile("lens.lua").init(mod)
+  package.loaded["mods.emerald_lens.lens_screen"] = realScreen
   local function same(a, b) return table.concat(a or {}, ",") == table.concat(b or {}, ",") end
   local ctx = ctxs[#ctxs]
   check(ctx and same(ctx.folderKeys, { "ranger", "ash" }), "MIX: borrow default: the rest from ASH: " .. table.concat(ctx and ctx.folderKeys or {}, ","))
@@ -924,6 +927,13 @@ do
   screen.handleInput(press("b"))
   screen.handleInput(press("b"))
   check(#layers == 0, "MIX: B again closes the screen")
+  -- an overworld MIX row previews that kind of art, through its own chain
+  local bike = model.preview("mix:bike")
+  local walk = model.preview("mix:walk")
+  check(bike.sheet == "bike" and bike.walkBases[1] == "assets/sprites/ranger/gen3/frlg/"
+    and walk.sheet == nil and walk.walkBases[1] == "assets/sprites/kris/gen3/frlg/",
+    "MIX: BIKE previews the bike, WALK the walker, each through its own chain")
+  check(model.preview("mix:battle").sheet == nil, "MIX: BATTLE keeps the walker")
   package.loaded["src.ui.game3.window"], package.loaded["src.ui.game3.frlg_font"] = nil, nil
   love = loveBefore
 

@@ -1138,6 +1138,9 @@ function lens.init(mod)
     mapIcon = "The town map marker.",
   }
 
+  -- the MIX rows whose kind the walker can show (lens_screen.lua SHEETS)
+  local MIX_SHEET = { bike = true, surf = true, fishing = true, fieldMove = true, fly = true }
+
   local function creditLines(key, lines)
     local credit = (metaFor[key] or {}).credit
     if type(credit) == "string" then credit = { credit } end
@@ -1217,6 +1220,11 @@ function lens.init(mod)
       end
       local p = previewOf(character, look, rival)
       if rival and f.id == "frlg" then p.frontFile = "rivalEarly.png" end
+      -- an overworld row's walker shows that kind of art, through its chain
+      if mixGroup ~= "walk" and MIX_SHEET[mixGroup] then
+        local keys, groups = mixedChain(running, character, look, rival)
+        p.sheet, p.walkBases = mixGroup, basesFor(groups[mixGroup] or keys)
+      end
       p.lines = lines
       return p
     end
