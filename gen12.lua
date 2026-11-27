@@ -470,6 +470,8 @@ function gen12.init(mod, ctx, family, opts)
       if front then out.shrink1, out.shrink2 = shrunk(front, 2), shrunk(front, 4) end
       if walk then out.introWalk = standing(walk, ww, wh) end
     end
+    -- the naming screen's header icon (Gen 2), standing facing down
+    if gen == 2 and walk then out.nameIcon = standing(walk, ww, wh) end
     out.back, out.backColour = picOf("back")
     local card = cardOf()
     if card then
@@ -590,6 +592,7 @@ function gen12.init(mod, ctx, family, opts)
   -- The rival's walk sheet as published, so the renderer the game makes
   -- for it walks with both steps like the player
   local rivalWalk
+  local rivalIcon -- standing facing down, for the naming screen
   local newRenderer = SpriteRenderer.new
   SpriteRenderer.new = function(def, ...)
     local r = newRenderer(def, ...)
@@ -618,7 +621,7 @@ function gen12.init(mod, ctx, family, opts)
   end
   local function applyRival()
     restoreRival()
-    rivalWalk = nil
+    rivalWalk, rivalIcon = nil, nil
     if #rivalBases == 0 then return end
     local game = liveGame()
     local data = game and game.data
@@ -654,6 +657,7 @@ function gen12.init(mod, ctx, family, opts)
       -- own renderer draws (SpriteRenderer.new below)
       local sheet = pick(walk, ww, wh, WALK_ORDER)
       rivalWalk = publish("rivalWalk", sheet, tag .. "walk.png")
+      if gen == 2 then rivalIcon = standing(walk, ww, wh) end
       setField(sprite, "image", rivalWalk)
       setField(sprite, "frames", #WALK_ORDER)
       setField(sprite, "frameWidth", ww)
@@ -874,6 +878,52 @@ function gen12.init(mod, ctx, family, opts)
           local draw = TrainerCard.emeraldLensPortrait
           if type(draw) == "function" and draw() then return end
           return own(self, ...)
+        end
+      end
+    end
+  end
+
+  -- Gen 2's naming screen shows who's being named in its header, cut as
+  -- one 16x16 Game Boy frame from the sprite's sheet, so the rival (and
+  -- the player) showed only their top left corner. With a look it draws
+  -- the look's standing frame whole, in its own colours, in the space
+  -- left of the prompt (tiles 1-4 of the header)
+  local function nameIcon(kind, gender)
+    if kind == "rival" then return rivalIcon end
+    if kind == "player" and live and live.nameIcon and replaces(gender == "female") then return live.nameIcon end
+    return nil
+  end
+  if gen == 2 then
+    local okNs, NamingScreen = pcall(require, "src.ui.gen2.NamingScreen")
+    if okNs and type(NamingScreen) == "table" and type(NamingScreen.new) == "function"
+        and type(NamingScreen.drawPanel) == "function" then
+      NamingScreen.emeraldLensIcon = nameIcon
+      if not NamingScreen.emeraldLensWrapped then
+        NamingScreen.emeraldLensWrapped = true
+        local new, drawPanel = NamingScreen.new, NamingScreen.drawPanel
+        NamingScreen.new = function(game, opts, ...)
+          local self = new(game, opts, ...)
+          local find = NamingScreen.emeraldLensIcon
+          if type(self) == "table" and type(opts) == "table" and type(find) == "function" then
+            local ok, icon = pcall(find, opts.type, opts.gender)
+            self.emeraldLensIcon = ok and icon or nil
+          end
+          return self
+        end
+        NamingScreen.drawPanel = function(self, ...)
+          local icon = type(self) == "table" and self.emeraldLensIcon
+          if not icon then return drawPanel(self, ...) end
+          local own = self.iconImage
+          self.iconImage = nil
+          local ok, err = pcall(drawPanel, self, ...)
+          self.iconImage = own
+          if not ok then error(err, 0) end
+          local x, y = 24 - math.floor(icon.w / 2), 44 - icon.feet
+          if PaletteFX and type(PaletteFX.markTrueColor) == "function" then
+            pcall(PaletteFX.markTrueColor, x, y, icon.w, icon.h)
+          end
+          love.graphics.setColor(1, 1, 1, 1)
+          love.graphics.draw(icon.image, x, y)
         end
       end
     end
