@@ -1,5 +1,5 @@
 # Emerald Lens
-A player sprite mod for gen1recomp: FireRed, LeafGreen, Ruby, Sapphire and Emerald, and Red, Blue, Yellow, Gold, Silver and Crystal. Needs gen1recomp 0.3.98 or newer.
+A player sprite mod for gen1recomp: FireRed, LeafGreen, Ruby, Sapphire and Emerald, and Red, Blue, Yellow, Gold, Silver and Crystal. Needs gen1recomp 0.4.8 or newer.
 
 <img width="960" height="641" alt="Kris" src="https://github.com/user-attachments/assets/ed42d94d-aaf5-41b7-b022-cbf9bb71f996" />
 <img width="1022" height="676" alt="krisfrlgow1" src="https://github.com/user-attachments/assets/fc2a50e5-a031-4e75-b665-75286d963de0" />
