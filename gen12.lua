@@ -897,13 +897,15 @@ function gen12.init(mod, ctx, family, opts)
     local okNs, NamingScreen = pcall(require, "src.ui.gen2.NamingScreen")
     if okNs and type(NamingScreen) == "table" and type(NamingScreen.new) == "function"
         and type(NamingScreen.drawPanel) == "function" then
-      NamingScreen.emeraldLensIcon = nameIcon
+      -- (on the class, under a name of its own: a screen's fields fall back
+      -- to the class's, so a screen with no icon found the finder there)
+      NamingScreen.emeraldLensFindIcon = nameIcon
       if not NamingScreen.emeraldLensWrapped then
         NamingScreen.emeraldLensWrapped = true
         local new, drawPanel = NamingScreen.new, NamingScreen.drawPanel
         NamingScreen.new = function(game, opts, ...)
           local self = new(game, opts, ...)
-          local find = NamingScreen.emeraldLensIcon
+          local find = NamingScreen.emeraldLensFindIcon
           if type(self) == "table" and type(opts) == "table" and type(find) == "function" then
             local ok, icon = pcall(find, opts.type, opts.gender)
             self.emeraldLensIcon = ok and icon or nil
@@ -911,8 +913,8 @@ function gen12.init(mod, ctx, family, opts)
           return self
         end
         NamingScreen.drawPanel = function(self, ...)
-          local icon = type(self) == "table" and self.emeraldLensIcon
-          if not icon then return drawPanel(self, ...) end
+          local icon = type(self) == "table" and rawget(self, "emeraldLensIcon")
+          if type(icon) ~= "table" then return drawPanel(self, ...) end
           local own = self.iconImage
           self.iconImage = nil
           local ok, err = pcall(drawPanel, self, ...)
