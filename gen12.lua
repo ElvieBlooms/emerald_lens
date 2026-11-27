@@ -856,19 +856,27 @@ function gen12.init(mod, ctx, family, opts)
     love.graphics.draw(card, x, y)
     return true
   end
-  if gen == 2 and opts.ownCard and mod.content and mod.content.screens then
-    mod.content.screens:register("Gen2TrainerCard", {
-      new = function(game, screenOpts)
-        local TrainerCard = require("src.ui.gen2.TrainerCard")
-        local instance = TrainerCard.new(game, screenOpts)
-        local own = instance.drawPortrait
-        instance.drawPortrait = function(self, ...)
-          if drawCard() then return end
+  -- This used to register a Gen2TrainerCard screen of its own, but the
+  -- screens registry lets only one mod register a screen, and the second
+  -- one's load fails. WoobOS 0.28 registers it for its own card, which
+  -- took the whole mod down. Wrapping the card's drawPortrait leaves the
+  -- screen to whoever wants it, and any card built from the game's own
+  -- class still gets the look
+  if gen == 2 and opts.ownCard then
+    local okTc, TrainerCard = pcall(require, "src.ui.gen2.TrainerCard")
+    if okTc and type(TrainerCard) == "table" and type(TrainerCard.drawPortrait) == "function" then
+      -- wrapped once; each load hands it this load's drawCard
+      TrainerCard.emeraldLensPortrait = drawCard
+      if not TrainerCard.emeraldLensWrapped then
+        local own = TrainerCard.drawPortrait
+        TrainerCard.emeraldLensWrapped = true
+        TrainerCard.drawPortrait = function(self, ...)
+          local draw = TrainerCard.emeraldLensPortrait
+          if type(draw) == "function" and draw() then return end
           return own(self, ...)
         end
-        return instance
-      end,
-    })
+      end
+    end
   end
 
   -- The player's lines (player_text.lua) for a girl or enby look, kept
